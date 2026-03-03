@@ -8,8 +8,8 @@
 - **Frontend:** Next.js 14, React, CSS-in-JS (styled-jsx global)
 - **Backend:** Next.js API Routes + Anthropic Claude API
 - **Data:** JSON files ב-`data/` (מתעדכנים ע"י Scout)
-- **Scout:** Python 3 + httpx, רץ על Render
-- **Deploy:** Vercel (אתר) + Render (Scout)
+- **Scout:** Python 3 + httpx, רץ על Railway (Cron Job)
+- **Deploy:** Railway (אתר + Scout)
 - **Font:** Heebo מ-Google Fonts
 - **Language:** עברית, RTL מלא, `dir="rtl"` על root
 
@@ -28,6 +28,8 @@ pip install httpx  # התקנת dependencies של ה-Scout
 magen/
 ├── CLAUDE.md              # הקובץ הזה
 ├── package.json
+├── railway.json           # קונפיגורציה ל-Railway (web)
+├── Procfile               # start command
 ├── pages/
 │   ├── index.js           # עמוד ראשי — 4 סעיפים
 │   └── api/
@@ -98,15 +100,14 @@ magen/
 **עיקרון:** אקטיבי לגמרי — מציע זכויות שאולי לא ידועות, שואל על המצב, לא מחכה שישאלו.
 **פרטיות:** כל שיחה מאופסת. אין שמירה. מוצג בבנר "שיחה זו היא פרטית לחלוטין".
 
-## משתני סביבה נדרשים
+## משתני סביבה נדרשים (Railway)
 ```
-# Vercel (האתר)
+# שני השירותים (web + scout) — משותף
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Render (ה-Scout)
-ANTHROPIC_API_KEY=sk-ant-...
+# Scout בלבד
 GIT_TOKEN=ghp_...          # GitHub Personal Access Token (scope: repo)
-GIT_REPO_URL=https://github.com/USER/magen.git
+GIT_REPO_URL=https://github.com/mordeshen/magen.git
 GIT_USER_NAME=scout-bot
 GIT_USER_EMAIL=scout@magen.app
 TELEGRAM_BOT_TOKEN=...     # אופציונלי

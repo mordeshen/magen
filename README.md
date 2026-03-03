@@ -1,16 +1,13 @@
-# 🛡️ מגן — מרכז זכויות פצועי צה"ל
+# מגן — מרכז זכויות פצועי צה"ל
 
 ## Claude Code
 
 פרויקט זה בנוי לעבודה עם **Claude Code**.
 
 ```bash
-# עבודה עם Claude Code:
 cd magen
 claude  # מפעיל Claude Code, קורא את CLAUDE.md אוטומטית
 ```
-
-Claude Code יקרא את `CLAUDE.md` בכל שיחה — כולל stack, schema, כללי עיצוב.
 
 ---
 
@@ -18,42 +15,47 @@ Claude Code יקרא את `CLAUDE.md` בכל שיחה — כולל stack, schema
 
 | סעיף | תוכן |
 |------|------|
-| זכויות | 9+ זכויות + חיפוש + סינון |
+| זכויות | 12 זכויות + חיפוש + סינון |
 | אירועים | לוח + מיון לפי **מארגן** + עיר + קטגוריה |
 | עדכונים | נסרקים אוטומטית פעמיים ביום |
 | יועץ AI | **עו"ד + עו"ס + פסיכולוג** + בנר פרטיות |
 
 ---
 
-## דיפלוי — 3 שלבים
+## דיפלוי — Railway (הכל במקום אחד)
 
-### 1. GitHub
-```bash
-git init && git add . && git commit -m "init magen"
-# צור repo: github.com/new → magen
-git remote add origin https://github.com/YOUR/magen.git
-git push -u origin main
+### 1. GitHub (כבר מוכן)
+```
+https://github.com/mordeshen/magen.git
 ```
 
-### 2. Vercel (האתר)
-1. [vercel.com](https://vercel.com) → Import → `magen`
-2. Framework: Next.js (אוטומטי)
-3. Env: `ANTHROPIC_API_KEY=sk-ant-...`
-4. Deploy ✅
+### 2. Railway — שירות Web (האתר)
+1. [railway.com](https://railway.app) → New Project → Deploy from GitHub → `mordeshen/magen`
+2. Railway יזהה Next.js אוטומטית
+3. הגדר Environment Variable:
 
-### 3. Render (ה-Scout)
-1. [render.com](https://render.com) → Background Worker → Repo: `magen`
-2. Build: `pip install httpx`
-3. Start: `python scheduler.py`
-4. Env vars:
+| Key | Value |
+|-----|-------|
+| `ANTHROPIC_API_KEY` | מפתח Anthropic |
+| `PORT` | `3000` |
+
+4. Deploy → האתר עולה עם דומיין `*.up.railway.app`
+
+### 3. Railway — Cron Job (ה-Scout)
+1. באותו Project → New Service → GitHub Repo → `mordeshen/magen`
+2. שנה את סוג השירות ל-**Cron Job**
+3. Cron Schedule: `0 5,15 * * *` (= 08:00 + 18:00 שעון ישראל)
+4. Build Command: `pip install -r requirements.txt`
+5. Start Command: `python scout.py`
+6. Env vars:
 
 | Key | Value |
 |-----|-------|
 | `ANTHROPIC_API_KEY` | מפתח Anthropic |
 | `GIT_TOKEN` | GitHub PAT (scope: repo) |
-| `GIT_REPO_URL` | `https://github.com/YOUR/magen.git` |
-| `GIT_USER_NAME` | שם משתמש |
-| `GIT_USER_EMAIL` | אימייל |
+| `GIT_REPO_URL` | `https://github.com/mordeshen/magen.git` |
+| `GIT_USER_NAME` | `scout-bot` |
+| `GIT_USER_EMAIL` | `scout@magen.app` |
 | `TELEGRAM_BOT_TOKEN` | (אופציונלי) |
 | `TELEGRAM_CHAT_ID` | (אופציונלי) |
 
@@ -71,4 +73,4 @@ claude
 ---
 
 ## עלויות
-Vercel + Render + GitHub = **חינם** | Claude API = **~$1-2/חודש**
+Railway + GitHub = **חינם (Hobby tier)** | Claude API = **~$1-2/חודש**

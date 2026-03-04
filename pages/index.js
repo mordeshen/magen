@@ -848,8 +848,8 @@ export default function Home({ rights, updates, events }) {
     { id:"updates", icon:"◎", label:"עדכונים", badge: updates.length||null },
   ];
 
-  // SVG favicon (heart + shield)
-  const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e8734a"/><stop offset="100%" stop-color="#f4a24e"/></linearGradient></defs><path d="M32 58 C20 48 6 38 6 24 C6 14 14 6 24 6 C28 6 30 8 32 10 C34 8 36 6 40 6 C50 6 58 14 58 24 C58 38 44 48 32 58Z" fill="url(#g)"/><path d="M32 22 L38 31 L26 31 Z" fill="rgba(255,255,255,0.35)"/><path d="M32 38 L26 29 L38 29 Z" fill="rgba(255,255,255,0.35)"/></svg>`)}`;
+  // SVG favicon (shield)
+  const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#f4a24e"/><stop offset="100%" stop-color="#e8734a"/></linearGradient></defs><path d="M32 4 L56 14 L56 30 C56 44 46 54 32 60 C18 54 8 44 8 30 L8 14 Z" fill="url(#g)"/><path d="M32 8 L52 16 L52 30 C52 42 44 51 32 56 C20 51 12 42 12 30 L12 16 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/></svg>`)}`;
 
   return (
     <>
@@ -868,10 +868,9 @@ export default function Home({ rights, updates, events }) {
           <div className="logo">
             <div className="logo-icon-row">
               <svg className="logo-svg" viewBox="0 0 36 36" width="32" height="32">
-                <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#e8734a"/><stop offset="100%" stopColor="#f4a24e"/></linearGradient></defs>
-                <path d="M18 32 C12 27 4 21 4 14 C4 9 8 4 14 4 C16 4 17 5 18 6.5 C19 5 20 4 22 4 C28 4 32 9 32 14 C32 21 24 27 18 32Z" fill="url(#lg)"/>
-                <path d="M18 13 L21 18.5 L15 18.5 Z" fill="rgba(255,255,255,0.3)"/>
-                <path d="M18 23 L15 17.5 L21 17.5 Z" fill="rgba(255,255,255,0.3)"/>
+                <defs><linearGradient id="lg" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stopColor="#f4a24e"/><stop offset="100%" stopColor="#e8734a"/></linearGradient></defs>
+                <path d="M18 2 L32 8 L32 17 C32 25 26 31 18 34 C10 31 4 25 4 17 L4 8 Z" fill="url(#lg)"/>
+                <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
               </svg>
               <div className="logo-main">מגן<span className="logo-en">MAGEN</span></div>
             </div>

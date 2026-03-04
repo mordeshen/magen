@@ -11,7 +11,7 @@
     "description": "הקרנת סרט במסגרת מועדון הקולנוע החודשי. כניסה חופשית לחברי הבית.",
     "registration": null,
     "free": true,
-    "link": "https://bh-j.inz.org.il/"
+    "link": null
   },
   {
     "id": "ev-20260305-teatro-tla",
@@ -25,7 +25,7 @@
     "description": "מעוניינים לעלות על הבמה? קבוצת תיאטרון ייצוגי איכותית. יש להכין קטע משחק קצר.",
     "registration": "052-5273506",
     "free": true,
-    "link": "https://bh-tla.inz.org.il/"
+    "link": null
   },
   {
     "id": "ev-20260310-modaut-h",
@@ -39,7 +39,7 @@
     "description": "קורס רב-מפגשי בתחומי המודעות וההתפתחות האישית. מתאים לכלל הגילאים.",
     "registration": "04-8590859",
     "free": false,
-    "link": "https://bh-h.inz.org.il/"
+    "link": null
   },
   {
     "id": "ev-20260315-safari-aretz",
@@ -53,7 +53,7 @@
     "description": "טיולי שטח ברכבי שטח עם נהגים מקצועיים, בשיתוף חברת סמלת. חוויה בטבע לשחרור ויציאה מהשגרה.",
     "registration": "דרך בית הלוחם הקרוב",
     "free": true,
-    "link": "https://www.inz.org.il/"
+    "link": null
   },
   {
     "id": "ev-20260320-kariera-bs",
@@ -67,7 +67,7 @@
     "description": "גילוי כישורים, בחירת כיוון מקצועי, הכנה לשוק העבודה. 5 מפגשים, 80 ₪ בלבד.",
     "registration": "08-6234444",
     "free": false,
-    "link": "https://www.inz.org.il/"
+    "link": null
   },
   {
     "id": "ev-20260401-shikum-hadag",
@@ -81,6 +81,6 @@
     "description": "סדנאות גוף ונפש, מעגלי שיח, פעילות חקלאית שיקומית. תכנית מיוחדת לפצועי 7.10.",
     "registration": "*6500",
     "free": true,
-    "link": "https://mod.gov.il/"
+    "link": null
   }
 ]

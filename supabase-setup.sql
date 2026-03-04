@@ -107,3 +107,7 @@ CREATE POLICY "Anyone can insert feedback" ON feedback
 -- רק מנהלים יכולים לקרוא (דרך service role)
 CREATE POLICY "No one can read feedback via anon" ON feedback
   FOR SELECT USING (false);
+
+-- 6b. עמודות קשר לפידבק (להריץ אם הטבלה כבר קיימת)
+-- ALTER TABLE feedback ADD COLUMN IF NOT EXISTS contact_email TEXT;
+-- ALTER TABLE feedback ADD COLUMN IF NOT EXISTS contact_phone TEXT;

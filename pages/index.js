@@ -386,6 +386,8 @@ function ProfileView({ rights }) {
 function FeedbackModal({ open, onClose }) {
   const { user } = useUser();
   const [text, setText] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -399,10 +401,14 @@ function FeedbackModal({ open, onClose }) {
       await supabase.from("feedback").insert({
         user_id: user?.id || null,
         message: text.trim(),
+        contact_email: email.trim() || null,
+        contact_phone: phone.trim() || null,
         page: typeof window !== "undefined" ? window.location.pathname : null,
       });
       setSent(true);
       setText("");
+      setEmail("");
+      setPhone("");
     } catch {}
     setSending(false);
   }
@@ -430,6 +436,11 @@ function FeedbackModal({ open, onClose }) {
               className="feedback-textarea"
               rows={4}
             />
+            <div className="feedback-contact">
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="מייל (אופציונלי)" className="settings-input feedback-input" type="email"/>
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="טלפון (אופציונלי)" className="settings-input feedback-input" dir="ltr"/>
+            </div>
+            <p style={{ color: "#556070", fontSize: 11.5, marginTop: 4 }}>השאר פרטים אם תרצה שנחזור אליך</p>
             <div className="settings-actions">
               <button className="save-btn" onClick={handleSend} disabled={sending || !text.trim()}>
                 {sending ? "שולח..." : "שלח"}
@@ -643,6 +654,8 @@ function Chat({ rights, events }) {
         payload.userProfile = {
           name: profile.name,
           city: profile.city,
+          claim_status: profile.claim_status,
+          claim_stage: profile.claim_stage,
           disability_percent: profile.disability_percent,
           interests: profile.interests,
         };
@@ -1125,6 +1138,8 @@ export default function Home({ rights, updates, events }) {
         }
         .feedback-textarea:focus { border-color:#f4a24e; }
         .feedback-textarea::placeholder { color:#556070; }
+        .feedback-contact { display:flex; gap:8px; margin-top:10px; }
+        .feedback-input { flex:1; padding:8px 12px !important; font-size:13px !important; }
 
         /* User top avatar */
         .user-top-btn {

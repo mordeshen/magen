@@ -811,6 +811,7 @@ function Chat({ rights, events }) {
 
 export default function Home({ rights, updates, events }) {
   const [view,      setView]      = useState("chat");
+  const [menuOpen,  setMenuOpen]  = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [openId,    setOpenId]    = useState(null);
   const [rCat,      setRCat]      = useState("הכל");
@@ -863,7 +864,48 @@ export default function Home({ rights, updates, events }) {
 
       <div className="root" dir="rtl">
 
-        {/* ── Sidebar ── */}
+        {/* ── Mobile Header ── */}
+        <div className="mobile-header">
+          <div className="logo-icon-row">
+            <svg className="logo-svg" viewBox="0 0 36 36" width="24" height="24">
+              <defs><linearGradient id="mlg" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stopColor="#f4a24e"/><stop offset="100%" stopColor="#e8734a"/></linearGradient></defs>
+              <path d="M18 2 L32 8 L32 17 C32 25 26 31 18 34 C10 31 4 25 4 17 L4 8 Z" fill="url(#mlg)"/>
+              <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
+            </svg>
+            <div className="logo-main">מגן<span className="logo-en">MAGEN</span></div>
+          </div>
+          <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="פתח תפריט">
+            <span/><span/><span/>
+          </button>
+        </div>
+
+        {/* ── Mobile Overlay ── */}
+        {menuOpen && <div className="mobile-overlay" onClick={() => setMenuOpen(false)}/>}
+
+        {/* ── Mobile Side Menu ── */}
+        <div className={`mobile-menu ${menuOpen ? "open" : ""}`}>
+          <button className="mobile-menu-close" onClick={() => setMenuOpen(false)}>✕</button>
+          <nav className="mobile-nav">
+            {NAV.map(n => (
+              <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={() => { setView(n.id); setMenuOpen(false); }}>
+                <span className="nav-icon">{n.icon}</span>
+                <span className="nav-lbl">{n.label}</span>
+                {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+              </button>
+            ))}
+          </nav>
+          <div className="mobile-menu-profile">
+            <SidebarProfile rights={rights} />
+          </div>
+          <div className="mobile-menu-footer">
+            <a href="tel:*6500" className="hotline">📞 מוקד פצועים <strong>*6500</strong></a>
+            <a href="tel:*8944" className="hotline red">🆘 נפש אחת <strong>*8944</strong></a>
+            <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="hotline">🌐 אגף השיקום</a>
+            <button className="hotline feedback-btn" onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}>💬 רעיונות לשימור/שיפור?</button>
+          </div>
+        </div>
+
+        {/* ── Sidebar (desktop) ── */}
         <aside className="sidebar">
           <div className="logo">
             <div className="logo-icon-row">
@@ -1449,22 +1491,69 @@ export default function Home({ rights, updates, events }) {
         .chat-send:disabled { background:#1e2835; cursor:not-allowed; transform:none; box-shadow:none; }
         .chat-disclaimer { font-size:11.5px; color:#556070; text-align:center; }
 
+        /* ── Mobile Header (hidden on desktop) ── */
+        .mobile-header { display:none; }
+        .mobile-overlay { display:none; }
+        .mobile-menu { display:none; }
+
         /* ── Mobile ── */
         @media (max-width:760px) {
           .root { flex-direction:column; }
-          .sidebar {
-            width:100%; height:auto; position:static; flex-direction:row;
-            flex-wrap:wrap; padding:12px 14px; gap:6px; border-left:none;
-            border-bottom:1px solid #1e2835;
+          .sidebar { display:none; }
+
+          /* Mobile header */
+          .mobile-header {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:12px 16px; background:#111820; border-bottom:1px solid #1e2835;
+            position:sticky; top:0; z-index:90;
           }
-          .logo { margin-bottom:0; }
-          .logo-icon-row { gap:6px; }
-          .logo-svg { width:24px; height:24px; }
-          nav { flex-direction:row; flex:none; }
-          .nav-btn { padding:8px 10px; font-size:12.5px; }
-          .nav-btn:hover { transform:none; }
-          .sb-profile-zone { border:none; padding:6px 0; margin-bottom:0; }
-          .sb-footer { flex-direction:row; border-top:none; padding-top:0; }
+          .mobile-header .logo-icon-row { gap:8px; }
+          .mobile-header .logo-main { font-size:22px; }
+
+          /* Hamburger button */
+          .hamburger-btn {
+            display:flex; flex-direction:column; justify-content:center; gap:5px;
+            width:36px; height:36px; padding:8px 6px; border:1px solid #1e2835;
+            border-radius:8px; background:transparent; cursor:pointer;
+          }
+          .hamburger-btn span {
+            display:block; height:2px; background:#8a95a7; border-radius:2px;
+            transition:all .2s ease;
+          }
+          .hamburger-btn:hover span { background:#d0d8e4; }
+
+          /* Overlay */
+          .mobile-overlay {
+            display:block; position:fixed; inset:0; background:rgba(0,0,0,.55);
+            z-index:200; animation:fadeIn .2s ease;
+          }
+
+          /* Side menu */
+          .mobile-menu {
+            display:flex; flex-direction:column; position:fixed; top:0; right:0;
+            width:280px; max-width:85vw; height:100vh; background:#111820;
+            border-left:1px solid #1e2835; z-index:210; padding:24px 16px;
+            transform:translateX(100%); transition:transform .3s ease;
+            overflow-y:auto;
+          }
+          .mobile-menu.open { transform:translateX(0); }
+
+          .mobile-menu-close {
+            align-self:flex-start; background:transparent; border:none;
+            color:#8a95a7; font-size:22px; cursor:pointer; padding:4px 8px;
+            margin-bottom:16px; border-radius:6px; transition:all .2s ease;
+          }
+          .mobile-menu-close:hover { color:#eef1f6; background:rgba(255,255,255,.05); }
+
+          .mobile-nav { display:flex; flex-direction:column; gap:4px; margin-bottom:16px; }
+          .mobile-nav .nav-btn { font-size:14px; padding:12px 14px; }
+
+          .mobile-menu-profile { border-top:1px solid #1e2835; padding-top:14px; margin-bottom:14px; }
+          .mobile-menu-footer {
+            border-top:1px solid #1e2835; padding-top:14px; margin-top:auto;
+            display:flex; flex-direction:column; gap:6px;
+          }
+
           .main { padding:20px 16px; }
           .pg-hdr h1 { font-size:24px; }
           .ev-grid { grid-template-columns:1fr; }

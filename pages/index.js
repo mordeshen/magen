@@ -819,7 +819,7 @@ function TermsView() {
       <div className="terms-content">
         <div className="terms-section">
           <h3>כללי</h3>
-          <p>אתר "מגן" הוא פורטל מידע ציבורי המיועד לפצועי צה"ל ולבני משפחותיהם. השימוש באתר מהווה הסכמה לתנאים המפורטים להלן.</p>
+          <p>אתר "שיט.קום" הוא פורטל מידע ציבורי המיועד לפצועי צה"ל ולבני משפחותיהם. השימוש באתר מהווה הסכמה לתנאים המפורטים להלן.</p>
         </div>
 
         <div className="terms-section">
@@ -1280,7 +1280,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
         <div className="chat-hdr">
           <div className="chat-ava">{curHat.icon}</div>
           <div>
-            <div className="chat-name">{curHat.name} — מגן</div>
+            <div className="chat-name">{curHat.name} — שיט.קום</div>
             <div className="chat-sub">{curHat.desc}</div>
           </div>
           <div className="chat-online">● מחובר</div>
@@ -1879,7 +1879,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   return (
     <>
       <Head>
-        <title>מגן — זכויות פצועי צה״ל</title>
+        <title>שיט.קום — זכויות פצועי צה״ל</title>
         <meta name="viewport" content="width=device-width,initial-scale=1"/>
         <meta name="description" content="מרכז זכויות, אירועים ויועץ AI לפצועי צה״ל"/>
         <link rel="icon" href={faviconSvg} type="image/svg+xml"/>
@@ -1896,7 +1896,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
               <path d="M18 2 L32 8 L32 17 C32 25 26 31 18 34 C10 31 4 25 4 17 L4 8 Z" fill="url(#mlg)"/>
               <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
             </svg>
-            <div className="logo-main">מגן<span className="logo-en">MAGEN</span></div>
+            <div className="logo-main">שיט<span className="logo-en">.קום</span></div>
           </div>
           <button className="hamburger-btn" onClick={() => setMenuOpen(true)} aria-label="פתח תפריט">
             <span/><span/><span/>
@@ -1944,6 +1944,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
               <path d="M18 2 L32 8 L32 17 C32 25 26 31 18 34 C10 31 4 25 4 17 L4 8 Z" fill="url(#lg)"/>
               <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
             </svg>
+            <div className="logo-mini-text">שיט.קום</div>
           </div>
 
           <nav>
@@ -2118,7 +2119,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           display:flex; flex-direction:column; align-items:center; padding:16px 8px;
           position:sticky; top:0; height:100vh; overflow:visible; z-index:100;
         }
-        .logo-mini { margin-bottom:20px; display:flex; align-items:center; justify-content:center; }
+        .logo-mini { margin-bottom:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
+        .logo-mini-text { font-size:9px; font-weight:700; color:#e8734a; letter-spacing:.5px; }
         .logo-icon-row { display:flex; align-items:center; gap:10px; }
         .logo-svg { flex-shrink:0; }
         .logo-main { font-size:30px; font-weight:900; color:#e8734a; letter-spacing:-1px; line-height:1; }
@@ -2632,9 +2634,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           display:flex; align-items:center; gap:14px;
           background:rgba(78,203,138,.08); border:1px solid rgba(78,203,138,.2);
           border-radius:12px; padding:14px 18px; font-size:13.5px; color:#8dd4a8; line-height:1.6;
-          animation:bannerFade 15s ease-in-out forwards;
+          overflow:hidden;
+          animation:bannerFade 18s ease-in-out forwards;
         }
-        @keyframes bannerFade { 0%,80%{opacity:1} 100%{opacity:0; pointer-events:none;} }
+        @keyframes bannerFade {
+          0%,70% { opacity:1; max-height:100px; padding:14px 18px; margin-bottom:0; }
+          85% { opacity:0; max-height:100px; padding:14px 18px; }
+          100% { opacity:0; max-height:0; padding:0 18px; margin-bottom:0; border-width:0; pointer-events:none; }
+        }
         .prv-icon { font-size:18px; flex-shrink:0; }
         .prv-close { margin-right:auto; background:transparent; border:none; color:#8a95a7; cursor:pointer; font-size:16px; padding:2px 6px; transition:.2s; }
         .prv-close:hover { color:#eef1f6; }

@@ -149,6 +149,8 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
     return () => document.removeEventListener("mousedown", handleClick);
   }, [popupOpen]);
 
+  const inProgressCount = Object.values(userRights).filter(s => s === "in_progress").length;
+
   // ── Mini mode (desktop sidebar) ──
   if (mini) {
     if (!user) {
@@ -166,17 +168,43 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
 
     return (
       <div className="sb-avatar-wrap" ref={popupRef}>
-        <button className="sb-mini-avatar" onClick={() => setPopupOpen(!popupOpen)}>
+        <button className="sb-mini-avatar" onMouseEnter={() => setPopupOpen(true)} onClick={() => setPopupOpen(!popupOpen)}>
           {avatar ? <img src={avatar} alt="" /> : <span>{displayName[0]}</span>}
         </button>
         {popupOpen && (
-          <div className="sb-popup">
+          <div className="sb-popup" onMouseLeave={() => setPopupOpen(false)}>
             <div className="sb-popup-header">
               <div className="profile-avatar">
                 {avatar ? <img src={avatar} alt="" /> : <span>{displayName[0]}</span>}
               </div>
-              <div className="profile-name">{displayName}</div>
+              <div>
+                <div className="profile-name">{displayName}</div>
+                {profile?.city && <div className="sb-popup-detail">📍 {profile.city}</div>}
+              </div>
             </div>
+
+            {profile?.claim_status === "before_recognition" && profile?.claim_stage && (
+              <div className="sb-popup-status">📋 {profile.claim_stage}</div>
+            )}
+            {profile?.claim_status === "after_recognition" && profile?.disability_percent != null && (
+              <div className="sb-popup-status">אחוזי נכות: {profile.disability_percent}%</div>
+            )}
+
+            <div className="sb-popup-stats">
+              <div className="sb-popup-stat">
+                <span className="sb-popup-stat-num done">{completedRights}</span>
+                <span className="sb-popup-stat-label">מומשו</span>
+              </div>
+              <div className="sb-popup-stat">
+                <span className="sb-popup-stat-num prog">{inProgressCount}</span>
+                <span className="sb-popup-stat-label">בתהליך</span>
+              </div>
+              <div className="sb-popup-stat">
+                <span className="sb-popup-stat-num">{notStarted}</span>
+                <span className="sb-popup-stat-label">לא התחילו</span>
+              </div>
+            </div>
+
             <div className="progress-section">
               <div className="progress-label">מימוש זכויות: {completedRights}/{totalRights}</div>
               <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressPct}%` }}/></div>
@@ -1220,7 +1248,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
       {banner && (
         <div className="privacy-banner">
           <span className="prv-icon">🔒</span>
-          <span>שיחה זו היא <strong>פרטית לחלוטין</strong> — המידע שתשתף לא נשמר בשרת, לא מועבר ולא מזוהה.</span>
+          <span>שיחה זו היא <strong>פרטית ומאובטחת</strong> — המידע שלך לא מועבר לצד שלישי ולא מזוהה.</span>
           <button className="prv-close" onClick={() => setBanner(false)}>✕</button>
         </div>
       )}
@@ -1903,6 +1931,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           </div>
         </div>
 
+        {/* ── Fixed avatar (top-left corner, desktop only) ── */}
+        <div className="fixed-avatar-wrap">
+          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} onProfile={() => setView("profile")} />
+        </div>
+
         {/* ── Sidebar (desktop) — mini icon-only ── */}
         <aside className="sidebar">
           <div className="logo-mini">
@@ -1912,8 +1945,6 @@ export default function Home({ rights, updates, events, legalStages, committeePr
               <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
             </svg>
           </div>
-
-          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} />
 
           <nav>
             {NAV.map(n => (
@@ -1933,9 +1964,6 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         {/* ── Main ── */}
         <main className="main">
-
-          {/* User avatar top bar */}
-          <UserTopBar onProfile={() => setView("profile")} />
 
           {/* PROFILE */}
           {view==="profile" && <ProfileView rights={rights} onNavigateToRight={(rightId) => {
@@ -2075,6 +2103,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
         body { background:#0c1018; color:#eef1f6; font-family:'Heebo',sans-serif; letter-spacing:.2px; }
         ::selection { background:rgba(244,162,78,.3); color:#fff; }
+        * { scrollbar-width:thin; scrollbar-color:#2a3545 transparent; }
+        *::-webkit-scrollbar { width:6px; height:6px; }
+        *::-webkit-scrollbar-track { background:transparent; }
+        *::-webkit-scrollbar-thumb { background:#2a3545; border-radius:3px; }
+        *::-webkit-scrollbar-thumb:hover { background:#3a4555; }
 
         /* ── Layout ── */
         .root { display:flex; min-height:100vh; }
@@ -2083,7 +2116,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .sidebar {
           width:64px; flex-shrink:0; background:#111820; border-left:1px solid #1e2835;
           display:flex; flex-direction:column; align-items:center; padding:16px 8px;
-          position:sticky; top:0; height:100vh; overflow-y:auto;
+          position:sticky; top:0; height:100vh; overflow:visible; z-index:100;
         }
         .logo-mini { margin-bottom:20px; display:flex; align-items:center; justify-content:center; }
         .logo-icon-row { display:flex; align-items:center; gap:10px; }
@@ -2103,12 +2136,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .nav-btn.active .nav-icon { opacity:1; }
         .nav-lbl { display:none; }
 
-        /* Tooltip for nav buttons */
+        /* Tooltip for nav buttons (RTL — tooltip appears to the left, towards content) */
         .nav-btn::after {
           content:attr(data-tooltip); position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
           background:#1e2835; color:#eef1f6; font-size:12.5px; font-weight:600; padding:6px 12px;
           border-radius:8px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s ease;
-          box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:100;
+          box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:9999;
         }
         .nav-btn:hover::after { opacity:1; }
 
@@ -2121,26 +2154,33 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* Full badge (mobile menu) */
         .nav-badge { background:linear-gradient(135deg,#e8734a,#f4a24e); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; }
 
+        /* ── Fixed Avatar (top-left corner) ── */
+        .fixed-avatar-wrap { position:fixed; top:28px; left:28px; z-index:9999; }
+
         /* ── Sidebar Avatar (mini) ── */
-        .sb-avatar-wrap { position:relative; margin-bottom:16px; }
+        .sb-avatar-wrap { position:relative; }
         .sb-mini-avatar {
-          width:40px; height:40px; border-radius:50%; background:rgba(244,162,78,.15);
+          width:44px; height:44px; border-radius:50%;
+          background:linear-gradient(135deg,#e8734a,#f4a24e);
           display:flex; align-items:center; justify-content:center; flex-shrink:0;
-          font-weight:700; color:#f4a24e; font-size:14px; overflow:hidden;
+          font-weight:700; color:#fff; font-size:16px; overflow:hidden;
           border:2px solid transparent; cursor:pointer; transition:all .2s ease;
+          box-shadow:0 2px 12px rgba(232,115,74,.3);
         }
-        .sb-mini-avatar:hover { border-color:#f4a24e; }
+        .sb-mini-avatar:hover { transform:scale(1.08); }
         .sb-mini-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
         .sb-mini-avatar.anon {
-          background:rgba(138,149,167,.1); border:1.5px solid #2a3545; color:#8a95a7; font-size:16px;
+          background:linear-gradient(135deg,#2a3444,#1e2835);
+          border:1.5px solid #3a4555; color:#8a95a7; font-size:18px;
+          box-shadow:0 2px 12px rgba(0,0,0,.3);
         }
         .sb-mini-avatar.anon:hover { border-color:#f4a24e; }
 
         /* ── Sidebar Popup ── */
         .sb-popup {
-          position:absolute; left:calc(100% + 12px); top:0;
+          position:absolute; left:0; top:calc(100% + 10px);
           background:#141c26; border:1px solid #1e2835; border-radius:14px;
-          padding:18px 20px; min-width:240px; z-index:120;
+          padding:18px 20px; min-width:260px; z-index:9999;
           box-shadow:0 8px 32px rgba(0,0,0,.4); animation:fadeIn .15s ease;
         }
         .sb-popup-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -2151,6 +2191,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           cursor:pointer; text-align:right; transition:all .15s ease;
         }
         .sb-popup-link:hover { background:rgba(244,162,78,.06); color:#d0d8e4; }
+        .sb-popup-detail { font-size:12px; color:#6b7a8d; margin-top:2px; }
+        .sb-popup-status { font-size:12.5px; color:#8a95a7; padding:6px 0; border-bottom:1px solid #1e2835; margin-bottom:4px; }
+        .sb-popup-stats { display:flex; gap:8px; margin:10px 0 6px; }
+        .sb-popup-stat { flex:1; text-align:center; background:#0c1018; border-radius:8px; padding:8px 4px; }
+        .sb-popup-stat-num { display:block; font-size:18px; font-weight:900; color:#6b7a8d; }
+        .sb-popup-stat-num.done { color:#34d399; }
+        .sb-popup-stat-num.prog { color:#f4a24e; }
+        .sb-popup-stat-label { font-size:10px; color:#556070; }
 
         /* ── Sidebar Profile ── */
         .sb-profile-zone { padding:14px 0; border-top:1px solid #1e2835; border-bottom:1px solid #1e2835; margin-bottom:10px; width:100%; }
@@ -2347,7 +2395,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           content:attr(data-tooltip); position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
           background:#1e2835; color:#eef1f6; font-size:12.5px; font-weight:600; padding:6px 12px;
           border-radius:8px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s ease;
-          box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:100;
+          box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:9999;
         }
         .sb-footer-icon:hover::after { opacity:1; }
 
@@ -3014,6 +3062,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         @media (max-width:760px) {
           .root { flex-direction:column; }
           .sidebar { display:none; }
+          .fixed-avatar-wrap { display:none; }
 
           /* Mobile header */
           .mobile-header {

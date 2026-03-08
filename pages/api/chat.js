@@ -13,6 +13,33 @@ const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 const rateMap = new Map(); // ip -> timestamp[]
 
+// --- Daily token limiter ---
+const DAILY_TOKEN_LIMIT = 500_000; // 500K tokens/day global
+const DAILY_TOKEN_LIMIT_PER_IP = 50_000; // 50K tokens/day per IP
+let dailyTokens = { total: 0, perIp: new Map(), date: new Date().toDateString() };
+
+function resetDailyTokensIfNeeded() {
+  const today = new Date().toDateString();
+  if (dailyTokens.date !== today) {
+    dailyTokens = { total: 0, perIp: new Map(), date: today };
+  }
+}
+
+function isDailyLimitReached(ip) {
+  resetDailyTokensIfNeeded();
+  if (dailyTokens.total >= DAILY_TOKEN_LIMIT) return "global";
+  const ipTokens = dailyTokens.perIp.get(ip) || 0;
+  if (ipTokens >= DAILY_TOKEN_LIMIT_PER_IP) return "ip";
+  return false;
+}
+
+function trackTokenUsage(ip, inputTokens, outputTokens) {
+  resetDailyTokensIfNeeded();
+  const used = (inputTokens || 0) + (outputTokens || 0);
+  dailyTokens.total += used;
+  dailyTokens.perIp.set(ip, (dailyTokens.perIp.get(ip) || 0) + used);
+}
+
 // Cleanup every 5 minutes
 setInterval(() => {
   const cutoff = Date.now() - RATE_WINDOW_MS;
@@ -415,6 +442,15 @@ export default async function handler(req, res) {
     return res.status(429).json({ reply: "יותר מדי בקשות. נסה שוב בעוד דקה." });
   }
 
+  // --- Daily token limit ---
+  const dailyLimit = isDailyLimitReached(ip);
+  if (dailyLimit === "global") {
+    return res.status(429).json({ reply: "המערכת הגיעה למגבלה היומית. נסה שוב מחר." });
+  }
+  if (dailyLimit === "ip") {
+    return res.status(429).json({ reply: "הגעת למגבלה היומית שלך. נסה שוב מחר." });
+  }
+
   // --- Input validation ---
   const body = req.body;
   if (!body || typeof body !== "object") {
@@ -664,6 +700,9 @@ export default async function handler(req, res) {
 
     const d = await r.json();
     const reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
+
+    // Track token usage
+    trackTokenUsage(ip, d.usage?.input_tokens, d.usage?.output_tokens);
 
     // Extract memory facts from conversation (non-blocking)
     let extractedMemory = [];

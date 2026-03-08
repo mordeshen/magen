@@ -3,6 +3,14 @@
 // פרטיות: הודעות לא נשמרות בשרת. קונטקסט פסיכולוג נשמר מקומית אצל המשתמש בלבד.
 
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+// Load site actions for portal guidance
+let SITE_ACTIONS = [];
+try {
+  SITE_ACTIONS = JSON.parse(readFileSync(join(process.cwd(), "data", "site-actions.json"), "utf8"));
+} catch {}
 
 export const config = {
   api: { bodyParser: { sizeLimit: "10mb" } },
@@ -14,8 +22,8 @@ const RATE_WINDOW_MS = 60_000;
 const rateMap = new Map(); // ip -> timestamp[]
 
 // --- Daily token limiter ---
-const DAILY_TOKEN_LIMIT = 500_000; // 500K tokens/day global
-const DAILY_TOKEN_LIMIT_PER_IP = 50_000; // 50K tokens/day per IP
+const DAILY_TOKEN_LIMIT = 50_000_000; // 50M tokens/day global
+const DAILY_TOKEN_LIMIT_PER_IP = 500_000; // 500K tokens/day per IP
 let dailyTokens = { total: 0, perIp: new Map(), date: new Date().toDateString() };
 
 function resetDailyTokensIfNeeded() {
@@ -158,6 +166,30 @@ const MOD_PORTAL_GUIDE = `
 - לכלול: שם, ת.ז. (עם ___), אחוזי נכות, סוג הבקשה, מסמכים מצורפים
 - לסיים ב"תודה" — קצר ומכבד
 - אם יש פרטים חסרים — שאל את המשתמש לפני שכותב את הנוסח
+
+=== פורמט נוסח מוכן ===
+כשאתה כותב נוסח מוכן להעתקה, הצג אותו בפורמט הזה בדיוק:
+---נוסח---
+[הטקסט המוכן כאן]
+---סוף נוסח---
+
+זה יאפשר למשתמש להעתיק בלחיצה אחת. תמיד השתמש בפורמט הזה כשאתה נותן נוסח.
+
+=== פורמט bookmarklet ===
+אחרי כל נוסח מוכן, הוסף גם בלוק bookmarklet בפורמט הזה בדיוק:
+---bookmarklet---
+{"text":"[הנוסח המלא — אותו טקסט שבבלוק הנוסח]","label":"[שם קצר של הפעולה, למשל: החזר הוצאות רפואיות]","portalPath":"[הנתיב בפורטל, למשל: הגשת פנייה לאגף → החזר הוצאות]"}
+---סוף bookmarklet---
+חשוב: ה-JSON חייב להיות בשורה אחת, בלי שבירות שורה בתוכו. הנוסח ב-text צריך להיות זהה לנוסח שבבלוק ---נוסח---.
+
+=== תהליך "דן מכין — אתה שולח" ===
+כשמישהו צריך להגיש פנייה:
+1. שאל מה הוא צריך — ותזהה את הקטגוריה
+2. שאל אותו את השאלות הרלוונטיות (סוג פגיעה, שם רופא, וכו')
+3. כתוב לו נוסח מוכן בפורמט ---נוסח--- שהוא יעתיק
+4. תן לו שלבים מדויקים: "שלב 1: נכנסים ל-shikum.mod.gov.il → שלב 2: מתחברים עם ת.ז. → שלב 3: ..."
+5. ציין אילו מסמכים לצרף
+6. הזכר לשמור מספר פנייה!
 
 === מעקב אחרי פנייה ===
 אחרי שליחה: נכנסים → "הפניות שלי" → רואים סטטוס (התקבלה/בטיפול/הושלמה/נדחתה)
@@ -306,7 +338,12 @@ const HAT_PROMPTS = {
 כאשר STAGE_ID הוא אחד מ: NOT_STARTED, GATHERING_DOCUMENTS, CLAIM_FILED, COMMITTEE_SCHEDULED, COMMITTEE_PREPARATION, COMMITTEE_COMPLETED, DECISION_RECEIVED, APPEAL_CONSIDERATION, APPEAL_FILED, RIGHTS_FULFILLMENT.
 דוגמה: אם המשתמש אומר "הגשתי את התביעה" — הוסף בסוף: [STAGE_UPDATE:CLAIM_FILED]
 דוגמה: אם המשתמש אומר "נקבע לי תאריך לוועדה" — הוסף: [STAGE_UPDATE:COMMITTEE_SCHEDULED]
-הוסף תגית זו רק כשיש אינדיקציה ברורה למעבר שלב.`,
+הוסף תגית זו רק כשיש אינדיקציה ברורה למעבר שלב.
+
+=== שמירת מספר פנייה ===
+כשהמשתמש מדווח שהגיש פנייה ונותן מספר פנייה — הוסף בסוף התשובה שלך (בשורה נפרדת):
+[SUBMISSION_REF:מספר_הפנייה]
+דוגמה: אם המשתמש אומר "הגשתי, מספר פנייה 12345" — הוסף: [SUBMISSION_REF:12345]`,
 
   social: `אתה מיכל — AI של מגן שעוזרת לנווט בבירוקרטיה של משרד הביטחון ואגף השיקום.
 את לא עו"ס אמיתית, אבל יש לך ידע מקצועי רחב ואת מכירה את המערכת מבפנים.
@@ -527,6 +564,15 @@ export default async function handler(req, res) {
   if (hat !== "events") {
     systemParts.push(CORE_APPROACH);
     systemParts.push(MOD_PORTAL_GUIDE);
+    // Inject site actions for the lawyer hat
+    if (hat === "lawyer" && SITE_ACTIONS.length > 0) {
+      let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
+      actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
+      actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
+        `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
+      ).join("\n\n");
+      systemParts.push(actionsCtx);
+    }
   }
 
   let knowledgeBase = "";

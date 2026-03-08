@@ -45,6 +45,90 @@ const INTEREST_OPTIONS = ["תרבות","ספורט","אמנות","טיולים",
 const PROFILE_CITIES = ["תל אביב","ירושלים","חיפה","באר שבע","אחר"];
 const CLAIM_STAGES = ["טרם הגשתי תביעה","הגשתי תביעה — ממתין","הכרה עקרונית (03)","ממתין לוועדה רפואית","בערעור"];
 
+// ─── Bookmarklet generator — fills textarea on shikum portal ──
+
+function generateBookmarklet(text) {
+  const code = `(function(){try{if(!location.hostname.includes('myshikum.mod.gov.il')){alert('\\u05D9\\u05E9 \\u05DC\\u05E4\\u05EA\\u05D5\\u05D7 \\u05D0\\u05EA \\u05D0\\u05EA\\u05E8 \\u05D0\\u05D2\\u05E3 \\u05D4\\u05E9\\u05D9\\u05E7\\u05D5\\u05DD \\u05E7\\u05D5\\u05D3\\u05DD');return;}var t=document.querySelectorAll('textarea');if(t.length>0){t[0].value=${JSON.stringify(text)};t[0].dispatchEvent(new Event('input',{bubbles:true}));t[0].dispatchEvent(new Event('change',{bubbles:true}));alert('\\u05D4\\u05D8\\u05D5\\u05E4\\u05E1 \\u05DE\\u05D5\\u05DC\\u05D0! \\u05D1\\u05D3\\u05D5\\u05E7 \\u05E9\\u05D4\\u05DB\\u05DC \\u05E0\\u05DB\\u05D5\\u05DF \\u05D5\\u05DC\\u05D7\\u05E5 \\u05E9\\u05DC\\u05D7.');}else{alert('\\u05DC\\u05D0 \\u05DE\\u05E6\\u05D0\\u05EA\\u05D9 \\u05E9\\u05D3\\u05D4 \\u05D8\\u05E7\\u05E1\\u05D8. \\u05D5\\u05D3\\u05D0 \\u05E9\\u05D0\\u05EA\\u05D4 \\u05D1\\u05D3\\u05E3 \\u05D4\\u05E0\\u05DB\\u05D5\\u05DF.')}}catch(e){alert('\\u05E9\\u05D2\\u05D9\\u05D0\\u05D4: '+e.message)}})()`;
+  return 'javascript:' + encodeURIComponent(code);
+}
+
+// ─── ChatBubbleContent — renders message with copyable נוסח + bookmarklet blocks ──
+
+function ChatBubbleContent({ text }) {
+  const [copiedIdx, setCopiedIdx] = useState(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+  if (!text || typeof text !== "string") return text || null;
+
+  // Strip bookmarklet blocks first, collect them
+  const bookmarkletBlocks = [];
+  const textWithoutBookmarklets = text.replace(/---bookmarklet---([\s\S]*?)---סוף bookmarklet---/g, (_, json) => {
+    try {
+      const parsed = JSON.parse(json.trim());
+      bookmarkletBlocks.push(parsed);
+    } catch {}
+    return '';
+  });
+
+  // Split on ---נוסח--- ... ---סוף נוסח---
+  const parts = textWithoutBookmarklets.split(/(---נוסח---[\s\S]*?---סוף נוסח---)/g);
+  const hasBlocks = parts.length > 1 || bookmarkletBlocks.length > 0;
+  if (!hasBlocks) return text;
+
+  // Track which bookmarklet to show after each nusach
+  let bookmarkletIdx = 0;
+
+  return parts.map((part, i) => {
+    const match = part.match(/---נוסח---([\s\S]*?)---סוף נוסח---/);
+    if (!match) {
+      const trimmed = part.trim();
+      return trimmed ? <span key={i}>{part}</span> : null;
+    }
+    const nusach = match[1].trim();
+    const bm = bookmarkletBlocks[bookmarkletIdx] || null;
+    bookmarkletIdx++;
+    const bookmarkletUrl = bm ? generateBookmarklet(bm.text || nusach) : null;
+    return (
+      <React.Fragment key={i}>
+        <div className="nusach-block">
+          <div className="nusach-text">{nusach}</div>
+          <button
+            className={`nusach-copy ${copiedIdx === i ? "copied" : ""}`}
+            onClick={() => {
+              navigator.clipboard.writeText(nusach);
+              setCopiedIdx(i);
+              setTimeout(() => setCopiedIdx(null), 2000);
+            }}
+          >
+            {copiedIdx === i ? "הועתק ✓" : "העתק נוסח 📋"}
+          </button>
+        </div>
+        {bm && bookmarkletUrl && (
+          <div className="bookmarklet-block">
+            <div className="bookmarklet-header">🪄 מילוי אוטומטי</div>
+            <p className="bookmarklet-desc">גרור את הכפתור לסרגל הסימניות, או לחץ עליו כשאתה בדף הנכון:</p>
+            <a href={bookmarkletUrl} className="bookmarklet-btn"
+               onClick={e => { e.preventDefault(); setShowInstructions(true); }}>
+              📋 מלא טופס — {bm.label}
+            </a>
+            {showInstructions && (
+              <div className="bookmarklet-steps">
+                <strong>שלבים:</strong>
+                <ol>
+                  <li>היכנס ל-<a href="https://myshikum.mod.gov.il" target="_blank" rel="noopener noreferrer">myshikum.mod.gov.il</a> והתחבר</li>
+                  <li>נווט: {bm.portalPath}</li>
+                  <li>גרור את הכפתור הכתום לסרגל הסימניות</li>
+                  <li>לחץ על הסימנייה — הטופס יתמלא!</li>
+                  <li>בדוק שהכל נכון ← לחץ &quot;שלח&quot;</li>
+                </ol>
+              </div>
+            )}
+          </div>
+        )}
+      </React.Fragment>
+    );
+  });
+}
+
 // ─── RightCard ─────────────────────────────────────────────
 
 function RightCard({ r, open, onToggle }) {
@@ -879,7 +963,7 @@ const HAT_GREETINGS = {
 };
 
 function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
-  const { user, profile, userRights: chatUserRights, userMemory, chatSessions, saveSession, loadSession, deleteSession, saveMemory, legalCase } = useUser();
+  const { user, profile, userRights: chatUserRights, userMemory, chatSessions, saveSession, loadSession, deleteSession, saveMemory, legalCase, saveLegalCase } = useUser();
   const [hat, setHat]         = useState("lawyer");
   const [msgs, setMsgs]       = useState([]);
   const [input, setInput]     = useState("");
@@ -1156,6 +1240,21 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
         onStageUpdate(stageMatch[1]);
       }
 
+      // Submission ref detection — parse [SUBMISSION_REF:X] from reply
+      const refMatch = reply.match(/\[SUBMISSION_REF:(\S+)\]/);
+      if (refMatch) {
+        reply = reply.replace(/\[SUBMISSION_REF:\S+\]/, "").trim();
+        const refNumber = refMatch[1];
+        // Save reference number to legal case notes if user is logged in
+        if (user && legalCase) {
+          const existingNotes = legalCase.notes || "";
+          const refNote = `מספר פנייה: ${refNumber} (${new Date().toLocaleDateString("he-IL")})`;
+          if (!existingNotes.includes(refNumber)) {
+            saveLegalCase({ notes: existingNotes ? existingNotes + "\n" + refNote : refNote });
+          }
+        }
+      }
+
       // Save extracted memory
       if (d.extractedMemory && d.extractedMemory.length > 0) {
         saveMemory(d.extractedMemory);
@@ -1337,7 +1436,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
                     )}
                   </div>
                 )}
-                {m.content}
+                {m.role === "assistant" ? <ChatBubbleContent text={m.content}/> : m.content}
               </div>
             </div>
           ))}
@@ -2760,6 +2859,42 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .bubble { max-width:76%; padding:12px 16px; border-radius:18px; font-size:14px; line-height:1.8; white-space:pre-wrap; }
         .msg.user .bubble { background:rgba(244,162,78,.12); color:#eef1f6; border-bottom-right-radius:4px; }
         .msg.assistant .bubble { background:#1a2230; border:1px solid #1e2835; color:#c2ccd8; border-bottom-left-radius:4px; }
+
+        /* Nusach (prepared text) block */
+        .nusach-block {
+          margin:10px 0; padding:12px 14px; background:rgba(78,203,138,.08); border:1px solid rgba(78,203,138,.25);
+          border-radius:10px; position:relative;
+        }
+        .nusach-text { font-size:14px; line-height:1.7; color:#dde3ec; white-space:pre-wrap; }
+        .nusach-copy {
+          display:inline-flex; align-items:center; gap:6px; margin-top:10px;
+          padding:7px 16px; border-radius:8px; border:1px solid rgba(78,203,138,.3);
+          background:rgba(78,203,138,.12); color:#4ecb8a; font-size:13px; font-weight:600;
+          cursor:pointer; transition:all .2s;
+        }
+        .nusach-copy:hover { background:rgba(78,203,138,.22); }
+        .nusach-copy.copied { background:rgba(78,203,138,.25); color:#fff; }
+
+        /* Bookmarklet block */
+        .bookmarklet-block {
+          margin:10px 0; padding:14px; background:rgba(244,162,78,.08);
+          border:1px solid rgba(244,162,78,.25); border-radius:10px;
+        }
+        .bookmarklet-header { font-weight:700; color:#f4a24e; margin-bottom:6px; }
+        .bookmarklet-desc { font-size:13px; color:#8a94a6; margin-bottom:10px; }
+        .bookmarklet-btn {
+          display:inline-block; padding:10px 20px; background:#e8734a;
+          color:#fff; border-radius:8px; text-decoration:none; font-weight:600;
+          font-size:14px; cursor:grab;
+        }
+        .bookmarklet-btn:hover { background:#d4623e; }
+        .bookmarklet-steps { margin-top:12px; font-size:13px; color:#8a94a6; }
+        .bookmarklet-steps ol { padding-right:20px; margin:6px 0 0; }
+        .bookmarklet-steps li { margin:4px 0; }
+        .bookmarklet-steps a { color:#e8734a; }
+        @media (max-width:760px) {
+          .bookmarklet-block { display:none; }
+        }
 
         /* Typing cursor */
         .typing-cursor { animation:blink 1s infinite; color:#f4a24e; font-weight:300; }

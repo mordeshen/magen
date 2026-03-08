@@ -1,7 +1,7 @@
 /**
  * API Route: סיכום פידבקים יומי למייל
  *
- * GET /api/feedback-digest?key=SECRET
+ * GET /api/feedback-digest  (Authorization: Bearer SECRET)
  *
  * קורא פידבקים מ-24 שעות אחרונות ושולח סיכום למייל.
  * מיועד להפעלה ע"י cron job (Railway / external cron).
@@ -14,11 +14,15 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 export default async function handler(req, res) {
-  // Auth check
+  // Auth check — Bearer token via Authorization header (timing-safe)
   const secret = process.env.FEEDBACK_CRON_SECRET;
-  if (!secret || req.query.key !== secret) {
+  const authHeader = req.headers.authorization || "";
+  const expected = `Bearer ${secret}`;
+  if (!secret || authHeader.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
     return res.status(401).json({ error: "unauthorized" });
   }
 
@@ -28,10 +32,12 @@ export default async function handler(req, res) {
   const resendKey = process.env.RESEND_API_KEY;
 
   if (!serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: "missing SUPABASE_SERVICE_ROLE_KEY" });
+    console.error("feedback-digest: missing env vars (db)");
+    return res.status(500).json({ error: "server configuration error" });
   }
   if (!adminEmail || !resendKey) {
-    return res.status(500).json({ error: "missing ADMIN_EMAIL or RESEND_API_KEY" });
+    console.error("feedback-digest: missing env vars (mail)");
+    return res.status(500).json({ error: "server configuration error" });
   }
 
   // Query feedback from last 24 hours using service role (bypasses RLS)
@@ -45,7 +51,8 @@ export default async function handler(req, res) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("feedback-digest: supabase query failed:", error.message);
+    return res.status(500).json({ error: "failed to fetch feedback" });
   }
 
   if (!feedbacks || feedbacks.length === 0) {
@@ -118,11 +125,13 @@ ${fb.message}
 
     if (!emailRes.ok) {
       const err = await emailRes.text();
-      return res.status(500).json({ error: "email send failed", detail: err });
+      console.error("feedback-digest: email send failed:", err);
+      return res.status(500).json({ error: "email send failed" });
     }
 
     return res.status(200).json({ message: "digest sent", count: feedbacks.length });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error("feedback-digest: unexpected error:", err.message);
+    return res.status(500).json({ error: "internal error" });
   }
 }

@@ -129,15 +129,73 @@ function EventCard({ ev }) {
 
 // ─── SidebarProfile ───────────────────────────────────────
 
-function SidebarProfile({ rights }) {
+function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) {
   const { user, profile, userRights, loading, signInWithGoogle, signOut, toggleProfilePanel } = useUser();
+  const [popupOpen, setPopupOpen] = useState(false);
+  const popupRef = useRef(null);
 
   const totalRights = rights.length;
   const completedRights = Object.values(userRights).filter(s => s === "completed").length;
   const notStarted = totalRights - Object.keys(userRights).length;
   const progressPct = totalRights > 0 ? Math.round((completedRights / totalRights) * 100) : 0;
 
-  // Show login button by default (including SSR). Hide only when confirmed logged in.
+  // Close popup on outside click
+  useEffect(() => {
+    if (!popupOpen) return;
+    function handleClick(e) {
+      if (popupRef.current && !popupRef.current.contains(e.target)) setPopupOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [popupOpen]);
+
+  // ── Mini mode (desktop sidebar) ──
+  if (mini) {
+    if (!user) {
+      return (
+        <div className="sb-avatar-wrap">
+          <button className="sb-mini-avatar anon" onClick={signInWithGoogle} disabled={loading} title="התחבר">
+            <span>👤</span>
+          </button>
+        </div>
+      );
+    }
+
+    const displayName = profile?.name || user.user_metadata?.full_name || user.email?.split("@")[0] || "משתמש";
+    const avatar = profile?.avatar_url || user.user_metadata?.avatar_url;
+
+    return (
+      <div className="sb-avatar-wrap" ref={popupRef}>
+        <button className="sb-mini-avatar" onClick={() => setPopupOpen(!popupOpen)}>
+          {avatar ? <img src={avatar} alt="" /> : <span>{displayName[0]}</span>}
+        </button>
+        {popupOpen && (
+          <div className="sb-popup">
+            <div className="sb-popup-header">
+              <div className="profile-avatar">
+                {avatar ? <img src={avatar} alt="" /> : <span>{displayName[0]}</span>}
+              </div>
+              <div className="profile-name">{displayName}</div>
+            </div>
+            <div className="progress-section">
+              <div className="progress-label">מימוש זכויות: {completedRights}/{totalRights}</div>
+              <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressPct}%` }}/></div>
+            </div>
+            {notStarted > 0 && <button className="nudge nudge-btn" onClick={() => { setPopupOpen(false); onShowUnstarted(); }}>{notStarted} זכויות שטרם בדקת →</button>}
+            <div className="sb-popup-links">
+              <button className="sb-popup-link" onClick={toggleProfilePanel}>⚙ הגדרות פרופיל</button>
+              <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">🏢 האזור האישי שלי</a>
+              <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">🌐 אגף השיקום</a>
+              <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>📋 תנאי שימוש</button>
+            </div>
+            <button className="signout-link" onClick={signOut}>התנתק</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Full mode (mobile menu) ──
   if (!user) {
     return (
       <div className="sb-profile-zone">
@@ -164,7 +222,7 @@ function SidebarProfile({ rights }) {
         <div className="progress-label">מימוש זכויות: {completedRights}/{totalRights}</div>
         <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressPct}%` }}/></div>
       </div>
-      {notStarted > 0 && <div className="nudge">{notStarted} זכויות שטרם בדקת</div>}
+      {notStarted > 0 && <button className="nudge nudge-btn" onClick={onShowUnstarted}>{notStarted} זכויות שטרם בדקת →</button>}
       <button className="signout-link" onClick={signOut}>התנתק</button>
     </div>
   );
@@ -173,7 +231,7 @@ function SidebarProfile({ rights }) {
 // ─── ProfileSettingsPanel ─────────────────────────────────
 
 function ProfileSettingsPanel() {
-  const { profile, showProfilePanel, toggleProfilePanel, updateProfile, signOut } = useUser();
+  const { profile, showProfilePanel, toggleProfilePanel, updateProfile, signOut, clearMemory, clearAllSessions, userMemory, chatSessions } = useUser();
   const [city, setCity] = useState(profile?.city || "");
   const [claimStatus, setClaimStatus] = useState(profile?.claim_status || "");
   const [claimStage, setClaimStage] = useState(profile?.claim_stage || "");
@@ -248,6 +306,23 @@ function ProfileSettingsPanel() {
           ))}
         </div>
 
+        <label className="settings-label" style={{marginTop:16}}>פרטיות</label>
+        <div className="privacy-actions">
+          {userMemory.length > 0 && (
+            <button className="privacy-btn" onClick={() => { if(confirm("למחוק את כל הזיכרון? השיחות הבאות לא יכירו מידע מסשנים קודמים.")) clearMemory(); }}>
+              מחק זיכרון ({userMemory.length} פריטים)
+            </button>
+          )}
+          {chatSessions.length > 0 && (
+            <button className="privacy-btn" onClick={() => { if(confirm("למחוק את כל היסטוריית השיחות?")) clearAllSessions(); }}>
+              מחק היסטוריית שיחות ({chatSessions.length})
+            </button>
+          )}
+          {userMemory.length === 0 && chatSessions.length === 0 && (
+            <p style={{fontSize:12.5,color:"#6b7a8d"}}>אין נתונים שמורים</p>
+          )}
+        </div>
+
         <div className="settings-actions">
           <button className="save-btn" onClick={handleSave} disabled={saving}>{saving ? "שומר..." : "שמור"}</button>
           <button className="signout-btn" onClick={signOut}>התנתק</button>
@@ -260,8 +335,18 @@ function ProfileSettingsPanel() {
 // ─── UserTopBar ───────────────────────────────────────────
 
 function UserTopBar({ onProfile }) {
-  const { user, profile, loading } = useUser();
-  if (loading || !user) return null;
+  const { user, profile, loading, signInWithGoogle } = useUser();
+  if (loading) return null;
+
+  if (!user) {
+    return (
+      <button className="user-top-btn" onClick={signInWithGoogle} title="התחבר">
+        <div className="user-top-avatar anon">
+          <span>👤</span>
+        </div>
+      </button>
+    );
+  }
 
   const displayName = profile?.name || user.user_metadata?.full_name || user.email?.split("@")[0] || "משתמש";
   const avatar = profile?.avatar_url || user.user_metadata?.avatar_url;
@@ -278,7 +363,7 @@ function UserTopBar({ onProfile }) {
 
 // ─── ProfileView ──────────────────────────────────────────
 
-function ProfileView({ rights }) {
+function ProfileView({ rights, onNavigateToRight }) {
   const { user, profile, userRights, toggleProfilePanel } = useUser();
 
   if (!user) return <div className="empty">התחבר כדי לראות את הפרופיל שלך</div>;
@@ -338,9 +423,10 @@ function ProfileView({ rights }) {
           <h3 className="profile-section-title">בתהליך עכשיו</h3>
           <div className="stack">
             {inProgress.map(r => (
-              <div key={r.id} className="profile-right-item prog">
+              <div key={r.id} className="profile-right-item prog clickable" onClick={() => onNavigateToRight(r.id)}>
                 <span className="badge cat-badge">{r.category}</span>
                 <span>{r.title}</span>
+                <span className="profile-right-arrow">←</span>
               </div>
             ))}
           </div>
@@ -352,7 +438,7 @@ function ProfileView({ rights }) {
           <h3 className="profile-section-title">מומשו</h3>
           <div className="stack">
             {completed.map(r => (
-              <div key={r.id} className="profile-right-item done">
+              <div key={r.id} className="profile-right-item done clickable" onClick={() => onNavigateToRight(r.id)}>
                 <span className="badge cat-badge">{r.category}</span>
                 <span>{r.title}</span>
                 <span className="profile-check">✓</span>
@@ -368,12 +454,17 @@ function ProfileView({ rights }) {
           <p className="profile-section-sub">זכויות שאולי מגיעות לך ועדיין לא בדקת</p>
           <div className="stack">
             {notStarted.slice(0, 5).map(r => (
-              <div key={r.id} className="profile-right-item">
+              <div key={r.id} className="profile-right-item clickable" onClick={() => onNavigateToRight(r.id)}>
                 <span className="badge cat-badge">{r.category}</span>
                 <span>{r.title}</span>
+                <span className="profile-right-arrow">←</span>
               </div>
             ))}
-            {notStarted.length > 5 && <p className="profile-more">ועוד {notStarted.length - 5} זכויות נוספות — בדוק בעמוד הזכויות</p>}
+            {notStarted.length > 5 && (
+              <button className="profile-more profile-more-btn" onClick={() => onNavigateToRight(null)}>
+                ועוד {notStarted.length - 5} זכויות נוספות — לחץ לצפייה →
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -454,32 +545,333 @@ function FeedbackModal({ open, onClose }) {
   );
 }
 
+// ─── KnowledgeView ───────────────────────────────────────────
+
+const KNOWLEDGE_CATS = ["הכל", "ועדות רפואיות", "בירוקרטיה", "טיפול נפשי", "תעסוקה", "דיור", "לימודים", "כללי"];
+
+function KnowledgeView() {
+  const { user } = useUser();
+  const [items, setItems] = useState([]);
+  const [kCat, setKCat] = useState("הכל");
+  const [loadingK, setLoadingK] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [formCat, setFormCat] = useState("כללי");
+  const [formTitle, setFormTitle] = useState("");
+  const [formContent, setFormContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [voted, setVoted] = useState({});
+
+  useEffect(() => {
+    fetchKnowledge();
+  }, [kCat]);
+
+  async function fetchKnowledge() {
+    setLoadingK(true);
+    try {
+      const url = kCat === "הכל" ? "/api/knowledge" : `/api/knowledge?category=${encodeURIComponent(kCat)}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      setItems(Array.isArray(d) ? d : []);
+    } catch { setItems([]); }
+    setLoadingK(false);
+  }
+
+  async function handleSubmit() {
+    if (!formTitle.trim() || !formContent.trim()) return;
+    setSubmitting(true);
+    try {
+      const { supabase } = await import("../lib/supabase");
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { alert("יש להתחבר כדי לשתף"); setSubmitting(false); return; }
+
+      await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ category: formCat, title: formTitle.trim(), content: formContent.trim() }),
+      });
+      setFormTitle("");
+      setFormContent("");
+      setShowForm(false);
+      alert("תודה! הניסיון שלך יועבר ליועץ AI לאחר אישור.");
+    } catch {}
+    setSubmitting(false);
+  }
+
+  async function handleVote(knowledgeId) {
+    try {
+      const { supabase } = await import("../lib/supabase");
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      const r = await fetch("/api/knowledge", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ knowledge_id: knowledgeId }),
+      });
+      const d = await r.json();
+      setVoted(prev => ({ ...prev, [knowledgeId]: d.voted }));
+      setItems(prev => prev.map(item =>
+        item.id === knowledgeId
+          ? { ...item, upvotes: item.upvotes + (d.voted ? 1 : -1) }
+          : item
+      ));
+    } catch {}
+  }
+
+  return (
+    <>
+      <div className="pg-hdr">
+        <h1>חכמת ותיקים</h1>
+        <p>שתפו ניסיון אמיתי — היועץ AI לומד מכם ומעביר הלאה</p>
+      </div>
+
+      <div className="knowledge-explainer">
+        <div className="knowledge-explainer-icon">🧠</div>
+        <div className="knowledge-explainer-text">
+          <strong>איך זה עובד?</strong> אתם משתפים טיפים מהניסיון שלכם, ואחרי אישור — היועץ AI משתמש בהם כדי לעזור לפצועים חדשים. ככה הידע שלכם ממשיך לעזור.
+        </div>
+      </div>
+
+      {user ? (
+        <div style={{marginBottom:20}}>
+          <button className="knowledge-share-btn" onClick={() => setShowForm(!showForm)}>
+            {showForm ? "ביטול" : "✍️ שתף מהניסיון שלך"}
+          </button>
+        </div>
+      ) : (
+        <div className="knowledge-login-hint">התחבר כדי לשתף מהניסיון שלך</div>
+      )}
+
+      {showForm && (
+        <div className="knowledge-form">
+          <label className="knowledge-form-label">בחר קטגוריה:</label>
+          <select value={formCat} onChange={e => setFormCat(e.target.value)} className="settings-select" style={{marginBottom:12}}>
+            {KNOWLEDGE_CATS.filter(c => c !== "הכל").map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <label className="knowledge-form-label">מה למדת? (כותרת קצרה)</label>
+          <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder='למשל: "לא ללכת לוועדה בלי נציג"' className="settings-input" style={{marginBottom:12}}/>
+          <label className="knowledge-form-label">ספר בפירוט — מה עשית, מה עבד, מה לא</label>
+          <textarea value={formContent} onChange={e => setFormContent(e.target.value)} placeholder="שתף את מה שלמדת מהניסיון שלך... מה היית רוצה שמישהו היה אומר לך בהתחלה?" className="feedback-textarea" rows={4}/>
+          <button className="save-btn" style={{marginTop:10,maxWidth:160}} onClick={handleSubmit} disabled={submitting || !formTitle.trim() || !formContent.trim()}>
+            {submitting ? "שולח..." : "שלח ליועץ AI"}
+          </button>
+        </div>
+      )}
+
+      <div className="filters" style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginTop:16}}>
+        <div className="chips">
+          {KNOWLEDGE_CATS.map(c => (
+            <button key={c} className={`chip ${kCat===c?"on":""}`} onClick={() => setKCat(c)}>{c}</button>
+          ))}
+        </div>
+      </div>
+
+      {loadingK ? (
+        <div className="empty">טוען...</div>
+      ) : items.length === 0 ? (
+        <div className="empty">אין טיפים בקטגוריה זו עדיין{user ? " — היה הראשון לשתף!" : ""}</div>
+      ) : (
+        <>
+          <p style={{color:"#6b7a8d",fontSize:13,marginTop:12,marginBottom:8}}>טיפים שהיועץ AI כבר למד ({items.length}):</p>
+          <div className="stack">
+            {items.map(item => (
+              <div key={item.id} className="knowledge-card">
+                <div className="knowledge-top">
+                  <span className="badge cat-badge">{item.category}</span>
+                  <span className="knowledge-date">{new Date(item.created_at).toLocaleDateString("he-IL")}</span>
+                </div>
+                <h3 className="knowledge-title">{item.title}</h3>
+                <p className="knowledge-content">{item.content}</p>
+                <div className="knowledge-foot">
+                  <button
+                    className={`knowledge-vote-btn ${voted[item.id] ? "voted" : ""}`}
+                    onClick={() => user && handleVote(item.id)}
+                    disabled={!user}
+                    title={user ? "גם לי עזר" : "התחבר כדי לאשר"}
+                  >
+                    ✅ {item.upvotes} {item.upvotes === 1 ? "ותיק אישר" : "ותיקים אישרו"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// ─── TipsView ────────────────────────────────────────────────
+
+const TIPS = [
+  {
+    icon: "⚖",
+    title: "קח עו\"ד או נציג מארגון נכי צה\"ל — חינם",
+    content: "ארגון נכי צה\"ל נותן ייצוג חינם בוועדות רפואיות ובערעורים. בנוסף, תוכנית ממשלתית חדשה מציעה ייצוג ב-500 ₪ בלבד. לא ללכת לוועדה לבד!",
+    action: "📞 ארגון נכי צה\"ל: 03-5254646",
+  },
+  {
+    icon: "📋",
+    title: "הזמן תיק רפואי צבאי מיד",
+    content: "התיק הרפואי הצבאי הוא הבסיס לכל תביעה. ככל שתזמין מוקדם יותר — תקבל מוקדם יותר. ההזמנה חינם ומקוונת.",
+    action: "🌐 archives.mod.gov.il",
+  },
+  {
+    icon: "🚫",
+    title: "אל תלך לוועדה רפואית בלי נציג",
+    content: "ועדה רפואית קובעת את אחוזי הנכות שלך, וזה משפיע על כל הזכויות. עם ייצוג — הסיכוי לאחוזים נכונים עולה משמעותית. הם גם יכולים להוריד אחוזים בערעור!",
+  },
+  {
+    icon: "💪",
+    title: "אל תמעיט בפגיעה בפני הוועדה",
+    content: "יש נטייה טבעית להגיד \"אני בסדר\". בוועדה — תספר בדיוק מה קשה לך ביומיום. זה לא מגזים — זה מדויק. הרופאים צריכים לשמוע את התמונה המלאה.",
+  },
+  {
+    icon: "⏰",
+    title: "הגש תביעה מהר — עיכובים עולים כסף",
+    content: "תביעה תוך שנה מהשחרור = תגמולים מיום השחרור. אחרי שנה = תגמולים רק מיום ההגשה. כל יום שעובר הוא כסף שאתה מפסיד.",
+  },
+  {
+    icon: "🧠",
+    title: "טיפול נפשי זמין גם לפני הכרה רשמית",
+    content: "לא צריך לחכות להכרה רשמית כדי לקבל עזרה. מדיניות חדשה מאפשרת טיפול נפשי מיידי. נפש אחת *8944 זמין 24/7, אנונימי, אנשי מקצוע שהיו שם.",
+    action: "📞 נפש אחת: *8944",
+  },
+  {
+    icon: "🗂",
+    title: "שמור כל מסמך ומספר פנייה",
+    content: "כל פנייה, קבלה, מכתב, אישור — שמור! צלם ותשמור בענן. מספרי פניות חשובים למעקב. אם אין תשובה תוך 30 יום — התקשר עם מספר הפנייה.",
+  },
+  {
+    icon: "📞",
+    title: "התקשר *6500 לכל שאלה",
+    content: "מוקד הפצועים *6500 הוא הכתובת לכל דבר. קצין שיקום, ועדה רפואית, תגמולים, ציוד — הכל מתחיל שם. תגיד: \"אני נכה צה\"ל, מספר תיק ___, ואני צריך...\"",
+    action: "📞 מוקד פצועים: *6500",
+  },
+  {
+    icon: "🤝",
+    title: "מרכז \"בידיים טובות\" — עזרה חינם בהגשה",
+    content: "מרכז \"בידיים טובות\" (מוטה גור 5, פתח תקווה) מסייע חינם בהכנת תיק, הגשת תביעה, וליווי לוועדות רפואיות. שווה לבוא גם אם כבר התחלת תהליך.",
+  },
+];
+
+function TipsView() {
+  return (
+    <>
+      <div className="pg-hdr">
+        <h1>צעדים ראשונים</h1>
+        <p>9 דברים שכל פצוע צה"ל חייב לדעת — מניסיון של אלפי חבר'ה שעברו את זה</p>
+      </div>
+      <div className="tips-grid">
+        {TIPS.map((tip, i) => (
+          <div key={i} className="tip-card">
+            <div className="tip-card-num">{i + 1}</div>
+            <div className="tip-card-icon">{tip.icon}</div>
+            <h3 className="tip-card-title">{tip.title}</h3>
+            <p className="tip-card-content">{tip.content}</p>
+            {tip.action && <div className="tip-card-action">{tip.action}</div>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ─── TermsView ───────────────────────────────────────────────
+
+function TermsView() {
+  return (
+    <>
+      <div className="pg-hdr">
+        <h1>תנאי שימוש</h1>
+        <p>עודכן לאחרונה: מרץ 2026</p>
+      </div>
+      <div className="terms-content">
+        <div className="terms-section">
+          <h3>כללי</h3>
+          <p>אתר "מגן" הוא פורטל מידע ציבורי המיועד לפצועי צה"ל ולבני משפחותיהם. השימוש באתר מהווה הסכמה לתנאים המפורטים להלן.</p>
+        </div>
+
+        <div className="terms-section">
+          <h3>סודיות ופרטיות</h3>
+          <p>שיחות עם היועצים הדיגיטליים (דן, מיכל, אורי, שירה) הן פרטיות לחלוטין. תוכן השיחות לא נשמר בשרת, לא מועבר לצד שלישי ולא מזוהה עם המשתמש. כל סשן שיחה מאופס בסיומו.</p>
+          <p>מידע פרופיל (עיר, מצב תביעה, תחומי עניין) נשמר באופן מאובטח ומשמש אך ורק להתאמה אישית של התוכן עבורך.</p>
+        </div>
+
+        <div className="terms-section">
+          <h3>הגבלת אחריות</h3>
+          <p>המידע באתר, לרבות תשובות היועצים הדיגיטליים, מוגש לצרכי אינפורמציה כללית בלבד. <strong>אין במידע זה תחליף לייעוץ משפטי, רפואי או מקצועי מוסמך.</strong></p>
+          <p>הנהלת האתר אינה אחראית לנזק כלשהו שייגרם כתוצאה מהסתמכות על המידע המופיע באתר.</p>
+        </div>
+
+        <div className="terms-section">
+          <h3>חובת אימות מול גורם מוסמך</h3>
+          <p>לפני ביצוע כל פעולה משפטית, רפואית או כלכלית על סמך מידע מהאתר — <strong>חובה לוודא את המידע מול עורך דין, רופא או גורם מקצועי מוסמך.</strong></p>
+          <p>סכומי כסף, אחוזים, תנאי זכאות ומועדים עשויים להשתנות. האתר עושה מאמץ להתעדכן אך אינו מתחייב לדיוק מוחלט.</p>
+        </div>
+
+        <div className="terms-section">
+          <h3>שימוש ביועצים הדיגיטליים</h3>
+          <p>היועצים הדיגיטליים (AI) אינם אנשי מקצוע אמיתיים. הם כלי עזר מבוסס בינה מלאכותית שנועד לכוון, להסביר ולסייע בניווט הבירוקרטיה — לא להחליף ייצוג אנושי.</p>
+          <p>במצב חירום נפשי, יש לפנות מיידית לקו "נפש אחת" *8944 (24/7).</p>
+        </div>
+
+        <div className="terms-section">
+          <h3>זכויות יוצרים</h3>
+          <p>תכני האתר, לרבות עיצוב, טקסטים וקוד, מוגנים בזכויות יוצרים. ניתן לשתף מידע מהאתר לצרכים אישיים ולמען קהילת פצועי צה"ל.</p>
+        </div>
+
+        <div className="terms-section">
+          <h3>יצירת קשר</h3>
+          <p>לשאלות בנוגע לתנאי השימוש או לאתר בכלל, ניתן לפנות דרך כפתור "רעיונות לשימור/שיפור?" בתפריט.</p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Chat ──────────────────────────────────────────────────
 
 const HATS = [
   { id:"lawyer",  icon:"⚖",  label:"דן",  name:"דן", desc:"ייעוץ בזכויות ומשפט" },
   { id:"social",  icon:"🤝",  label:"מיכל", name:"מיכל", desc:"ניווט בירוקרטיה ושירותים" },
   { id:"psycho",  icon:"💙",  label:"אורי", name:"אורי", desc:"שיחה אישית ותמיכה" },
+  { id:"veteran", icon:"🎖",  label:"רועי", name:"רועי", desc:"חכמת ותיקים" },
   { id:"events",  icon:"🎯",  label:"שירה", name:"שירה", desc:"אירועים ופעילויות" },
 ];
 
-function Chat({ rights, events }) {
-  const { user, profile } = useUser();
+const HAT_GREETINGS = {
+  lawyer:  "היי, אני דן 👋\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
+  social:  "היי, אני מיכל 👋\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
+  psycho:  "היי, אני אורי 👋\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
+  veteran: "היי, אני רועי 👋\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
+  events:  "היי, אני שירה 👋\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
+};
+
+function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
+  const { user, profile, userRights: chatUserRights, userMemory, chatSessions, saveSession, loadSession, deleteSession, saveMemory, legalCase } = useUser();
   const [hat, setHat]         = useState("lawyer");
   const [msgs, setMsgs]       = useState([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const [banner, setBanner]   = useState(true);
   const [userCity, setUserCity] = useState(null);
-  const [attachment, setAttachment] = useState(null); // { base64, media_type, file_name, preview }
-  const [typingText, setTypingText] = useState(null); // for typing animation
+  const [attachment, setAttachment] = useState(null);
+  const [typingText, setTypingText] = useState(null);
   const [placeholder, setPlaceholder] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loginHint, setLoginHint] = useState(false);
   const bottom = useRef(null);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
   const recognitionRef = useRef(null);
   const textareaRef = useRef(null);
+  const hatCacheRef = useRef({}); // { [hatId]: { msgs, sessionId } }
+  const activeHatRef = useRef(hat); // track current hat for async safety
 
   const isPsycho = hat === "psycho";
 
@@ -491,25 +883,50 @@ function Chat({ rights, events }) {
     }
   }, [banner]);
 
-  // Initialize greeting when hat changes
-  useEffect(() => {
-    const greetings = {
-      lawyer:  "היי, אני דן 👋\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
-      social:  "היי, אני מיכל 👋\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
-      psycho:  "היי, אני אורי 👋\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
-      events:  "היי, אני שירה 👋\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
-    };
-    setMsgs([{ role: "assistant", content: greetings[hat] }]);
-    setUserCity(null);
+  // Save current hat state & restore new hat state when switching
+  function switchHat(newHat) {
+    if (newHat === hat) return;
+    // Save current hat conversation to cache
+    hatCacheRef.current[hat] = { msgs, sessionId };
+    // Restore or initialize new hat
+    const cached = hatCacheRef.current[newHat];
+    if (cached && cached.msgs.length > 1) {
+      setMsgs(cached.msgs);
+      setSessionId(cached.sessionId);
+    } else {
+      setMsgs([{ role: "assistant", content: HAT_GREETINGS[newHat] }]);
+      setSessionId(null);
+    }
+    setLoading(false);
+    setTypingText(null);
     setAttachment(null);
+    setPlaceholder(getDefaultPlaceholder(newHat));
+    activeHatRef.current = newHat;
+    setHat(newHat);
+  }
+
+  // Initialize first hat greeting
+  useEffect(() => {
+    setMsgs([{ role: "assistant", content: HAT_GREETINGS[hat] }]);
     setPlaceholder(getDefaultPlaceholder(hat));
-  }, [hat]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle pending chat prompt from LegalCaseView ("שאל את דן")
+  useEffect(() => {
+    if (pendingChatPromptRef?.current) {
+      const prompt = pendingChatPromptRef.current;
+      pendingChatPromptRef.current = null;
+      if (hat !== "lawyer") switchHat("lawyer");
+      setInput(prompt);
+    }
+  }); // eslint-disable-line react-hooks/exhaustive-deps
 
   function getDefaultPlaceholder(h) {
     switch(h) {
       case "lawyer": return "ספר לי על המצב שלך...";
       case "social": return "מה אתה צריך עזרה בו?";
       case "psycho": return "אפשר לכתוב, להקליט, או פשוט להגיד היי...";
+      case "veteran": return "שאל אותי מה שרוצה...";
       case "events": return "מה מעניין אותך?";
       default: return "כתוב כאן...";
     }
@@ -530,7 +947,14 @@ function Chat({ rights, events }) {
     return null;
   }
 
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typingText]);
+  const msgsContainerRef = useRef(null);
+  useEffect(() => {
+    const el = msgsContainerRef.current;
+    if (!el) { bottom.current?.scrollIntoView({ behavior: "smooth" }); return; }
+    // Auto-scroll only if user is near the bottom (within 150px)
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (nearBottom) bottom.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, typingText]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -606,7 +1030,7 @@ function Chat({ rights, events }) {
         setTypingText(null);
         onDone(fullText);
       }
-    }, isPsycho ? 60 : 30); // Slower for psycho
+    }, isPsycho ? 80 : 45); // Comfortable reading speed
 
     return () => clearInterval(interval);
   }, [isPsycho]);
@@ -614,6 +1038,7 @@ function Chat({ rights, events }) {
   async function send() {
     if ((!input.trim() && !attachment) || loading) return;
     const text = input.trim();
+    const sendHat = hat; // capture hat at send time
     setInput("");
 
     if (isRecording) {
@@ -661,29 +1086,133 @@ function Chat({ rights, events }) {
         };
       }
 
+      // Send memory for context
+      if (user && userMemory.length > 0) {
+        payload.memory = userMemory;
+      }
+
+      // Send rights status for smart detection
+      if (user && Object.keys(chatUserRights).length > 0) {
+        payload.userRightsStatus = chatUserRights;
+      }
+
+      // Send legal case context
+      if (user && legalCase) {
+        payload.legalCase = {
+          stage: legalCase.stage,
+          injury_types: legalCase.injury_types || (legalCase.injury_type ? [legalCase.injury_type] : []),
+          committee_date: legalCase.committee_date,
+          disability_percent: legalCase.disability_percent,
+          representative_name: legalCase.representative_name,
+          representative_org: legalCase.representative_org,
+        };
+      }
+
+      // Request memory extraction and title generation
+      if (user) {
+        payload.extractMemory = newMsgs.length >= 4;
+        payload.generateTitle = !sessionId && newMsgs.length >= 2;
+      }
+
       const r = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const d = await r.json();
-      const reply = d.reply || "שגיאה.";
+      let reply = d.reply || "שגיאה.";
+
+      // Stage detection — parse [STAGE_UPDATE:X] from reply
+      const stageMatch = reply.match(/\[STAGE_UPDATE:([A-Z_]+)\]/);
+      if (stageMatch && onStageUpdate) {
+        reply = reply.replace(/\[STAGE_UPDATE:[A-Z_]+\]/, "").trim();
+        onStageUpdate(stageMatch[1]);
+      }
+
+      // Save extracted memory
+      if (d.extractedMemory && d.extractedMemory.length > 0) {
+        saveMemory(d.extractedMemory);
+      }
 
       // Update placeholder from reply
       const newPh = extractPlaceholder(reply);
       if (newPh) setPlaceholder(newPh);
 
+      const generatedTitle = d.sessionTitle;
+
+      // If user switched hat while waiting, save response to cache instead
+      if (activeHatRef.current !== sendHat) {
+        const cachedMsgs = hatCacheRef.current[sendHat]?.msgs || newMsgs;
+        hatCacheRef.current[sendHat] = {
+          msgs: [...cachedMsgs, { role: "assistant", content: reply }],
+          sessionId: hatCacheRef.current[sendHat]?.sessionId || null,
+        };
+        setLoading(false);
+        return;
+      }
+
       // Typing animation
       setLoading(false);
       animateTyping(reply, (finalText) => {
-        setMsgs(m => [...m, { role: "assistant", content: finalText }]);
+        setMsgs(m => {
+          const updated = [...m, { role: "assistant", content: finalText }];
+          // Show login hint for non-logged-in users
+          if (!user && updated.length <= 3 && !loginHint) {
+            setLoginHint(true);
+            setTimeout(() => setLoginHint(false), 6000);
+          }
+          // Auto-save session for logged-in users
+          if (user && updated.length >= 3) {
+            const sessData = {
+              id: sessionId || undefined,
+              hat: sendHat,
+              title: generatedTitle || (sessionId ? undefined : text.slice(0, 40)),
+              messages: updated.map(msg => ({ role: msg.role, content: msg.content })),
+            };
+            saveSession(sessData).then(saved => {
+              if (saved && !sessionId) setSessionId(saved.id);
+            });
+          }
+          // Update hat cache
+          hatCacheRef.current[sendHat] = { msgs: updated, sessionId };
+          return updated;
+        });
       });
     } catch {
-      setMsgs(m => [...m, { role: "assistant", content: "שגיאה בחיבור. נסה שוב." }]);
+      if (activeHatRef.current === sendHat) {
+        setMsgs(m => [...m, { role: "assistant", content: "שגיאה בחיבור. נסה שוב." }]);
+      }
       setLoading(false);
     }
   }
 
+  async function handleLoadSession(sid) {
+    const sess = await loadSession(sid);
+    if (sess) {
+      // Save current hat cache before switching
+      hatCacheRef.current[hat] = { msgs, sessionId };
+      activeHatRef.current = sess.hat;
+      setHat(sess.hat);
+      setMsgs(sess.messages || []);
+      setSessionId(sess.id);
+      setShowHistory(false);
+    }
+  }
+
+  function handleNewChat() {
+    setSessionId(null);
+    const greetings = {
+      lawyer: "היי, אני דן 👋\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
+      social: "היי, אני מיכל 👋\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
+      psycho: "היי, אני אורי 👋\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
+      veteran: "היי, אני רועי 👋\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
+      events: "היי, אני שירה 👋\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
+    };
+    setMsgs([{ role: "assistant", content: greetings[hat] }]);
+    setShowHistory(false);
+  }
+
   const curHat = HATS.find(h => h.id === hat);
+  const hatSessions = chatSessions.filter(s => s.hat === hat);
 
   return (
     <div className={`chat-outer ${isPsycho ? "psycho-mode" : ""}`}>
@@ -700,7 +1229,7 @@ function Chat({ rights, events }) {
       <div className={`hat-row ${isPsycho && msgs.length > 1 ? "hat-row-mini" : ""}`}>
         {!(isPsycho && msgs.length > 1) && <span className="hat-label">דבר עם:</span>}
         {HATS.map(h => (
-          <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""}`} onClick={() => setHat(h.id)} title={h.desc}>
+          <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""}`} onClick={() => switchHat(h.id)} title={h.desc}>
             <span className="hat-icon">{h.icon}</span>
             <span className="hat-name">{h.label}</span>
           </button>
@@ -727,9 +1256,46 @@ function Chat({ rights, events }) {
             <div className="chat-sub">{curHat.desc}</div>
           </div>
           <div className="chat-online">● מחובר</div>
+          {user && (
+            <button className="chat-history-btn" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">
+              {showHistory ? "✕" : "📋"}
+            </button>
+          )}
         </div>
 
-        <div className="chat-msgs">
+        {/* Login hint toast */}
+        {loginHint && (
+          <div className="login-hint-toast">
+            💡 התחבר כדי לשמור שיחות ולהמשיך מאיפה שהפסקת
+          </div>
+        )}
+
+        {/* History drawer */}
+        {showHistory && user && (
+          <div className="chat-history">
+            <div className="history-header">
+              <span>שיחות קודמות</span>
+              <button className="history-new-btn" onClick={handleNewChat}>+ שיחה חדשה</button>
+            </div>
+            {hatSessions.length === 0 ? (
+              <div className="history-empty">אין שיחות קודמות</div>
+            ) : (
+              <div className="history-list">
+                {hatSessions.map(s => (
+                  <div key={s.id} className={`history-item ${sessionId === s.id ? "active" : ""}`}>
+                    <button className="history-item-btn" onClick={() => handleLoadSession(s.id)}>
+                      <span className="history-title">{s.title || "שיחה ללא כותרת"}</span>
+                      <span className="history-date">{new Date(s.updated_at).toLocaleDateString("he-IL")}</span>
+                    </button>
+                    <button className="history-delete" onClick={() => deleteSession(s.id)} title="מחק">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="chat-msgs" ref={msgsContainerRef}>
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.role}`}>
               {m.role === "assistant" && <div className="msg-ava">{curHat.icon}</div>}
@@ -807,10 +1373,427 @@ function Chat({ rights, events }) {
   );
 }
 
+// ─── StageUpdateToast ──────────────────────────────────────
+
+const STAGE_LABELS_MAP = {
+  NOT_STARTED: "טרם התחיל", GATHERING_DOCUMENTS: "איסוף מסמכים",
+  CLAIM_FILED: "תביעה הוגשה", COMMITTEE_SCHEDULED: "ועדה נקבעה",
+  COMMITTEE_PREPARATION: "הכנה לוועדה", COMMITTEE_COMPLETED: "ועדה הסתיימה",
+  DECISION_RECEIVED: "התקבלה החלטה", APPEAL_CONSIDERATION: "שקילת ערעור",
+  APPEAL_FILED: "ערעור הוגש", RIGHTS_FULFILLMENT: "מימוש זכויות",
+};
+
+function StageUpdateToast({ stageId, onDismiss }) {
+  const { saveLegalCase, legalCase } = useUser();
+  if (!stageId || !legalCase) return null;
+
+  async function handleUpdate() {
+    await saveLegalCase({ stage: stageId });
+    onDismiss();
+  }
+
+  return (
+    <div className="stage-toast">
+      <div className="stage-toast-content">
+        <span>עדכון שלב: <strong>{STAGE_LABELS_MAP[stageId]}</strong></span>
+        <div className="stage-toast-btns">
+          <button className="stage-toast-yes" onClick={handleUpdate}>עדכן</button>
+          <button className="stage-toast-no" onClick={onDismiss}>לא עכשיו</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LegalCaseView ──────────────────────────────────────────
+
+function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDan }) {
+  const { user, legalCase, caseReminders, saveLegalCase, dismissReminder, signInWithGoogle } = useUser();
+  const [wizardStep, setWizardStep] = useState(0);
+  const [wizardData, setWizardData] = useState({ injury_types: [], stage: "NOT_STARTED", committee_date: "", representative_name: "", representative_phone: "", representative_org: "" });
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState({});
+  const [prepChecked, setPrepChecked] = useState({});
+
+  // Load prep checklist from localStorage
+  useEffect(() => {
+    if (legalCase?.id) {
+      try {
+        const saved = localStorage.getItem(`magen-prep-${legalCase.id}`);
+        if (saved) setPrepChecked(JSON.parse(saved));
+      } catch {}
+    }
+  }, [legalCase?.id]);
+
+  function togglePrepTask(taskId) {
+    setPrepChecked(prev => {
+      const next = { ...prev, [taskId]: !prev[taskId] };
+      if (legalCase?.id) {
+        try { localStorage.setItem(`magen-prep-${legalCase.id}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+  }
+
+  // Not logged in
+  if (!user) {
+    return (
+      <div className="case-section">
+        <div className="pg-hdr">
+          <h1>התיק שלי</h1>
+          <p>ליווי אישי בתהליך המשפטי</p>
+        </div>
+        <div className="case-login-prompt">
+          <div className="case-login-icon">⚖</div>
+          <p>התחבר כדי לנהל את התיק המשפטי שלך</p>
+          <button className="auth-btn google" onClick={signInWithGoogle}>
+            <span>G</span> התחבר עם Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No case — creation wizard
+  if (!legalCase) {
+    const INJURY_OPTIONS = [
+      { id: "orthopedic", label: "אורתופדית", icon: "🦴" },
+      { id: "neurological", label: "נוירולוגית", icon: "🧠" },
+      { id: "ptsd", label: "פוסט-טראומה", icon: "💜" },
+      { id: "hearing", label: "שמיעה/טינטון", icon: "👂" },
+      { id: "internal", label: "פנימית", icon: "🫀" },
+      { id: "other", label: "אחר", icon: "📋" },
+    ];
+
+    async function handleWizardSubmit() {
+      const fields = { ...wizardData };
+      if (!fields.committee_date) delete fields.committee_date;
+      if (!fields.representative_name) delete fields.representative_name;
+      if (!fields.representative_phone) delete fields.representative_phone;
+      if (!fields.representative_org) delete fields.representative_org;
+      await saveLegalCase(fields);
+    }
+
+    return (
+      <div className="case-section">
+        <div className="pg-hdr">
+          <h1>התיק שלי</h1>
+          <p>בוא נפתח תיק ונתחיל ללוות אותך</p>
+        </div>
+        <div className="case-wizard">
+          {wizardStep === 0 && (
+            <div className="wizard-step">
+              <h3>מה סוגי הפגיעה? (אפשר לבחור כמה)</h3>
+              <div className="wizard-options">
+                {INJURY_OPTIONS.map(o => (
+                  <button key={o.id} className={`wizard-opt ${wizardData.injury_types.includes(o.id) ? "selected" : ""}`}
+                    onClick={() => setWizardData(d => ({
+                      ...d,
+                      injury_types: d.injury_types.includes(o.id)
+                        ? d.injury_types.filter(t => t !== o.id)
+                        : [...d.injury_types, o.id]
+                    }))}>
+                    <span className="wizard-opt-icon">{o.icon}</span>
+                    <span>{o.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="wizard-next" disabled={wizardData.injury_types.length === 0} onClick={() => setWizardStep(1)}>המשך →</button>
+            </div>
+          )}
+          {wizardStep === 1 && (
+            <div className="wizard-step">
+              <h3>באיזה שלב אתה?</h3>
+              <div className="wizard-stages">
+                {legalStages.map(s => (
+                  <button key={s.id} className={`wizard-stage ${wizardData.stage === s.id ? "selected" : ""}`}
+                    onClick={() => setWizardData(d => ({ ...d, stage: s.id }))}>
+                    <span className="wizard-stage-icon">{s.icon}</span>
+                    <div>
+                      <div className="wizard-stage-label">{s.label}</div>
+                      <div className="wizard-stage-desc">{s.description}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="wizard-nav">
+                <button className="wizard-back" onClick={() => setWizardStep(0)}>← חזור</button>
+                <button className="wizard-next" onClick={() => setWizardStep(2)}>המשך →</button>
+              </div>
+            </div>
+          )}
+          {wizardStep === 2 && (
+            <div className="wizard-step">
+              <h3>פרטים נוספים (אופציונלי)</h3>
+              <label className="wizard-field">
+                <span>תאריך ועדה (אם נקבע)</span>
+                <input type="date" value={wizardData.committee_date} onChange={e => setWizardData(d => ({ ...d, committee_date: e.target.value }))} />
+              </label>
+              <label className="wizard-field">
+                <span>שם המייצג</span>
+                <input type="text" placeholder="עו״ד / ארגון" value={wizardData.representative_name} onChange={e => setWizardData(d => ({ ...d, representative_name: e.target.value }))} />
+              </label>
+              <label className="wizard-field">
+                <span>טלפון המייצג</span>
+                <input type="tel" placeholder="050-0000000" value={wizardData.representative_phone} onChange={e => setWizardData(d => ({ ...d, representative_phone: e.target.value }))} />
+              </label>
+              <label className="wizard-field">
+                <span>ארגון מייצג</span>
+                <input type="text" placeholder="ארגון נכי צה״ל / אחר" value={wizardData.representative_org} onChange={e => setWizardData(d => ({ ...d, representative_org: e.target.value }))} />
+              </label>
+              <div className="wizard-nav">
+                <button className="wizard-back" onClick={() => setWizardStep(1)}>← חזור</button>
+                <button className="wizard-next wizard-submit" onClick={handleWizardSubmit}>פתח תיק</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Case exists — show dashboard ---
+  const currentStage = legalStages.find(s => s.id === legalCase.stage) || legalStages[0];
+  const currentStageIdx = legalStages.findIndex(s => s.id === legalCase.stage);
+
+  // Committee countdown
+  let daysToCommittee = null;
+  if (legalCase.committee_date) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const cd = new Date(legalCase.committee_date + "T00:00:00");
+    daysToCommittee = Math.round((cd - today) / 86400000);
+  }
+
+  // Current prep phase
+  let currentPrepPhase = null;
+  if (daysToCommittee !== null && daysToCommittee >= -30 && daysToCommittee <= 21) {
+    for (const phase of committeePrepData.phases) {
+      if (daysToCommittee <= phase.daysRange[0] && daysToCommittee >= phase.daysRange[1]) {
+        currentPrepPhase = phase;
+        break;
+      }
+    }
+    // If between phases, show the closest applicable
+    if (!currentPrepPhase && daysToCommittee >= 0) {
+      currentPrepPhase = committeePrepData.phases.find(p => daysToCommittee <= p.daysRange[0]) || committeePrepData.phases[0];
+    }
+    if (!currentPrepPhase && daysToCommittee < 0) {
+      currentPrepPhase = committeePrepData.phases[committeePrepData.phases.length - 1];
+    }
+  }
+
+  // Injury profiles (multiple)
+  const activeInjuryTypes = legalCase.injury_types || (legalCase.injury_type ? [legalCase.injury_type] : []);
+  const activeInjuryProfiles = activeInjuryTypes
+    .map(t => ({ type: t, ...(injuryProfiles[t] || {}) }))
+    .filter(p => p.label);
+
+  // Edit modal
+  async function handleEditSave() {
+    await saveLegalCase(editData);
+    setEditMode(false);
+  }
+
+  function openEdit() {
+    setEditData({
+      stage: legalCase.stage,
+      injury_types: legalCase.injury_types || (legalCase.injury_type ? [legalCase.injury_type] : []),
+      committee_date: legalCase.committee_date || "",
+      disability_percent: legalCase.disability_percent ?? "",
+      representative_name: legalCase.representative_name || "",
+      representative_phone: legalCase.representative_phone || "",
+      representative_org: legalCase.representative_org || "",
+      notes: legalCase.notes || "",
+    });
+    setEditMode(true);
+  }
+
+  return (
+    <div className="case-section">
+      <div className="pg-hdr">
+        <h1>התיק שלי</h1>
+        <p>ליווי אישי בתהליך המשפטי</p>
+      </div>
+
+      {/* Timeline */}
+      <div className="stage-timeline">
+        {legalStages.map((s, i) => (
+          <div key={s.id} className={`stage-node ${i === currentStageIdx ? "active" : ""} ${i < currentStageIdx ? "done" : ""}`}>
+            <div className="stage-circle">{s.icon}</div>
+            <div className="stage-label">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Current stage info */}
+      <div className="case-card">
+        <div className="case-card-header">
+          <span className="case-card-icon">{currentStage.icon}</span>
+          <div>
+            <h3>{currentStage.label}</h3>
+            <p className="case-card-desc">{currentStage.description}</p>
+          </div>
+        </div>
+        <div className="case-next-action">
+          <strong>הצעד הבא:</strong> {currentStage.nextAction}
+        </div>
+      </div>
+
+      {/* Countdown */}
+      {daysToCommittee !== null && daysToCommittee >= 0 && (
+        <div className="countdown-card">
+          <div className="countdown-number">{daysToCommittee}</div>
+          <div className="countdown-text">ימים לוועדה</div>
+          <div className="countdown-date">{formatDate(legalCase.committee_date)}</div>
+        </div>
+      )}
+      {daysToCommittee !== null && daysToCommittee < 0 && daysToCommittee >= -30 && (
+        <div className="countdown-card countdown-past">
+          <div className="countdown-number">{Math.abs(daysToCommittee)}</div>
+          <div className="countdown-text">ימים אחרי הוועדה</div>
+        </div>
+      )}
+
+      {/* Prep Checklist */}
+      {currentPrepPhase && (
+        <div className="prep-section">
+          <h3 className="prep-title">{currentPrepPhase.label} — הכנה לוועדה</h3>
+          <p className="prep-desc">{currentPrepPhase.description}</p>
+          <div className="prep-tasks">
+            {currentPrepPhase.tasks.map(task => (
+              <div key={task.id} className={`prep-task ${prepChecked[task.id] ? "checked" : ""}`}>
+                <label className="prep-check-label">
+                  <input type="checkbox" checked={!!prepChecked[task.id]} onChange={() => togglePrepTask(task.id)} />
+                  <span className="prep-task-title">{task.title}</span>
+                </label>
+                <p className="prep-task-desc">{task.description}</p>
+                <button className="prep-ask-btn" onClick={() => onAskDan(task.aiHelpPrompt)}>שאל את דן →</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Injury Tips */}
+      {activeInjuryProfiles.length > 0 && activeInjuryProfiles.map(ip => (
+        <div className="injury-tips" key={ip.type}>
+          <h3>טיפים — פגיעה {ip.label}</h3>
+          <div className="tip-boxes">
+            <div className="tip-box">
+              <h4>טיפים חשובים</h4>
+              <ul>{ip.tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+            <div className="tip-box tip-box-warn">
+              <h4>טעויות נפוצות — להימנע!</h4>
+              <ul>{ip.commonMistakes.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+            <div className="tip-box">
+              <h4>בדיקות רלוונטיות</h4>
+              <ul>{ip.relevantTests.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+            <div className="tip-box">
+              <h4>רופאים מומלצים</h4>
+              <ul>{ip.keyDoctors.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Reminders */}
+      {caseReminders.length > 0 && (
+        <div className="case-reminders">
+          <h3>תזכורות</h3>
+          {caseReminders.map(r => (
+            <div key={r.id} className="reminder-card">
+              <div className="reminder-header">
+                <span className="reminder-type">{r.type === "committee_prep" ? "📅" : r.type === "deadline" ? "⏰" : r.type === "tip" ? "💡" : r.type === "encouragement" ? "💪" : "🏆"}</span>
+                <strong>{r.title}</strong>
+                <button className="reminder-dismiss" onClick={() => dismissReminder(r.id)}>✕</button>
+              </div>
+              <p>{r.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Edit button */}
+      <button className="case-edit-btn" onClick={openEdit}>✏ עריכת פרטי התיק</button>
+
+      {/* Edit Modal */}
+      {editMode && (
+        <div className="case-modal-overlay" onClick={() => setEditMode(false)}>
+          <div className="case-modal" onClick={e => e.stopPropagation()}>
+            <h3>עריכת תיק</h3>
+            <label className="wizard-field">
+              <span>שלב נוכחי</span>
+              <select value={editData.stage} onChange={e => setEditData(d => ({ ...d, stage: e.target.value }))}>
+                {legalStages.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </label>
+            <div className="wizard-field">
+              <span>סוגי פגיעה</span>
+              <div className="edit-injury-grid">
+                {[
+                  { id: "orthopedic", label: "אורתופדית" },
+                  { id: "neurological", label: "נוירולוגית" },
+                  { id: "ptsd", label: "פוסט-טראומה" },
+                  { id: "hearing", label: "שמיעה/טינטון" },
+                  { id: "internal", label: "פנימית" },
+                  { id: "other", label: "אחר" },
+                ].map(o => (
+                  <label key={o.id} className={`edit-injury-opt ${(editData.injury_types || []).includes(o.id) ? "selected" : ""}`}>
+                    <input type="checkbox" checked={(editData.injury_types || []).includes(o.id)} onChange={() => setEditData(d => ({
+                      ...d,
+                      injury_types: (d.injury_types || []).includes(o.id)
+                        ? (d.injury_types || []).filter(t => t !== o.id)
+                        : [...(d.injury_types || []), o.id]
+                    }))} />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="wizard-field">
+              <span>תאריך ועדה</span>
+              <input type="date" value={editData.committee_date} onChange={e => setEditData(d => ({ ...d, committee_date: e.target.value }))} />
+            </label>
+            <label className="wizard-field">
+              <span>אחוזי נכות</span>
+              <input type="number" min="0" max="100" value={editData.disability_percent} onChange={e => setEditData(d => ({ ...d, disability_percent: e.target.value ? parseInt(e.target.value) : "" }))} />
+            </label>
+            <label className="wizard-field">
+              <span>שם המייצג</span>
+              <input type="text" value={editData.representative_name} onChange={e => setEditData(d => ({ ...d, representative_name: e.target.value }))} />
+            </label>
+            <label className="wizard-field">
+              <span>טלפון המייצג</span>
+              <input type="tel" value={editData.representative_phone} onChange={e => setEditData(d => ({ ...d, representative_phone: e.target.value }))} />
+            </label>
+            <label className="wizard-field">
+              <span>ארגון מייצג</span>
+              <input type="text" value={editData.representative_org} onChange={e => setEditData(d => ({ ...d, representative_org: e.target.value }))} />
+            </label>
+            <label className="wizard-field">
+              <span>הערות</span>
+              <textarea value={editData.notes} onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))} rows={3} />
+            </label>
+            <div className="wizard-nav">
+              <button className="wizard-back" onClick={() => setEditMode(false)}>ביטול</button>
+              <button className="wizard-next wizard-submit" onClick={handleEditSave}>שמור</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────
 
-export default function Home({ rights, updates, events }) {
+export default function Home({ rights, updates, events, legalStages, committeePrepData, injuryProfiles }) {
+  const { userRights: homeUserRights } = useUser();
   const [view,      setView]      = useState("chat");
+  const pendingChatPromptRef = useRef(null);
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [openId,    setOpenId]    = useState(null);
@@ -820,6 +1803,8 @@ export default function Home({ rights, updates, events }) {
   const [eCat,      setECat]      = useState("הכל");
   const [eOrg,      setEOrg]      = useState("הכל");
   const [showPast,  setShowPast]  = useState(false);
+  const [rStatusFilter, setRStatusFilter] = useState("all"); // "all" or "not_started"
+  const [stageToast, setStageToast] = useState(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -831,6 +1816,7 @@ export default function Home({ rights, updates, events }) {
   const filteredRights = rights
     .filter(r => rCat === "הכל" || r.category === rCat)
     .filter(r => !rSearch || r.title.includes(rSearch) || r.summary.includes(rSearch))
+    .filter(r => rStatusFilter === "all" || !homeUserRights[r.id] || homeUserRights[r.id] === "not_started")
     .sort((a,b) => ({high:0,medium:1,low:2}[a.urgency] - {high:0,medium:1,low:2}[b.urgency]));
 
   const filteredEvents = events
@@ -842,10 +1828,20 @@ export default function Home({ rights, updates, events }) {
 
   const upcomingCount = events.filter(e => e.date >= today).length;
 
+  function showUnstartedRights() {
+    setView("rights");
+    setRStatusFilter("not_started");
+    setRCat("הכל");
+    setRSearch("");
+  }
+
   const NAV = [
     { id:"chat",    icon:"◇", label:"יועץ AI" },
+    { id:"case",    icon:"⚖", label:"התיק שלי" },
     { id:"rights",  icon:"◫", label:"זכויות" },
+    { id:"tips",    icon:"💡", label:"צעדים ראשונים" },
     { id:"events",  icon:"◉", label:"אירועים", badge: upcomingCount||null },
+    { id:"knowledge", icon:"🎖", label:"חכמת ותיקים" },
     { id:"updates", icon:"◎", label:"עדכונים", badge: updates.length||null },
   ];
 
@@ -895,47 +1891,43 @@ export default function Home({ rights, updates, events }) {
             ))}
           </nav>
           <div className="mobile-menu-profile">
-            <SidebarProfile rights={rights} />
+            <SidebarProfile rights={rights} onShowUnstarted={showUnstartedRights} />
           </div>
           <div className="mobile-menu-footer">
             <a href="tel:*6500" className="hotline">📞 מוקד פצועים <strong>*6500</strong></a>
             <a href="tel:*8944" className="hotline red">🆘 נפש אחת <strong>*8944</strong></a>
+            <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="hotline personal-area">🏢 האזור האישי שלי</a>
             <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="hotline">🌐 אגף השיקום</a>
             <button className="hotline feedback-btn" onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}>💬 רעיונות לשימור/שיפור?</button>
+            <button className="hotline terms-link" onClick={() => { setView("terms"); setMenuOpen(false); }}>📋 תנאי שימוש</button>
           </div>
         </div>
 
-        {/* ── Sidebar (desktop) ── */}
+        {/* ── Sidebar (desktop) — mini icon-only ── */}
         <aside className="sidebar">
-          <div className="logo">
-            <div className="logo-icon-row">
-              <svg className="logo-svg" viewBox="0 0 36 36" width="32" height="32">
-                <defs><linearGradient id="lg" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stopColor="#f4a24e"/><stop offset="100%" stopColor="#e8734a"/></linearGradient></defs>
-                <path d="M18 2 L32 8 L32 17 C32 25 26 31 18 34 C10 31 4 25 4 17 L4 8 Z" fill="url(#lg)"/>
-                <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
-              </svg>
-              <div className="logo-main">מגן<span className="logo-en">MAGEN</span></div>
-            </div>
-            <div className="logo-sub">זכויות פצועי צה״ל</div>
+          <div className="logo-mini">
+            <svg className="logo-svg" viewBox="0 0 36 36" width="28" height="28">
+              <defs><linearGradient id="lg" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stopColor="#f4a24e"/><stop offset="100%" stopColor="#e8734a"/></linearGradient></defs>
+              <path d="M18 2 L32 8 L32 17 C32 25 26 31 18 34 C10 31 4 25 4 17 L4 8 Z" fill="url(#lg)"/>
+              <path d="M18 4.5 L30 10 L30 17 C30 24 25 29.5 18 32 C11 29.5 6 24 6 17 L6 10 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
+            </svg>
           </div>
+
+          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} />
 
           <nav>
             {NAV.map(n => (
-              <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={()=>setView(n.id)}>
+              <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={()=>setView(n.id)} data-tooltip={n.label}>
                 <span className="nav-icon">{n.icon}</span>
-                <span className="nav-lbl">{n.label}</span>
-                {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
+                {n.badge ? <span className="nav-badge-dot"/> : null}
               </button>
             ))}
           </nav>
 
-          <SidebarProfile rights={rights} />
-
           <div className="sb-footer">
-            <a href="tel:*6500" className="hotline">📞 מוקד פצועים <strong>*6500</strong></a>
-            <a href="tel:*8944" className="hotline red">🆘 נפש אחת <strong>*8944</strong></a>
-            <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="hotline">🌐 אגף השיקום</a>
-            <button className="hotline feedback-btn" onClick={() => setFeedbackOpen(true)}>💬 רעיונות לשימור/שיפור?</button>
+            <a href="tel:*6500" className="sb-footer-icon" data-tooltip="מוקד פצועים *6500">📞</a>
+            <a href="tel:*8944" className="sb-footer-icon red" data-tooltip="נפש אחת *8944">🆘</a>
+            <button className="sb-footer-icon" data-tooltip="רעיונות לשימור/שיפור?" onClick={() => setFeedbackOpen(true)}>💬</button>
           </div>
         </aside>
 
@@ -946,7 +1938,17 @@ export default function Home({ rights, updates, events }) {
           <UserTopBar onProfile={() => setView("profile")} />
 
           {/* PROFILE */}
-          {view==="profile" && <ProfileView rights={rights} />}
+          {view==="profile" && <ProfileView rights={rights} onNavigateToRight={(rightId) => {
+            setView("rights");
+            setRStatusFilter("all");
+            if (rightId) setOpenId(rightId);
+          }} />}
+
+          {/* TIPS */}
+          {view==="tips" && <TipsView />}
+
+          {/* TERMS */}
+          {view==="terms" && <TermsView />}
 
           {/* RIGHTS */}
           {view==="rights" && <>
@@ -954,6 +1956,12 @@ export default function Home({ rights, updates, events }) {
               <h1>זכויות והטבות</h1>
               <p>{rights.length} זכויות מרכזיות • מתעדכן אוטומטית</p>
             </div>
+            {rStatusFilter === "not_started" && (
+              <div className="filter-banner">
+                מציג רק זכויות שטרם בדקת
+                <button className="filter-banner-clear" onClick={() => setRStatusFilter("all")}>הצג הכל ✕</button>
+              </div>
+            )}
             <div className="filters">
               <input value={rSearch} onChange={e=>setRSearch(e.target.value)} placeholder="חיפוש זכות..." className="srch"/>
               <div className="chips">
@@ -1010,6 +2018,9 @@ export default function Home({ rights, updates, events }) {
             </div>
           </>}
 
+          {/* KNOWLEDGE */}
+          {view==="knowledge" && <KnowledgeView />}
+
           {/* UPDATES */}
           {view==="updates" && <>
             <div className="pg-hdr">
@@ -1035,12 +2046,22 @@ export default function Home({ rights, updates, events }) {
           </>}
 
           {/* CHAT */}
+          {/* CASE */}
+          {view==="case" && <LegalCaseView
+            legalStages={legalStages}
+            committeePrepData={committeePrepData}
+            injuryProfiles={injuryProfiles}
+            onAskDan={(prompt) => { pendingChatPromptRef.current = prompt; setView("chat"); }}
+          />}
+
           {view==="chat" && <>
             <div className="pg-hdr">
               <h1>יועץ AI אישי</h1>
-              <p>דן · מיכל · אורי · שירה — פרטי, אקטיבי, בשבילך</p>
+              <p>דן · מיכל · אורי · רועי · שירה — פרטי, אקטיבי, בשבילך</p>
             </div>
-            <Chat rights={rights} events={events}/>
+            <Chat rights={rights} events={events} pendingChatPromptRef={pendingChatPromptRef} onStageUpdate={(stageId) => {
+              setStageToast(stageId);
+            }}/>
           </>}
 
         </main>
@@ -1048,6 +2069,7 @@ export default function Home({ rights, updates, events }) {
 
       <ProfileSettingsPanel />
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      <StageUpdateToast stageId={stageToast} onDismiss={() => setStageToast(null)} />
 
       <style jsx global>{`
         *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
@@ -1057,33 +2079,81 @@ export default function Home({ rights, updates, events }) {
         /* ── Layout ── */
         .root { display:flex; min-height:100vh; }
 
-        /* ── Sidebar ── */
+        /* ── Sidebar (mini — icons only) ── */
         .sidebar {
-          width:240px; flex-shrink:0; background:#111820; border-left:1px solid #1e2835;
-          display:flex; flex-direction:column; padding:32px 16px;
+          width:64px; flex-shrink:0; background:#111820; border-left:1px solid #1e2835;
+          display:flex; flex-direction:column; align-items:center; padding:16px 8px;
           position:sticky; top:0; height:100vh; overflow-y:auto;
         }
-        .logo { margin-bottom:32px; }
+        .logo-mini { margin-bottom:20px; display:flex; align-items:center; justify-content:center; }
         .logo-icon-row { display:flex; align-items:center; gap:10px; }
         .logo-svg { flex-shrink:0; }
         .logo-main { font-size:30px; font-weight:900; color:#e8734a; letter-spacing:-1px; line-height:1; }
         .logo-en { font-size:10px; font-weight:700; color:rgba(232,115,74,.35); letter-spacing:4px; margin-right:8px; vertical-align:middle; }
         .logo-sub { font-size:10.5px; color:#6b7a8d; margin-top:6px; letter-spacing:.5px; }
-        nav { display:flex; flex-direction:column; gap:4px; flex:1; }
+        nav { display:flex; flex-direction:column; gap:4px; flex:1; align-items:center; }
         .nav-btn {
-          display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:10px;
-          border:none; background:transparent; color:#8a95a7; font-family:'Heebo',sans-serif;
-          font-size:14px; cursor:pointer; text-align:right; transition:all .2s ease;
+          position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+          border-radius:12px; border:none; background:transparent; color:#8a95a7;
+          font-family:'Heebo',sans-serif; font-size:14px; cursor:pointer; transition:all .2s ease;
         }
-        .nav-btn:hover { background:rgba(244,162,78,.08); color:#d0d8e4; transform:translateX(-2px); }
-        .nav-btn.active { background:rgba(244,162,78,.12); color:#f4a24e; font-weight:700; }
-        .nav-icon { font-size:15px; opacity:.7; }
+        .nav-btn:hover { background:rgba(244,162,78,.08); color:#d0d8e4; }
+        .nav-btn.active { background:rgba(244,162,78,.12); color:#f4a24e; }
+        .nav-icon { font-size:17px; opacity:.7; }
         .nav-btn.active .nav-icon { opacity:1; }
-        .nav-lbl { flex:1; }
+        .nav-lbl { display:none; }
+
+        /* Tooltip for nav buttons */
+        .nav-btn::after {
+          content:attr(data-tooltip); position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
+          background:#1e2835; color:#eef1f6; font-size:12.5px; font-weight:600; padding:6px 12px;
+          border-radius:8px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s ease;
+          box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:100;
+        }
+        .nav-btn:hover::after { opacity:1; }
+
+        /* Badge dot */
+        .nav-badge-dot {
+          position:absolute; top:6px; left:6px; width:8px; height:8px;
+          background:linear-gradient(135deg,#e8734a,#f4a24e); border-radius:50%;
+          border:2px solid #111820;
+        }
+        /* Full badge (mobile menu) */
         .nav-badge { background:linear-gradient(135deg,#e8734a,#f4a24e); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; }
 
+        /* ── Sidebar Avatar (mini) ── */
+        .sb-avatar-wrap { position:relative; margin-bottom:16px; }
+        .sb-mini-avatar {
+          width:40px; height:40px; border-radius:50%; background:rgba(244,162,78,.15);
+          display:flex; align-items:center; justify-content:center; flex-shrink:0;
+          font-weight:700; color:#f4a24e; font-size:14px; overflow:hidden;
+          border:2px solid transparent; cursor:pointer; transition:all .2s ease;
+        }
+        .sb-mini-avatar:hover { border-color:#f4a24e; }
+        .sb-mini-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+        .sb-mini-avatar.anon {
+          background:rgba(138,149,167,.1); border:1.5px solid #2a3545; color:#8a95a7; font-size:16px;
+        }
+        .sb-mini-avatar.anon:hover { border-color:#f4a24e; }
+
+        /* ── Sidebar Popup ── */
+        .sb-popup {
+          position:absolute; left:calc(100% + 12px); top:0;
+          background:#141c26; border:1px solid #1e2835; border-radius:14px;
+          padding:18px 20px; min-width:240px; z-index:120;
+          box-shadow:0 8px 32px rgba(0,0,0,.4); animation:fadeIn .15s ease;
+        }
+        .sb-popup-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+        .sb-popup-links { display:flex; flex-direction:column; gap:2px; margin-top:12px; border-top:1px solid #1e2835; padding-top:10px; }
+        .sb-popup-link {
+          display:block; padding:8px 10px; border-radius:8px; font-size:13px; color:#8a95a7;
+          text-decoration:none; background:none; border:none; font-family:'Heebo',sans-serif;
+          cursor:pointer; text-align:right; transition:all .15s ease;
+        }
+        .sb-popup-link:hover { background:rgba(244,162,78,.06); color:#d0d8e4; }
+
         /* ── Sidebar Profile ── */
-        .sb-profile-zone { padding:14px 0; border-top:1px solid #1e2835; border-bottom:1px solid #1e2835; margin-bottom:10px; }
+        .sb-profile-zone { padding:14px 0; border-top:1px solid #1e2835; border-bottom:1px solid #1e2835; margin-bottom:10px; width:100%; }
         .connect-btn {
           width:100%; padding:12px; border-radius:10px; border:1px solid rgba(244,162,78,.3);
           background:rgba(244,162,78,.08); color:#f4a24e; font-family:'Heebo',sans-serif;
@@ -1120,6 +2190,11 @@ export default function Home({ rights, updates, events }) {
         .progress-bar { height:6px; background:#1e2835; border-radius:3px; overflow:hidden; }
         .progress-fill { height:100%; background:linear-gradient(90deg,#e8734a,#f4a24e); border-radius:3px; transition:width .5s ease; }
         .nudge { font-size:11.5px; color:#f4a24e; margin-top:8px; }
+        .nudge-btn {
+          background:none; border:none; font-family:'Heebo',sans-serif; cursor:pointer;
+          padding:0; text-decoration:underline; text-underline-offset:2px;
+        }
+        .nudge-btn:hover { color:#e8734a; }
         .signout-link {
           background:none; border:none; color:#6b7a8d; font-family:'Heebo',sans-serif;
           font-size:12px; cursor:pointer; margin-top:8px; padding:0;
@@ -1184,7 +2259,7 @@ export default function Home({ rights, updates, events }) {
 
         /* User top avatar */
         .user-top-btn {
-          position:fixed; top:16px; left:16px; z-index:60;
+          position:fixed; top:40px; left:40px; z-index:60;
           background:none; border:none; cursor:pointer; padding:0;
         }
         .user-top-avatar {
@@ -1196,7 +2271,13 @@ export default function Home({ rights, updates, events }) {
           transition:transform .2s ease;
         }
         .user-top-btn:hover .user-top-avatar { transform:scale(1.08); }
-        .user-top-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+        .user-top-avatar.anon {
+          background:linear-gradient(135deg,#2a3444,#1e2835);
+          border:1.5px solid #3a4555; box-shadow:0 2px 12px rgba(0,0,0,.3);
+          font-size:18px;
+        }
+        .user-top-btn:hover .user-top-avatar.anon { border-color:#f4a24e; }
+        .user-top-avatar img { width:40px; height:40px; min-width:40px; min-height:40px; object-fit:cover; border-radius:50%; display:block; }
 
         /* Profile view */
         .profile-card {
@@ -1234,24 +2315,72 @@ export default function Home({ rights, updates, events }) {
           background:#141c26; border:1px solid #1e2835; border-radius:10px;
           font-size:14px; color:#c2ccd8;
         }
+        .profile-right-item.clickable { cursor:pointer; transition:all .2s ease; }
+        .profile-right-item.clickable:hover { border-color:rgba(244,162,78,.3); background:#1a2430; transform:translateX(-2px); }
         .profile-right-item.prog { border-right:3px solid #f4a24e; }
         .profile-right-item.done { border-right:3px solid #34d399; }
+        .profile-right-arrow { margin-right:auto; color:#f4a24e; font-size:16px; opacity:.6; }
+        .profile-right-item.clickable:hover .profile-right-arrow { opacity:1; }
         .profile-check { margin-right:auto; color:#34d399; font-weight:700; }
         .profile-more { font-size:13px; color:#8a95a7; margin-top:8px; }
+        .profile-more-btn {
+          background:none; border:1px solid rgba(244,162,78,.2); border-radius:10px;
+          padding:12px 16px; color:#f4a24e; font-family:'Heebo',sans-serif;
+          font-size:13.5px; font-weight:600; cursor:pointer; width:100%;
+          text-align:center; transition:all .2s ease;
+        }
+        .profile-more-btn:hover { background:rgba(244,162,78,.06); border-color:#f4a24e; }
 
-        .sb-footer { border-top:1px solid #1e2835; padding-top:14px; display:flex; flex-direction:column; gap:6px; }
+        .sb-footer { border-top:1px solid #1e2835; padding-top:12px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+
+        /* Mini footer icons */
+        .sb-footer-icon {
+          position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+          border-radius:12px; background:#161e28; border:none; font-size:16px;
+          color:#8a95a7; text-decoration:none; cursor:pointer; transition:all .2s ease;
+          font-family:'Heebo',sans-serif;
+        }
+        .sb-footer-icon:hover { background:#1a2430; color:#eef1f6; }
+        .sb-footer-icon.red { color:#e8734a; }
+        .sb-footer-icon.red:hover { background:rgba(224,82,82,.1); }
+        .sb-footer-icon::after {
+          content:attr(data-tooltip); position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
+          background:#1e2835; color:#eef1f6; font-size:12.5px; font-weight:600; padding:6px 12px;
+          border-radius:8px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s ease;
+          box-shadow:0 4px 12px rgba(0,0,0,.3); z-index:100;
+        }
+        .sb-footer-icon:hover::after { opacity:1; }
+
+        /* Mobile menu hotlines (kept full) */
         .hotline {
           font-size:12px; padding:10px 12px; border-radius:8px; background:#161e28;
           color:#8a95a7; text-decoration:none; display:block; transition:all .2s ease;
         }
         .hotline:hover { color:#eef1f6; background:#1a2430; transform:translateX(-2px); }
         .hotline.red { color:#e8734a; }
+        .hotline.personal-area { color:#6ab0f3; border:1px solid rgba(106,176,243,.15); background:rgba(106,176,243,.06); }
+        .hotline.personal-area:hover { color:#8cc5ff; background:rgba(106,176,243,.12); }
+        .terms-link { cursor:pointer; border:none; text-align:right; font-family:'Heebo',sans-serif; width:100%; color:#6b7a8d !important; }
+        .terms-link:hover { color:#8a95a7 !important; }
 
         /* ── Main ── */
         .main { flex:1; padding:40px 48px; max-width:920px; overflow-y:auto; }
         .pg-hdr { margin-bottom:28px; }
         .pg-hdr h1 { font-size:28px; font-weight:900; letter-spacing:-.5px; color:#f5f3ef; }
         .pg-hdr p { font-size:13.5px; color:#8a95a7; margin-top:6px; line-height:1.6; }
+
+        /* ── Filter banner ── */
+        .filter-banner {
+          display:flex; align-items:center; gap:12px; padding:10px 16px;
+          background:rgba(244,162,78,.08); border:1px solid rgba(244,162,78,.2);
+          border-radius:10px; margin-bottom:16px; font-size:13.5px; color:#f4a24e;
+        }
+        .filter-banner-clear {
+          margin-right:auto; background:none; border:1px solid rgba(244,162,78,.3);
+          border-radius:8px; color:#f4a24e; font-family:'Heebo',sans-serif;
+          font-size:12px; padding:4px 12px; cursor:pointer; transition:all .2s ease;
+        }
+        .filter-banner-clear:hover { background:rgba(244,162,78,.15); }
 
         /* ── Filters ── */
         .filters { margin-bottom:24px; }
@@ -1360,6 +2489,93 @@ export default function Home({ rights, updates, events }) {
         .empty-state { text-align:center; padding:80px 20px; color:#6b7a8d; }
         .empty-icon { font-size:48px; opacity:.2; margin-bottom:16px; }
 
+        /* ── Knowledge ── */
+        .knowledge-explainer {
+          display:flex; gap:14px; align-items:flex-start;
+          background:rgba(244,162,78,.06); border:1px solid rgba(244,162,78,.15);
+          border-radius:14px; padding:18px 22px; margin-bottom:20px;
+        }
+        .knowledge-explainer-icon { font-size:28px; flex-shrink:0; }
+        .knowledge-explainer-text { font-size:14px; color:#a0afc0; line-height:1.7; }
+        .knowledge-explainer-text strong { color:#f5f3ef; }
+        .knowledge-login-hint {
+          color:#6b7a8d; font-size:13px; margin-bottom:16px;
+          padding:10px 16px; background:rgba(255,255,255,.03); border-radius:10px;
+        }
+        .knowledge-form-label {
+          display:block; font-size:13px; color:#8a98a8; margin-bottom:4px; font-weight:500;
+        }
+        .knowledge-share-btn {
+          padding:10px 22px; border-radius:20px; border:1px solid rgba(244,162,78,.3);
+          background:rgba(244,162,78,.08); color:#f4a24e; font-family:'Heebo',sans-serif;
+          font-size:14px; font-weight:600; cursor:pointer; transition:all .2s ease;
+        }
+        .knowledge-share-btn:hover { background:rgba(244,162,78,.15); }
+        .knowledge-form {
+          background:#141c26; border:1px solid #1e2835; border-radius:14px;
+          padding:20px 24px; margin-bottom:16px;
+        }
+        .knowledge-card {
+          background:#141c26; border:1px solid #1e2835; border-radius:14px;
+          padding:22px 26px; transition:all .25s ease;
+        }
+        .knowledge-card:hover { border-color:rgba(244,162,78,.2); }
+        .knowledge-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+        .knowledge-date { font-size:11.5px; color:#6b7a8d; }
+        .knowledge-title { font-size:16px; font-weight:700; color:#f5f3ef; margin-bottom:8px; }
+        .knowledge-content { font-size:14px; color:#a0afc0; line-height:1.75; }
+        .knowledge-foot { margin-top:12px; display:flex; align-items:center; }
+        .knowledge-vote-btn {
+          padding:6px 14px; border-radius:20px; border:1px solid #1e2835;
+          background:transparent; color:#8a95a7; font-family:'Heebo',sans-serif;
+          font-size:13px; cursor:pointer; transition:all .2s ease;
+        }
+        .knowledge-vote-btn:hover:not(:disabled) { border-color:#f4a24e; color:#f4a24e; }
+        .knowledge-vote-btn.voted { background:rgba(244,162,78,.12); border-color:#f4a24e; color:#f4a24e; font-weight:700; }
+        .knowledge-vote-btn:disabled { cursor:default; opacity:.6; }
+
+        /* ── Tips ── */
+        .tips-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+        .tip-card {
+          background:#141c26; border:1px solid #1e2835; border-radius:14px;
+          padding:24px 24px 20px; position:relative; transition:all .25s ease;
+        }
+        .tip-card:hover { border-color:rgba(244,162,78,.25); transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,0,0,.2); }
+        .tip-card-num {
+          position:absolute; top:16px; left:16px; width:28px; height:28px;
+          background:rgba(244,162,78,.12); border-radius:50%; display:flex;
+          align-items:center; justify-content:center; font-size:13px;
+          font-weight:900; color:#f4a24e;
+        }
+        .tip-card-icon { font-size:28px; margin-bottom:12px; }
+        .tip-card-title { font-size:15.5px; font-weight:700; color:#f5f3ef; margin-bottom:10px; line-height:1.5; }
+        .tip-card-content { font-size:13.5px; color:#a0afc0; line-height:1.75; }
+        .tip-card-action {
+          margin-top:12px; padding:8px 14px; background:rgba(106,176,243,.06);
+          border:1px solid rgba(106,176,243,.15); border-radius:8px;
+          font-size:13px; color:#6ab0f3; direction:ltr; text-align:left;
+        }
+
+        /* ── Terms ── */
+        .terms-content { display:flex; flex-direction:column; gap:16px; }
+        .terms-section {
+          background:#141c26; border:1px solid #1e2835; border-radius:14px;
+          padding:22px 26px;
+        }
+        .terms-section h3 { font-size:16px; font-weight:700; color:#f5f3ef; margin-bottom:10px; }
+        .terms-section p { font-size:14px; color:#a0afc0; line-height:1.8; margin-bottom:8px; }
+        .terms-section p:last-child { margin-bottom:0; }
+        .terms-section strong { color:#f4a24e; }
+
+        /* ── Privacy actions ── */
+        .privacy-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+        .privacy-btn {
+          padding:8px 14px; border-radius:8px; border:1px solid rgba(224,82,82,.2);
+          background:rgba(224,82,82,.06); color:#e05252; font-family:'Heebo',sans-serif;
+          font-size:12px; cursor:pointer; transition:all .2s ease;
+        }
+        .privacy-btn:hover { background:rgba(224,82,82,.12); border-color:#e05252; }
+
         /* ── Chat outer ── */
         .chat-outer { display:flex; flex-direction:column; gap:16px; }
 
@@ -1425,6 +2641,62 @@ export default function Home({ rights, updates, events }) {
         .chat-name { font-size:14.5px; font-weight:700; color:#f5f3ef; }
         .chat-sub { font-size:11.5px; color:#8a95a7; margin-top:2px; }
         .chat-online { margin-right:auto; font-size:11px; color:#4ecb8a; }
+        .login-hint-toast {
+          position:fixed; top:90px; left:40px; z-index:61;
+          background:#1a2332; border:1px solid rgba(244,162,78,.25); border-radius:10px;
+          padding:10px 16px; font-size:13px; color:#d0d8e4;
+          animation: hintFadeInOut 6s ease forwards;
+          box-shadow:0 4px 16px rgba(0,0,0,.3);
+        }
+        @keyframes hintFadeInOut {
+          0% { opacity:0; transform:translateY(-8px); }
+          8% { opacity:1; transform:translateY(0); }
+          75% { opacity:1; }
+          100% { opacity:0; transform:translateY(-8px); }
+        }
+        .chat-history-btn {
+          width:32px; height:32px; border-radius:8px; border:1px solid #1e2835;
+          background:transparent; color:#8a95a7; font-size:14px; cursor:pointer;
+          display:flex; align-items:center; justify-content:center; transition:all .2s ease;
+        }
+        .chat-history-btn:hover { border-color:#3a4555; color:#d0d8e4; background:rgba(255,255,255,.03); }
+
+        /* ── Chat History Drawer ── */
+        .chat-history {
+          border-bottom:1px solid #1e2835; padding:12px 16px; background:#111820;
+          max-height:200px; overflow-y:auto;
+        }
+        .history-header {
+          display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+          font-size:13px; font-weight:600; color:#8a95a7;
+        }
+        .history-new-btn {
+          padding:4px 12px; border-radius:6px; border:1px solid rgba(244,162,78,.3);
+          background:rgba(244,162,78,.08); color:#f4a24e; font-family:'Heebo',sans-serif;
+          font-size:11.5px; cursor:pointer; transition:all .2s ease;
+        }
+        .history-new-btn:hover { background:rgba(244,162,78,.15); }
+        .history-empty { font-size:12.5px; color:#556070; text-align:center; padding:8px; }
+        .history-list { display:flex; flex-direction:column; gap:4px; }
+        .history-item {
+          display:flex; align-items:center; gap:6px; border-radius:8px;
+          transition:all .15s ease;
+        }
+        .history-item.active { background:rgba(244,162,78,.08); }
+        .history-item-btn {
+          flex:1; display:flex; align-items:center; justify-content:space-between;
+          padding:8px 12px; border:none; background:transparent; cursor:pointer;
+          font-family:'Heebo',sans-serif; text-align:right; border-radius:8px;
+        }
+        .history-item-btn:hover { background:rgba(255,255,255,.03); }
+        .history-title { font-size:13px; color:#c2ccd8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+        .history-date { font-size:11px; color:#556070; flex-shrink:0; }
+        .history-delete {
+          width:24px; height:24px; border:none; background:transparent;
+          color:#556070; cursor:pointer; font-size:12px; border-radius:4px;
+          display:flex; align-items:center; justify-content:center;
+        }
+        .history-delete:hover { color:#e05252; background:rgba(224,82,82,.08); }
         .chat-msgs { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
         .msg { display:flex; gap:10px; align-items:flex-end; animation:msgIn .3s ease; }
         .msg.user { flex-direction:row-reverse; }
@@ -1496,6 +2768,248 @@ export default function Home({ rights, updates, events }) {
         .mobile-overlay { display:none; }
         .mobile-menu { display:none; }
 
+        /* ── Legal Case ── */
+        .case-section { max-width:800px; }
+        .case-login-prompt {
+          text-align:center; padding:60px 20px; background:#10151c; border:1px solid #1e2530;
+          border-radius:16px; margin-top:20px;
+        }
+        .case-login-icon { font-size:48px; margin-bottom:16px; }
+        .case-login-prompt p { color:#8a95a7; margin-bottom:20px; font-size:15px; }
+        .case-login-prompt .auth-btn { max-width:280px; margin:0 auto; }
+
+        /* Stage Timeline */
+        .stage-timeline {
+          display:flex; gap:8px; overflow-x:auto; padding:16px 4px; margin-bottom:20px;
+          scrollbar-width:thin; scrollbar-color:#1e2835 transparent;
+        }
+        .stage-node {
+          display:flex; flex-direction:column; align-items:center; gap:6px;
+          min-width:72px; flex-shrink:0;
+        }
+        .stage-circle {
+          width:40px; height:40px; border-radius:50%; background:#1a2230; border:2px solid #2a3545;
+          display:flex; align-items:center; justify-content:center; font-size:16px;
+          transition:all .3s ease;
+        }
+        .stage-node.done .stage-circle { background:rgba(78,203,138,.15); border-color:#4ecb8a; }
+        .stage-node.active .stage-circle {
+          background:rgba(224,82,82,.15); border-color:#e05252;
+          box-shadow:0 0 12px rgba(224,82,82,.3);
+        }
+        .stage-label { font-size:10.5px; color:#6b7a8d; text-align:center; white-space:nowrap; }
+        .stage-node.active .stage-label { color:#e05252; font-weight:700; }
+        .stage-node.done .stage-label { color:#4ecb8a; }
+
+        /* Case Card */
+        .case-card {
+          background:#10151c; border:1px solid #1e2530; border-radius:14px;
+          padding:20px 24px; margin-bottom:16px;
+        }
+        .case-card-header { display:flex; align-items:center; gap:14px; margin-bottom:12px; }
+        .case-card-icon { font-size:28px; }
+        .case-card-header h3 { font-size:17px; font-weight:700; color:#f5f3ef; margin:0; }
+        .case-card-desc { font-size:13.5px; color:#8a95a7; margin-top:2px; }
+        .case-next-action {
+          background:rgba(244,162,78,.06); border:1px solid rgba(244,162,78,.15);
+          border-radius:10px; padding:12px 16px; font-size:13.5px; color:#d0d8e4;
+        }
+        .case-next-action strong { color:#f4a24e; }
+
+        /* Countdown */
+        .countdown-card {
+          background:linear-gradient(135deg, rgba(224,82,82,.1), rgba(244,162,78,.08));
+          border:1px solid rgba(224,82,82,.25); border-radius:16px;
+          padding:28px; text-align:center; margin-bottom:16px;
+        }
+        .countdown-number {
+          font-size:64px; font-weight:900; color:#e05252;
+          line-height:1; margin-bottom:4px;
+          text-shadow:0 0 20px rgba(224,82,82,.3);
+        }
+        .countdown-text { font-size:18px; font-weight:700; color:#d0d8e4; }
+        .countdown-date { font-size:13px; color:#8a95a7; margin-top:4px; }
+        .countdown-past { border-color:rgba(78,203,138,.25); background:linear-gradient(135deg, rgba(78,203,138,.08), rgba(52,211,153,.05)); }
+        .countdown-past .countdown-number { color:#4ecb8a; text-shadow:0 0 20px rgba(78,203,138,.3); }
+
+        /* Prep Section */
+        .prep-section {
+          background:#10151c; border:1px solid #1e2530; border-radius:14px;
+          padding:20px 24px; margin-bottom:16px;
+        }
+        .prep-title { font-size:16px; font-weight:700; color:#f4a24e; margin-bottom:6px; }
+        .prep-desc { font-size:13px; color:#8a95a7; margin-bottom:16px; }
+        .prep-tasks { display:flex; flex-direction:column; gap:12px; }
+        .prep-task {
+          background:#161e28; border:1px solid #1e2835; border-radius:10px;
+          padding:14px 16px; transition:all .2s ease;
+        }
+        .prep-task.checked { border-color:rgba(78,203,138,.3); background:rgba(78,203,138,.05); }
+        .prep-check-label {
+          display:flex; align-items:center; gap:10px; cursor:pointer;
+          font-size:14.5px; font-weight:600; color:#d0d8e4;
+        }
+        .prep-check-label input[type="checkbox"] {
+          width:18px; height:18px; accent-color:#4ecb8a; cursor:pointer;
+        }
+        .prep-task.checked .prep-task-title { text-decoration:line-through; color:#6b7a8d; }
+        .prep-task-desc { font-size:12.5px; color:#8a95a7; margin:6px 0 8px 28px; line-height:1.5; }
+        .prep-ask-btn {
+          margin-right:28px; padding:6px 14px; border-radius:8px;
+          border:1px solid rgba(244,162,78,.2); background:rgba(244,162,78,.06);
+          color:#f4a24e; font-family:'Heebo',sans-serif; font-size:12.5px;
+          font-weight:600; cursor:pointer; transition:all .2s ease;
+        }
+        .prep-ask-btn:hover { background:rgba(244,162,78,.12); }
+
+        /* Injury Tips */
+        .injury-tips { margin-bottom:16px; }
+        .injury-tips h3 { font-size:16px; font-weight:700; color:#f5f3ef; margin-bottom:14px; }
+        .tip-boxes { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+        .tip-box {
+          background:#10151c; border:1px solid #1e2530; border-radius:12px;
+          padding:16px 18px;
+        }
+        .tip-box h4 { font-size:13.5px; font-weight:700; color:#d0d8e4; margin-bottom:10px; }
+        .tip-box ul { list-style:none; padding:0; }
+        .tip-box li { font-size:12.5px; color:#8a95a7; line-height:1.7; padding:2px 0; }
+        .tip-box li::before { content:"• "; color:#f4a24e; }
+        .tip-box-warn { border-color:rgba(224,82,82,.2); }
+        .tip-box-warn h4 { color:#e05252; }
+        .tip-box-warn li::before { color:#e05252; }
+
+        /* Case Reminders */
+        .case-reminders { margin-bottom:16px; }
+        .case-reminders h3 { font-size:16px; font-weight:700; color:#f5f3ef; margin-bottom:12px; }
+        .reminder-card {
+          background:#10151c; border:1px solid #1e2530; border-radius:10px;
+          padding:14px 16px; margin-bottom:8px;
+        }
+        .reminder-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+        .reminder-type { font-size:16px; }
+        .reminder-header strong { flex:1; font-size:14px; color:#d0d8e4; }
+        .reminder-dismiss {
+          background:none; border:none; color:#6b7a8d; font-size:14px;
+          cursor:pointer; padding:2px 6px;
+        }
+        .reminder-card p { font-size:13px; color:#8a95a7; margin:0; }
+
+        /* Case Edit Button */
+        .case-edit-btn {
+          display:block; width:100%; padding:12px; border-radius:10px;
+          border:1px solid #1e2835; background:#161e28; color:#8a95a7;
+          font-family:'Heebo',sans-serif; font-size:14px; cursor:pointer;
+          transition:all .2s ease; margin-bottom:16px;
+        }
+        .case-edit-btn:hover { border-color:#3a4555; color:#d0d8e4; }
+
+        /* Case Modal */
+        .case-modal-overlay {
+          position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:300;
+          display:flex; align-items:center; justify-content:center; padding:16px;
+        }
+        .case-modal {
+          background:#10151c; border:1px solid #1e2530; border-radius:16px;
+          padding:28px; max-width:500px; width:100%; max-height:85vh; overflow-y:auto;
+        }
+        .case-modal h3 { font-size:18px; font-weight:700; color:#f5f3ef; margin-bottom:20px; }
+
+        /* Wizard */
+        .case-wizard {
+          background:#10151c; border:1px solid #1e2530; border-radius:16px;
+          padding:28px; margin-top:20px;
+        }
+        .wizard-step h3 { font-size:17px; font-weight:700; color:#f5f3ef; margin-bottom:18px; }
+        .wizard-options { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:20px; }
+        .wizard-opt {
+          display:flex; flex-direction:column; align-items:center; gap:8px;
+          padding:16px 10px; border-radius:12px; border:1px solid #1e2835;
+          background:#161e28; color:#8a95a7; font-family:'Heebo',sans-serif;
+          font-size:13px; cursor:pointer; transition:all .2s ease;
+        }
+        .wizard-opt:hover { border-color:#3a4555; }
+        .wizard-opt.selected { border-color:#e05252; background:rgba(224,82,82,.08); color:#d0d8e4; }
+        .wizard-opt-icon { font-size:24px; }
+        .wizard-stages { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; max-height:360px; overflow-y:auto; }
+        .wizard-stage {
+          display:flex; align-items:center; gap:12px; padding:12px 16px;
+          border-radius:10px; border:1px solid #1e2835; background:#161e28;
+          color:#8a95a7; font-family:'Heebo',sans-serif; cursor:pointer;
+          text-align:right; transition:all .2s ease;
+        }
+        .wizard-stage:hover { border-color:#3a4555; }
+        .wizard-stage.selected { border-color:#e05252; background:rgba(224,82,82,.08); }
+        .wizard-stage-icon { font-size:20px; flex-shrink:0; }
+        .wizard-stage-label { font-size:14px; font-weight:600; color:#d0d8e4; }
+        .wizard-stage-desc { font-size:11.5px; color:#6b7a8d; margin-top:2px; }
+        .wizard-field {
+          display:block; margin-bottom:14px;
+        }
+        .wizard-field span {
+          display:block; font-size:13px; color:#8a95a7; margin-bottom:4px; font-weight:500;
+        }
+        .wizard-field input, .wizard-field select, .wizard-field textarea {
+          width:100%; padding:10px 14px; border-radius:8px; border:1px solid #1e2835;
+          background:#161e28; color:#d0d8e4; font-family:'Heebo',sans-serif;
+          font-size:14px; direction:rtl;
+        }
+        .wizard-field input:focus, .wizard-field select:focus, .wizard-field textarea:focus {
+          outline:none; border-color:#e05252;
+        }
+        .wizard-nav { display:flex; gap:10px; justify-content:space-between; margin-top:20px; }
+        .wizard-back {
+          padding:10px 20px; border-radius:8px; border:1px solid #1e2835;
+          background:transparent; color:#8a95a7; font-family:'Heebo',sans-serif;
+          font-size:14px; cursor:pointer;
+        }
+        .wizard-next {
+          padding:10px 24px; border-radius:8px; border:none;
+          background:linear-gradient(135deg,#e8734a,#e05252); color:#fff;
+          font-family:'Heebo',sans-serif; font-size:14px; font-weight:600;
+          cursor:pointer; transition:all .2s ease;
+        }
+        .wizard-next:disabled { opacity:.4; cursor:default; }
+        .wizard-submit { background:linear-gradient(135deg,#4ecb8a,#34d399); }
+
+        /* Edit injury grid */
+        .edit-injury-grid {
+          display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-top:4px;
+        }
+        .edit-injury-opt {
+          display:flex; align-items:center; gap:8px; padding:8px 12px;
+          border-radius:8px; border:1px solid #1e2835; background:#161e28;
+          color:#8a95a7; font-size:13px; cursor:pointer; transition:all .2s ease;
+        }
+        .edit-injury-opt.selected { border-color:#e05252; background:rgba(224,82,82,.08); color:#d0d8e4; }
+        .edit-injury-opt input[type="checkbox"] { accent-color:#e05252; }
+
+        /* Stage Toast */
+        .stage-toast {
+          position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+          z-index:400; animation:slideUp .3s ease;
+        }
+        .stage-toast-content {
+          background:#1a2230; border:1px solid rgba(244,162,78,.3);
+          border-radius:14px; padding:14px 20px; display:flex;
+          align-items:center; gap:14px; box-shadow:0 8px 32px rgba(0,0,0,.4);
+          font-size:14px; color:#d0d8e4;
+        }
+        .stage-toast-btns { display:flex; gap:8px; }
+        .stage-toast-yes {
+          padding:6px 16px; border-radius:8px; border:none;
+          background:#4ecb8a; color:#0a0e14; font-family:'Heebo',sans-serif;
+          font-size:13px; font-weight:600; cursor:pointer;
+        }
+        .stage-toast-no {
+          padding:6px 16px; border-radius:8px; border:1px solid #2a3545;
+          background:transparent; color:#8a95a7; font-family:'Heebo',sans-serif;
+          font-size:13px; cursor:pointer;
+        }
+        @keyframes slideUp {
+          from { transform:translateX(-50%) translateY(20px); opacity:0; }
+          to { transform:translateX(-50%) translateY(0); opacity:1; }
+        }
+
         /* ── Mobile ── */
         @media (max-width:760px) {
           .root { flex-direction:column; }
@@ -1546,7 +3060,11 @@ export default function Home({ rights, updates, events }) {
           .mobile-menu-close:hover { color:#eef1f6; background:rgba(255,255,255,.05); }
 
           .mobile-nav { display:flex; flex-direction:column; gap:4px; margin-bottom:16px; }
-          .mobile-nav .nav-btn { font-size:14px; padding:12px 14px; }
+          .mobile-nav .nav-btn { font-size:14px; padding:12px 14px; width:auto; height:auto; justify-content:flex-start; gap:10px; }
+          .mobile-nav .nav-lbl { display:inline; }
+          .mobile-nav .nav-btn::after { display:none; }
+          .mobile-nav .nav-badge-dot { display:none; }
+          .mobile-nav .nav-badge { display:inline; }
 
           .mobile-menu-profile { border-top:1px solid #1e2835; padding-top:14px; margin-bottom:14px; }
           .mobile-menu-footer {
@@ -1557,10 +3075,18 @@ export default function Home({ rights, updates, events }) {
           .main { padding:20px 16px; }
           .pg-hdr h1 { font-size:24px; }
           .ev-grid { grid-template-columns:1fr; }
-          .chat-wrap { height:60vh; }
+          .hat-row { gap:6px; }
+          .hat-btn { padding:7px 10px; font-size:12.5px; gap:5px; border-radius:10px; }
+          .hat-icon { font-size:15px; }
+          .hat-label { font-size:12px; }
+          .chat-wrap { height:calc(100vh - 300px); max-height:none; }
           .psycho-mode .chat-wrap-full { height:calc(100vh - 160px); }
           .camera-btn { display:flex; }
           .card:hover,.ev-card:hover,.update-card:hover { transform:none; }
+          .wizard-options { grid-template-columns:repeat(2, 1fr); }
+          .tip-boxes { grid-template-columns:1fr; }
+          .countdown-number { font-size:48px; }
+          .stage-toast-content { flex-direction:column; text-align:center; }
           .hotline:hover { transform:none; }
           .hat-row-mini { bottom:12px; left:12px; padding:6px 10px; }
         }
@@ -1574,7 +3100,10 @@ export async function getStaticProps() {
   const path = require("path");
   const read = f => JSON.parse(fs.readFileSync(path.join(process.cwd(),"data",f),"utf-8"));
   return {
-    props: { rights:read("rights.json"), updates:read("updates.json"), events:read("events.json") },
+    props: {
+      rights:read("rights.json"), updates:read("updates.json"), events:read("events.json"),
+      legalStages:read("legal-stages.json"), committeePrepData:read("committee-prep.json"), injuryProfiles:read("injury-profiles.json"),
+    },
     revalidate: 1800,
   };
 }

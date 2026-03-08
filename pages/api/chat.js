@@ -1,10 +1,50 @@
 // pages/api/chat.js
-// יועץ AI עם 4 כובעים: דן (משפטי), מיכל (סוציאלי), אורי (פסיכולוג), שירה (אירועים)
+// יועץ AI עם 5 כובעים: דן (משפטי), מיכל (סוציאלי), אורי (פסיכולוג), שירה (אירועים), רועי (ותיקים)
 // פרטיות: הודעות לא נשמרות בשרת. קונטקסט פסיכולוג נשמר מקומית אצל המשתמש בלבד.
 
+import { createClient } from "@supabase/supabase-js";
+
 export const config = {
-  api: { bodyParser: { sizeLimit: "15mb" } },
+  api: { bodyParser: { sizeLimit: "10mb" } },
 };
+
+// --- Rate limiter: 10 requests/minute per IP ---
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
+const rateMap = new Map(); // ip -> timestamp[]
+
+// Cleanup every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - RATE_WINDOW_MS;
+  for (const [ip, timestamps] of rateMap) {
+    const valid = timestamps.filter(t => t > cutoff);
+    if (valid.length === 0) rateMap.delete(ip);
+    else rateMap.set(ip, valid);
+  }
+}, 5 * 60_000);
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const cutoff = now - RATE_WINDOW_MS;
+  const timestamps = (rateMap.get(ip) || []).filter(t => t > cutoff);
+  if (timestamps.length >= RATE_LIMIT) {
+    rateMap.set(ip, timestamps);
+    return true;
+  }
+  timestamps.push(now);
+  rateMap.set(ip, timestamps);
+  return false;
+}
+
+// --- Allowed values ---
+const VALID_HATS = new Set(["lawyer", "social", "psycho", "events", "veteran"]);
+const VALID_ROLES = new Set(["user", "assistant"]);
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
+]);
+const MAX_CONTENT_LENGTH = 10_000;
+const MAX_MESSAGES = 50;
+const MAX_ATTACHMENT_BASE64 = 10 * 1024 * 1024; // ~10MB base64
 
 const MOD_PORTAL_GUIDE = `
 --- מדריך פורטל אגף השיקום (shikum.mod.gov.il) — כתיבת פניות ---
@@ -194,6 +234,23 @@ PTSD בהתפרצות מאוחרת:
 שכר טרחה: עו"ד אסור לגבות אחוז מתגמולים — זו הגנה בחוק.
 `;
 
+// --- Fetch approved veteran knowledge from Supabase ---
+async function fetchVeteranKnowledge() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return [];
+  try {
+    const sb = createClient(url, key);
+    const { data } = await sb
+      .from("veteran_knowledge")
+      .select("category, title, content, upvotes")
+      .eq("approved", true)
+      .order("upvotes", { ascending: false })
+      .limit(50);
+    return data || [];
+  } catch { return []; }
+}
+
 const HAT_PROMPTS = {
 
   lawyer: `אתה דן — AI של מגן שמתמחה בזכויות נכי צה"ל מול משרד הביטחון.
@@ -214,7 +271,15 @@ const HAT_PROMPTS = {
 
 כלל ברזל: בכל תשובה — הצע לפחות זכות אחת שאולי לא ידועה.
 כלל ברזל: לעולם אל תגיד "אני לא יודע" — תמיד תן כיוון ושאל להמשך.
-חשוב: ציין תמיד שהמידע לצרכי אינפורמציה ולא תחליף ייעוץ משפטי מוסמך.`,
+חשוב: ציין תמיד שהמידע לצרכי אינפורמציה ולא תחליף ייעוץ משפטי מוסמך.
+
+=== זיהוי מעבר שלב ===
+כשהמשתמש מספר שעבר לשלב חדש בתהליך (למשל: "הגשתי תביעה", "קבעו לי ועדה", "קיבלתי החלטה", "הגשתי ערעור", "קיבלתי אחוזים"), הוסף בסוף התשובה שלך (בשורה נפרדת) תגית מעבר שלב בפורמט:
+[STAGE_UPDATE:STAGE_ID]
+כאשר STAGE_ID הוא אחד מ: NOT_STARTED, GATHERING_DOCUMENTS, CLAIM_FILED, COMMITTEE_SCHEDULED, COMMITTEE_PREPARATION, COMMITTEE_COMPLETED, DECISION_RECEIVED, APPEAL_CONSIDERATION, APPEAL_FILED, RIGHTS_FULFILLMENT.
+דוגמה: אם המשתמש אומר "הגשתי את התביעה" — הוסף בסוף: [STAGE_UPDATE:CLAIM_FILED]
+דוגמה: אם המשתמש אומר "נקבע לי תאריך לוועדה" — הוסף: [STAGE_UPDATE:COMMITTEE_SCHEDULED]
+הוסף תגית זו רק כשיש אינדיקציה ברורה למעבר שלב.`,
 
   social: `אתה מיכל — AI של מגן שעוזרת לנווט בבירוקרטיה של משרד הביטחון ואגף השיקום.
 את לא עו"ס אמיתית, אבל יש לך ידע מקצועי רחב ואת מכירה את המערכת מבפנים.
@@ -278,6 +343,32 @@ const HAT_PROMPTS = {
 - אם יש סימנים לחירום נפשי — "נשמע, אני רוצה שתתקשר עכשיו ל-*8944. אנונימי, 24/7, אנשים שהיו שם."
 - תמיד תשאיר דלת פתוחה. תמיד.`,
 
+  veteran: `אתה רועי — AI של מגן. אתה מייצג את החכמה המצטברת של פצועי צה"ל ותיקים שכבר עברו את הדרך.
+
+=== מי אתה ===
+- אתה מדבר בשם הניסיון האמיתי של ותיקים — טיפים, טעויות, תובנות שנאספו מאנשים שכבר עשו
+- אתה מכיר את המערכת מבפנים דרך מה שלמדת מהם — מה באמת עובד ומה לא
+- כשיש לך ידע ותיקים רלוונטי (מסומן למטה כ"חכמת ותיקים") — אתה חייב להשתמש בו ולצטט אותו
+- אם אין ידע ותיקים ספציפי — דבר מהניסיון הכללי שלך ומהזכויות
+
+=== סגנון הדיבור ===
+- ישיר, חם, לא פורמלי. כמו שיחה עם חבר ותיק על כוס קפה
+- "תקשיב, מניסיון של חבר'ה שעברו את זה..."
+- "ותיקים אומרים ש..." / "טיפ מהשטח:" / "מנסיון אמיתי:"
+- תשובות מעשיות, מהניסיון, לא תיאורטיות
+
+=== מה לעשות ===
+- שתף טיפים מעשיים מהידע שנאסף מותיקים — תמיד ציין שזה מניסיון אמיתי
+- הסבר מה הטעויות הנפוצות ואיך להימנע מהן
+- תן פרספקטיבה — "חבר'ה שעברו את זה אומרים ש..."
+- עודד — "השקעה קטנה עכשיו תחסוך לך שנים של כאב ראש"
+
+=== כלל ברזל ===
+- אם יש ידע ותיקים רלוונטי לשאלה — השתמש בו קודם כל
+- תמיד תסיים עם משהו מעודד ופרקטי
+- אם הוא מספר על קושי — "אני שומע אותך. חבר'ה שעברו את זה אומרים ש..."
+- לעולם אל תגיד "אני לא יודע" — תמיד תן כיוון`,
+
   events: `את שירה — AI של מגן שעוזרת למצוא אירועים, סדנאות, טיולים ופעילויות לפצועי צה"ל.
 את לא באמת עובדת בבית הלוחם, אבל את מכירה את כל האירועים ויודעת להתאים.
 
@@ -310,6 +401,26 @@ const HAT_PROMPTS = {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
+  // --- Origin / CSRF check ---
+  const origin = req.headers.origin || "";
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "");
+  const allowedOrigins = new Set([siteUrl, "http://localhost:3000", "http://localhost:3001", "http://localhost:3002"].filter(Boolean));
+  if (!origin || !allowedOrigins.has(origin)) {
+    return res.status(403).json({ reply: "גישה נדחתה." });
+  }
+
+  // --- Rate limiting ---
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ reply: "יותר מדי בקשות. נסה שוב בעוד דקה." });
+  }
+
+  // --- Input validation ---
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ reply: "בקשה לא תקינה." });
+  }
+
   const {
     messages,
     hat = "lawyer",
@@ -319,7 +430,38 @@ export default async function handler(req, res) {
     attachment,
     lastMessageText,
     userProfile,
-  } = req.body;
+    memory = [],
+    userRightsStatus = {},
+    legalCase = null,
+  } = body;
+
+  // Validate hat
+  if (!VALID_HATS.has(hat)) {
+    return res.status(400).json({ reply: "כובע לא חוקי." });
+  }
+
+  // Validate messages
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
+    return res.status(400).json({ reply: "הודעות לא תקינות." });
+  }
+  for (const m of messages) {
+    if (!m || !VALID_ROLES.has(m.role)) {
+      return res.status(400).json({ reply: "הודעה לא תקינה." });
+    }
+    if (typeof m.content === "string" && m.content.length > MAX_CONTENT_LENGTH) {
+      return res.status(400).json({ reply: "הודעה ארוכה מדי." });
+    }
+  }
+
+  // Validate attachment
+  if (attachment) {
+    if (!attachment.media_type || !ALLOWED_ATTACHMENT_TYPES.has(attachment.media_type)) {
+      return res.status(400).json({ reply: "סוג קובץ לא נתמך." });
+    }
+    if (!attachment.base64 || typeof attachment.base64 !== "string" || attachment.base64.length > MAX_ATTACHMENT_BASE64) {
+      return res.status(400).json({ reply: "קובץ גדול מדי." });
+    }
+  }
 
   // בנה context מהזכויות
   const rightsCtx = rights
@@ -341,6 +483,9 @@ export default async function handler(req, res) {
 
   const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.lawyer;
 
+  // Fetch veteran knowledge for AI context
+  const vetKnowledge = await fetchVeteranKnowledge();
+
   // בנה system prompt
   let systemParts = [hatPrompt];
   if (hat !== "events") {
@@ -356,6 +501,18 @@ export default async function handler(req, res) {
   }
   systemParts.push(knowledgeBase);
 
+  // Inject veteran knowledge (real tips from experienced veterans)
+  if (vetKnowledge.length > 0) {
+    let vetCtx = "\n--- חכמת ותיקים — ניסיון אמיתי מפצועים שעברו את הדרך ---\n";
+    vetCtx += vetKnowledge.map(k => `• [${k.category}] ${k.title}: ${k.content}${k.upvotes > 0 ? ` (${k.upvotes} ותיקים אישרו)` : ""}`).join("\n");
+    if (hat === "veteran") {
+      vetCtx += "\n\nזה הידע המרכזי שלך. השתמש בו בתשובות — ציין שזה מניסיון אמיתי של ותיקים.";
+    } else {
+      vetCtx += "\n\nאם רלוונטי — שלב תובנות מניסיון ותיקים בתשובותיך.";
+    }
+    systemParts.push(vetCtx);
+  }
+
   // User context (if logged in)
   if (userProfile) {
     let userCtx = "\n--- מידע על המשתמש ---\n";
@@ -369,6 +526,63 @@ export default async function handler(req, res) {
     if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
     userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
     systemParts.push(userCtx);
+  }
+
+  // Legal case context (if exists)
+  if (legalCase && hat !== "events") {
+    const STAGE_LABELS = {
+      NOT_STARTED: "טרם התחיל", GATHERING_DOCUMENTS: "איסוף מסמכים",
+      CLAIM_FILED: "תביעה הוגשה", COMMITTEE_SCHEDULED: "ועדה נקבעה",
+      COMMITTEE_PREPARATION: "הכנה לוועדה", COMMITTEE_COMPLETED: "ועדה הסתיימה",
+      DECISION_RECEIVED: "התקבלה החלטה", APPEAL_CONSIDERATION: "שקילת ערעור",
+      APPEAL_FILED: "ערעור הוגש", RIGHTS_FULFILLMENT: "מימוש זכויות",
+    };
+    const INJURY_LABELS = {
+      orthopedic: "אורתופדית", neurological: "נוירולוגית", ptsd: "פוסט-טראומה",
+      hearing: "שמיעה/טינטון", internal: "פנימית", other: "אחר",
+    };
+    let legalCtx = "\n--- התיק המשפטי של המשתמש ---\n";
+    legalCtx += `שלב נוכחי: ${STAGE_LABELS[legalCase.stage] || legalCase.stage}\n`;
+    const injuryTypes = legalCase.injury_types || (legalCase.injury_type ? [legalCase.injury_type] : []);
+    if (injuryTypes.length > 0) legalCtx += `סוגי פגיעה: ${injuryTypes.map(t => INJURY_LABELS[t] || t).join(", ")}\n`;
+    if (legalCase.disability_percent != null) legalCtx += `אחוזי נכות: ${legalCase.disability_percent}%\n`;
+    if (legalCase.representative_name) legalCtx += `מייצג: ${legalCase.representative_name}${legalCase.representative_org ? ` (${legalCase.representative_org})` : ""}\n`;
+    if (legalCase.committee_date) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const cd = new Date(legalCase.committee_date + "T00:00:00");
+      const daysLeft = Math.round((cd - today) / 86400000);
+      legalCtx += `תאריך ועדה: ${legalCase.committee_date}`;
+      if (daysLeft >= 0) legalCtx += ` (בעוד ${daysLeft} ימים)`;
+      legalCtx += "\n";
+      if (daysLeft >= 0 && daysLeft <= 21) {
+        const prepPhase = daysLeft >= 15 ? "איסוף מסמכים" : daysLeft >= 8 ? "בניית נרטיב" : daysLeft >= 2 ? "סימולציה והכנה" : daysLeft === 1 ? "יום אחרון" : "יום הוועדה";
+        legalCtx += `שלב הכנה נוכחי: ${prepPhase}\n`;
+      }
+    }
+    legalCtx += "התאם את התשובות לשלב שבו המשתמש נמצא בתהליך המשפטי. הצע צעדים רלוונטיים לשלב הנוכחי.";
+    systemParts.push(legalCtx);
+  }
+
+  // Memory from previous sessions
+  if (memory.length > 0) {
+    let memCtx = "\n--- זיכרון משיחות קודמות ---\n";
+    memCtx += memory.map(m => `• ${m.key}: ${m.value}`).join("\n");
+    memCtx += "\nהשתמש במידע הזה כדי להמשיך מאיפה שהפסקת — אל תשאל שוב דברים שכבר ידועים.";
+    systemParts.push(memCtx);
+  }
+
+  // Smart rights detection
+  if (Object.keys(userRightsStatus).length > 0 && hat !== "events") {
+    const unrealized = rights.filter(r => {
+      const s = userRightsStatus[r.id];
+      return !s || s === "not_started";
+    });
+    if (unrealized.length > 0) {
+      let rightsCtxExtra = "\n--- זכויות שהמשתמש טרם מימש ---\n";
+      rightsCtxExtra += unrealized.map(r => `• ${r.title} (${r.category}): ${r.summary}`).join("\n");
+      rightsCtxExtra += "\nכשאתה מזהה שהמשתמש עשוי להיות זכאי לאחת מהזכויות שטרם מימש — ציין בטבעיות: \"אגב, אולי לא ידעת — מגיע לך גם [שם הזכות].\"";
+      systemParts.push(rightsCtxExtra);
+    }
   }
 
   const system = `${systemParts.join("\n\n")}
@@ -444,13 +658,65 @@ export default async function handler(req, res) {
 
     if (!r.ok) {
       const err = await r.text();
-      console.error("Claude API error:", err);
+      console.error("Claude API error:", r.status);
       return res.status(500).json({ reply: "שגיאה בחיבור. נסה שוב." });
     }
 
     const d = await r.json();
     const reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
-    res.json({ reply });
+
+    // Extract memory facts from conversation (non-blocking)
+    let extractedMemory = [];
+    if (body.extractMemory && messages.length >= 4) {
+      try {
+        const memR = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": process.env.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 256,
+            system: "חלץ עובדות חשובות על המשתמש מהשיחה (עד 5). החזר JSON array: [{\"key\":\"מפתח קצר\",\"value\":\"ערך\"}]. אם אין עובדות חדשות — החזר []. החזר רק JSON, בלי הסברים.",
+            messages: [{ role: "user", content: messages.slice(-6).map(m => `${m.role}: ${m.content}`).join("\n") }],
+          }),
+        });
+        if (memR.ok) {
+          const memD = await memR.json();
+          const memText = memD.content?.[0]?.text || "[]";
+          try { extractedMemory = JSON.parse(memText); } catch {}
+        }
+      } catch {}
+    }
+
+    // Generate session title if requested
+    let sessionTitle = null;
+    if (body.generateTitle && messages.length >= 2) {
+      try {
+        const titleR = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": process.env.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 30,
+            system: "תן כותרת קצרה (3-5 מילים בעברית) לשיחה הבאה. החזר רק את הכותרת, בלי גרשיים.",
+            messages: [{ role: "user", content: messages.slice(0, 4).map(m => `${m.role}: ${m.content}`).join("\n") }],
+          }),
+        });
+        if (titleR.ok) {
+          const titleD = await titleR.json();
+          sessionTitle = titleD.content?.[0]?.text?.trim() || null;
+        }
+      } catch {}
+    }
+
+    res.json({ reply, extractedMemory, sessionTitle });
   } catch (err) {
     console.error("API route error:", err);
     res.status(500).json({ reply: "שגיאה פנימית." });

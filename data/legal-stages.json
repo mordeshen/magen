@@ -1,0 +1,82 @@
+[
+  {
+    "id": "NOT_STARTED",
+    "label": "טרם התחלתי",
+    "icon": "○",
+    "description": "טרם התחלת תהליך מול משרד הביטחון",
+    "nextAction": "אסוף מסמכים רפואיים ותיעוד מתקופת השירות",
+    "order": 0
+  },
+  {
+    "id": "GATHERING_DOCUMENTS",
+    "label": "איסוף מסמכים",
+    "icon": "📋",
+    "description": "שלב איסוף תיק רפואי, חוות דעת, תצהירים ומסמכי שירות",
+    "nextAction": "הגש תביעה לקצין תגמולים עם כל המסמכים",
+    "order": 1
+  },
+  {
+    "id": "CLAIM_FILED",
+    "label": "תביעה הוגשה",
+    "icon": "📨",
+    "description": "התביעה הוגשה לקצין תגמולים וממתינה לטיפול",
+    "nextAction": "המתן לתשובת קצין תגמולים — עקוב כל שבועיים",
+    "order": 2
+  },
+  {
+    "id": "COMMITTEE_SCHEDULED",
+    "label": "ועדה נקבעה",
+    "icon": "📅",
+    "description": "נקבע תאריך לוועדה רפואית",
+    "nextAction": "התחל הכנה לוועדה — 21 ימים לפני",
+    "order": 3
+  },
+  {
+    "id": "COMMITTEE_PREPARATION",
+    "label": "הכנה לוועדה",
+    "icon": "⚡",
+    "description": "בתהליך הכנה אקטיבי לקראת הוועדה הרפואית",
+    "nextAction": "עקוב אחרי צ'קליסט ההכנה — שלב אחרי שלב",
+    "order": 4
+  },
+  {
+    "id": "COMMITTEE_COMPLETED",
+    "label": "ועדה הסתיימה",
+    "icon": "✓",
+    "description": "הוועדה התקיימה — ממתין להחלטה",
+    "nextAction": "תעד מיד מה נאמר בוועדה. המתן להחלטה בכתב",
+    "order": 5
+  },
+  {
+    "id": "DECISION_RECEIVED",
+    "label": "התקבלה החלטה",
+    "icon": "📄",
+    "description": "התקבלה החלטת הוועדה עם קביעת אחוזי נכות",
+    "nextAction": "בדוק אם ההחלטה הוגנת — יש 45 יום לערעור",
+    "order": 6
+  },
+  {
+    "id": "APPEAL_CONSIDERATION",
+    "label": "שקילת ערעור",
+    "icon": "⚖",
+    "description": "בוחן האם לערער על ההחלטה",
+    "nextAction": "התייעץ עם מייצג — 45 יום מיום ההחלטה",
+    "order": 7
+  },
+  {
+    "id": "APPEAL_FILED",
+    "label": "ערעור הוגש",
+    "icon": "📝",
+    "description": "הוגש ערעור לוועדה רפואית עליונה",
+    "nextAction": "המתן לזימון — הכן מסמכים נוספים אם יש",
+    "order": 8
+  },
+  {
+    "id": "RIGHTS_FULFILLMENT",
+    "label": "מימוש זכויות",
+    "icon": "🏆",
+    "description": "יש אחוזי נכות — שלב מימוש כל הזכויות המגיעות",
+    "nextAction": "בדוק את כל הזכויות המגיעות לך לפי אחוזי הנכות",
+    "order": 9
+  }
+]

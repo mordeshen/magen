@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import Head from "next/head";
 import { useUser } from "../lib/UserContext";
 
@@ -88,7 +88,7 @@ function ChatBubbleContent({ text }) {
     bookmarkletIdx++;
     const bookmarkletUrl = bm ? generateBookmarklet(bm.text || nusach) : null;
     return (
-      <React.Fragment key={i}>
+      <Fragment key={i}>
         <div className="nusach-block">
           <div className="nusach-text">{nusach}</div>
           <button
@@ -124,7 +124,7 @@ function ChatBubbleContent({ text }) {
             )}
           </div>
         )}
-      </React.Fragment>
+      </Fragment>
     );
   });
 }

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "basic_chat",
+    "label": "שיחה בסיסית",
+    "description": "כובע + בסיס ידע זכויות",
+    "icon": "💬",
+    "estimated_tokens": 2000,
+    "always_on": true,
+    "enabled_by_default": true,
+    "plans": ["free"]
+  },
+  {
+    "id": "memory",
+    "label": "זיכרון שיחות",
+    "description": "המשך מאיפה שהפסקת",
+    "icon": "🧠",
+    "estimated_tokens": 800,
+    "always_on": false,
+    "enabled_by_default": true,
+    "plans": ["free"]
+  },
+  {
+    "id": "legal_context",
+    "label": "תיק משפטי",
+    "description": "שלב תביעה, ועדות, ייצוג",
+    "icon": "⚖️",
+    "estimated_tokens": 1200,
+    "always_on": false,
+    "enabled_by_default": true,
+    "plans": ["free"]
+  },
+  {
+    "id": "medical_context",
+    "label": "רקע רפואי",
+    "description": "פגיעות ואבחנות מהתיק",
+    "icon": "🏥",
+    "estimated_tokens": 1500,
+    "always_on": false,
+    "enabled_by_default": true,
+    "plans": ["free"]
+  },
+  {
+    "id": "medical_extract",
+    "label": "זיהוי פגיעות",
+    "description": "AI מזהה ושומר פגיעות חדשות",
+    "icon": "🔍",
+    "estimated_tokens": 800,
+    "always_on": false,
+    "enabled_by_default": true,
+    "plans": ["free"]
+  },
+  {
+    "id": "attachments",
+    "label": "קבצים ותמונות",
+    "description": "שליחת PDF/תמונות",
+    "icon": "📎",
+    "estimated_tokens": 5000,
+    "always_on": false,
+    "enabled_by_default": false,
+    "plans": ["free"]
+  }
+]

@@ -21,9 +21,14 @@ const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 const rateMap = new Map(); // ip -> timestamp[]
 
+// --- Hourly limiter: 60 requests/hour per IP (anti-abuse) ---
+const HOURLY_LIMIT = 60;
+const HOURLY_WINDOW_MS = 3_600_000;
+const hourlyMap = new Map(); // ip -> timestamp[]
+
 // --- Daily token limiter ---
-const DAILY_TOKEN_LIMIT = 50_000_000; // 50M tokens/day global
-const DAILY_TOKEN_LIMIT_PER_IP = 500_000; // 500K tokens/day per IP
+const DAILY_TOKEN_LIMIT = 999_000_000; // TEMPORARY: unlimited during launch period
+const DAILY_TOKEN_LIMIT_PER_IP = 999_000_000; // TEMPORARY: unlimited during launch period
 let dailyTokens = { total: 0, perIp: new Map(), date: new Date().toDateString() };
 
 function resetDailyTokensIfNeeded() {
@@ -56,18 +61,34 @@ setInterval(() => {
     if (valid.length === 0) rateMap.delete(ip);
     else rateMap.set(ip, valid);
   }
+  const hourlyCutoff = Date.now() - HOURLY_WINDOW_MS;
+  for (const [ip, timestamps] of hourlyMap) {
+    const valid = timestamps.filter(t => t > hourlyCutoff);
+    if (valid.length === 0) hourlyMap.delete(ip);
+    else hourlyMap.set(ip, valid);
+  }
 }, 5 * 60_000);
 
 function isRateLimited(ip) {
   const now = Date.now();
+  // Per-minute check
   const cutoff = now - RATE_WINDOW_MS;
   const timestamps = (rateMap.get(ip) || []).filter(t => t > cutoff);
   if (timestamps.length >= RATE_LIMIT) {
     rateMap.set(ip, timestamps);
-    return true;
+    return "minute";
   }
   timestamps.push(now);
   rateMap.set(ip, timestamps);
+  // Per-hour check
+  const hourlyCutoff = now - HOURLY_WINDOW_MS;
+  const hourlyTimestamps = (hourlyMap.get(ip) || []).filter(t => t > hourlyCutoff);
+  if (hourlyTimestamps.length >= HOURLY_LIMIT) {
+    hourlyMap.set(ip, hourlyTimestamps);
+    return "hour";
+  }
+  hourlyTimestamps.push(now);
+  hourlyMap.set(ip, hourlyTimestamps);
   return false;
 }
 
@@ -475,8 +496,12 @@ export default async function handler(req, res) {
 
   // --- Rate limiting ---
   const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
-  if (isRateLimited(ip)) {
+  const rateLimited = isRateLimited(ip);
+  if (rateLimited === "minute") {
     return res.status(429).json({ reply: "יותר מדי בקשות. נסה שוב בעוד דקה." });
+  }
+  if (rateLimited === "hour") {
+    return res.status(429).json({ reply: "הגעת למגבלת הבקשות השעתית (60 לשעה). נסה שוב מאוחר יותר." });
   }
 
   // --- Daily token limit ---

@@ -977,6 +977,9 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
   const [sessionId, setSessionId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loginHint, setLoginHint] = useState(false);
+  const [featureConfig, setFeatureConfig] = useState([]);
+  const [enabledFeatures, setEnabledFeatures] = useState({});
+  const [showFeaturePanel, setShowFeaturePanel] = useState(false);
   const bottom = useRef(null);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
@@ -986,6 +989,20 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
   const activeHatRef = useRef(hat); // track current hat for async safety
 
   const isPsycho = hat === "psycho";
+
+  // Load feature pricing config
+  useEffect(() => {
+    fetch("/api/feature-pricing").then(r => r.json()).then(config => {
+      setFeatureConfig(config);
+      const defaults = {};
+      config.forEach(f => { defaults[f.id] = f.always_on || f.enabled_by_default; });
+      setEnabledFeatures(defaults);
+    }).catch(() => {});
+  }, []);
+
+  const estimatedCost = featureConfig
+    .filter(f => enabledFeatures[f.id])
+    .reduce((sum, f) => sum + f.estimated_tokens, 0);
 
   // Privacy banner fade out after 15s
   useEffect(() => {
@@ -1382,6 +1399,9 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
             <div className="chat-name">{curHat.name} — שיט.קום</div>
             <div className="chat-sub">{curHat.desc}</div>
           </div>
+          <button className="feature-toggle-btn" onClick={() => setShowFeaturePanel(!showFeaturePanel)} title="פיצ'רים פעילים">
+            ⚡ {showFeaturePanel ? "✕" : `~${(estimatedCost/1000).toFixed(1)}K`}
+          </button>
           <div className="chat-online">● מחובר</div>
           {user && (
             <button className="chat-history-btn" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">
@@ -1389,6 +1409,37 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
             </button>
           )}
         </div>
+
+        {/* Feature toggles panel */}
+        {showFeaturePanel && (
+          <div className="feature-panel">
+            <div className="feature-panel-title">פיצ'רים — בחר מה פעיל בשיחה <span className="feature-beta">תקופת הרצה — הכל פתוח</span></div>
+            {featureConfig.map(f => {
+              const isOn = f.always_on || enabledFeatures[f.id];
+              return (
+                <div key={f.id} className="feature-row">
+                  <span className="feature-icon">{f.icon}</span>
+                  <div className="feature-info">
+                    <span className="feature-label">{f.label}</span>
+                    <span className="feature-desc">{f.description}</span>
+                  </div>
+                  <span className="feature-cost">~{(f.estimated_tokens/1000).toFixed(1)}K</span>
+                  {f.always_on ? (
+                    <span className="feature-always">תמיד</span>
+                  ) : (
+                    <label className="feature-switch">
+                      <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
+                      <span className="feature-slider" />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+            <div className="feature-total">
+              עלות משוערת להודעה: <strong>~{(estimatedCost/1000).toFixed(1)}K טוקנים</strong>
+            </div>
+          </div>
+        )}
 
         {/* Login hint toast */}
         {loginHint && (
@@ -2795,6 +2846,67 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .chat-name { font-size:14.5px; font-weight:700; color:#f5f3ef; }
         .chat-sub { font-size:11.5px; color:#8a95a7; margin-top:2px; }
         .chat-online { margin-right:auto; font-size:11px; color:#4ecb8a; }
+
+        /* ── Feature Toggle Button ── */
+        .feature-toggle-btn {
+          display:inline-flex; align-items:center; gap:4px;
+          background:#10151c; border:1px solid #1e2530; border-radius:20px;
+          padding:4px 10px; font-size:11px; color:#8a95a7; cursor:pointer;
+          transition:all .2s; font-family:Heebo,sans-serif;
+        }
+        .feature-toggle-btn:hover { border-color:#f4a24e; color:#dde3ec; }
+
+        /* ── Feature Panel ── */
+        .feature-panel {
+          background:#10151c; border:1px solid #1e2530; border-radius:12px;
+          padding:12px; margin:0 0 4px; animation:fadeIn .2s;
+        }
+        .feature-panel-title {
+          font-size:12px; font-weight:700; color:#dde3ec; margin-bottom:10px;
+        }
+        .feature-beta {
+          font-size:10px; color:#4ecb8a; background:rgba(78,203,138,.1);
+          padding:2px 8px; border-radius:6px; margin-right:8px; font-weight:400;
+        }
+        .feature-row {
+          display:flex; align-items:center; gap:8px; padding:7px 0;
+          border-bottom:1px solid rgba(255,255,255,.04);
+        }
+        .feature-row:last-of-type { border-bottom:none; }
+        .feature-icon { font-size:16px; flex-shrink:0; width:24px; text-align:center; }
+        .feature-info { flex:1; min-width:0; }
+        .feature-label { font-size:12px; color:#dde3ec; font-weight:600; display:block; }
+        .feature-desc { font-size:10px; color:#5a6478; }
+        .feature-cost { font-size:10px; color:#5a6478; flex-shrink:0; font-family:Heebo,sans-serif; }
+        .feature-always {
+          font-size:9px; color:#4ecb8a; background:rgba(78,203,138,.1);
+          padding:2px 6px; border-radius:6px; flex-shrink:0;
+        }
+        .feature-total {
+          margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.06);
+          font-size:11px; color:#8a95a7; text-align:center;
+        }
+        .feature-total strong { color:#dde3ec; }
+
+        /* Feature toggle switch */
+        .feature-switch {
+          position:relative; width:34px; height:18px; flex-shrink:0;
+        }
+        .feature-switch input { opacity:0; width:0; height:0; position:absolute; }
+        .feature-slider {
+          position:absolute; inset:0; background:#1e2530; border-radius:9px;
+          cursor:pointer; transition:all .2s;
+        }
+        .feature-slider::before {
+          content:""; position:absolute; width:14px; height:14px;
+          border-radius:50%; background:#5a6478;
+          bottom:2px; right:2px; transition:all .2s;
+        }
+        .feature-switch input:checked + .feature-slider { background:rgba(78,203,138,.2); }
+        .feature-switch input:checked + .feature-slider::before {
+          background:#4ecb8a; transform:translateX(-16px);
+        }
+
         .login-hint-toast {
           position:fixed; top:90px; left:40px; z-index:61;
           background:#1a2332; border:1px solid rgba(244,162,78,.25); border-radius:10px;

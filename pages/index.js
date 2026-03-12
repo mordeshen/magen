@@ -693,8 +693,20 @@ function KnowledgeView() {
     setSubmitting(true);
     try {
       const { supabase } = await import("../lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+        token = result?.data?.session?.access_token;
+      } catch {}
+      if (!token) {
+        try {
+          const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
+          if (storageKey) token = JSON.parse(localStorage.getItem(storageKey) || "{}")?.access_token;
+        } catch {}
+      }
       if (!token) { alert("יש להתחבר כדי לשתף"); setSubmitting(false); return; }
 
       await fetch("/api/knowledge", {
@@ -713,8 +725,20 @@ function KnowledgeView() {
   async function handleVote(knowledgeId) {
     try {
       const { supabase } = await import("../lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+        token = result?.data?.session?.access_token;
+      } catch {}
+      if (!token) {
+        try {
+          const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
+          if (storageKey) token = JSON.parse(localStorage.getItem(storageKey) || "{}")?.access_token;
+        } catch {}
+      }
       if (!token) return;
 
       const r = await fetch("/api/knowledge", {

@@ -962,9 +962,68 @@ const HAT_GREETINGS = {
   events:  "היי, אני שירה 👋\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
 };
 
-function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
+const HAT_DETAILS = {
+  lawyer:  "מכיר את כל הזכויות מול משרד הביטחון. יעזור לך להבין מה מגיע לך, איך מגישים ומה עושים אם דחו.",
+  social:  "מכירה את כל הבירוקרטיה מבפנים. תלווה אותך בין הגורמים ותעזור שלא תפספס כלום.",
+  psycho:  "פה בשבילך, בלי שיפוט. אפשר לדבר על מה שעובר עליך, על קשיים ביומיום, או סתם לשחרר.",
+  veteran: "עבר את כל הדרך — ועדות, ערעורים, ניירת. ישתף ממה שלמד כדי שתדע מה לצפות.",
+  events:  "תמצא לך אירועים, סדנאות וטיולים — הרבה בחינם. רק תגיד איפה אתה ומה מעניין אותך.",
+};
+
+const WELCOME_TIPS = [
+  "ידעת? יש לנו רשימת זכויות מעודכנת — אפשר לסנן לפי קטגוריה",
+  "בודק אירועים? יש טיולים, סדנאות והרצאות — הרבה בחינם",
+  "אפשר לנהל את התיק שלך — לעקוב אחרי שלבים ומסמכים",
+  "ב׳חכמת ותיקים׳ יש טיפים ממי שכבר עבר את הדרך",
+  "כל שיחה כאן פרטית ומאובטחת — שום דבר לא נשמר",
+  "צריך לדבר עם בן אדם? מוקד פצועים *6500, נפש אחת *8944",
+];
+
+function FloatingTip() {
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * WELCOME_TIPS.length));
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx(prev => (prev + 1) % WELCOME_TIPS.length);
+        setVisible(true);
+      }, 800);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className={`floating-tip ${visible ? "tip-visible" : "tip-hidden"}`}>
+      💡 {WELCOME_TIPS[idx]}
+    </div>
+  );
+}
+
+function WelcomeScreen({ onSelect }) {
+  return (
+    <div className="welcome-screen">
+      <div className="welcome-title">שלום</div>
+      <div className="welcome-subtitle">מי תרצה שילווה אותך היום?</div>
+      <div className="welcome-grid">
+        {HATS.map((h, i) => (
+          <button key={h.id} className="welcome-card" style={{ animationDelay: `${i * 0.1}s` }} onClick={() => onSelect(h.id)}>
+            <div className="wc-icon-wrap">{h.icon}</div>
+            <div className="wc-name">{h.name}</div>
+            <div className="wc-role">{h.desc}</div>
+            <div className="wc-desc">{HAT_DETAILS[h.id]}</div>
+          </button>
+        ))}
+      </div>
+      <FloatingTip />
+    </div>
+  );
+}
+
+function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat, onBack }) {
   const { user, profile, userRights: chatUserRights, userMemory, chatSessions, saveSession, loadSession, deleteSession, saveMemory, legalCase, saveLegalCase } = useUser();
-  const [hat, setHat]         = useState("lawyer");
+  const [hat, setHat]         = useState(initialHat || "lawyer");
   const [msgs, setMsgs]       = useState([]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
@@ -1371,6 +1430,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate }) {
 
       {/* Hat selector — in psycho mode, moves to corner */}
       <div className={`hat-row ${isPsycho && msgs.length > 1 ? "hat-row-mini" : ""}`}>
+        {onBack && !(isPsycho && msgs.length > 1) && <button className="back-welcome-btn" onClick={onBack} title="חזרה לבחירת יועץ">←</button>}
         {!(isPsycho && msgs.length > 1) && <span className="hat-label">דבר עם:</span>}
         {HATS.map(h => (
           <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""}`} onClick={() => switchHat(h.id)} title={h.desc}>
@@ -1971,6 +2031,7 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
 export default function Home({ rights, updates, events, legalStages, committeePrepData, injuryProfiles }) {
   const { userRights: homeUserRights } = useUser();
   const [view,      setView]      = useState("chat");
+  const [chatHat,   setChatHat]   = useState(null);
   const pendingChatPromptRef = useRef(null);
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -2234,13 +2295,25 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           />}
 
           {view==="chat" && <>
-            <div className="pg-hdr">
-              <h1>יועץ AI אישי</h1>
-              <p>דן · מיכל · אורי · רועי · שירה — פרטי, אקטיבי, בשבילך</p>
-            </div>
-            <Chat rights={rights} events={events} pendingChatPromptRef={pendingChatPromptRef} onStageUpdate={(stageId) => {
-              setStageToast(stageId);
-            }}/>
+            {chatHat === null && !pendingChatPromptRef.current ? (
+              <>
+                <div className="pg-hdr">
+                  <h1>יועץ AI אישי</h1>
+                  <p>פרטי, אקטיבי, בשבילך</p>
+                </div>
+                <WelcomeScreen onSelect={(hatId) => setChatHat(hatId)} />
+              </>
+            ) : (
+              <>
+                <div className="pg-hdr">
+                  <h1>יועץ AI אישי</h1>
+                  <p>דן · מיכל · אורי · רועי · שירה — פרטי, אקטיבי, בשבילך</p>
+                </div>
+                <Chat rights={rights} events={events} pendingChatPromptRef={pendingChatPromptRef} initialHat={chatHat || "lawyer"} onBack={() => setChatHat(null)} onStageUpdate={(stageId) => {
+                  setStageToast(stageId);
+                }}/>
+              </>
+            )}
           </>}
 
         </main>
@@ -2795,6 +2868,75 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .prv-icon { font-size:18px; flex-shrink:0; }
         .prv-close { margin-right:auto; background:transparent; border:none; color:#8a95a7; cursor:pointer; font-size:16px; padding:2px 6px; transition:.2s; }
         .prv-close:hover { color:#eef1f6; }
+
+        /* ── Welcome Screen ── */
+        .welcome-screen {
+          display:flex; flex-direction:column; align-items:center;
+          padding:30px 20px 20px; min-height:50vh;
+        }
+        .welcome-title {
+          font-size:32px; font-weight:700; color:#eef1f6; margin-bottom:6px;
+        }
+        .welcome-subtitle {
+          font-size:16px; color:#8a95a7; margin-bottom:36px;
+        }
+        .welcome-grid {
+          display:grid; grid-template-columns:repeat(2, 1fr); gap:14px;
+          max-width:560px; width:100%;
+        }
+        .welcome-card {
+          background:#10151c; border:1px solid #1e2530; border-radius:16px;
+          padding:22px 18px; cursor:pointer; text-align:center;
+          transition:all 0.4s ease; font-family:Heebo,sans-serif;
+          animation:welcomeCardIn 0.6s ease-out both;
+        }
+        .welcome-card:hover {
+          border-color:rgba(244,162,78,.35); transform:translateY(-2px);
+          box-shadow:0 6px 20px rgba(0,0,0,.3);
+        }
+        .welcome-card:active { transform:scale(0.98); }
+        .welcome-card:last-child { grid-column:1 / -1; max-width:270px; justify-self:center; }
+        .wc-icon-wrap {
+          width:48px; height:48px; border-radius:50%; display:inline-flex;
+          align-items:center; justify-content:center; font-size:22px;
+          background:rgba(244,162,78,.08); margin-bottom:10px;
+        }
+        .wc-name { font-size:18px; font-weight:700; color:#eef1f6; margin-bottom:2px; }
+        .wc-role { font-size:12px; color:#f4a24e; margin-bottom:8px; }
+        .wc-desc { font-size:12.5px; color:#8a95a7; line-height:1.6; }
+
+        @keyframes welcomeCardIn {
+          from { opacity:0; transform:translateY(12px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .welcome-card { animation:none; opacity:1; }
+        }
+
+        /* Floating tip */
+        .floating-tip {
+          margin-top:32px; padding:12px 20px; border-radius:12px;
+          background:rgba(16,21,28,.85); border:1px solid rgba(30,37,48,.6);
+          font-size:13px; color:#8a95a7; text-align:center;
+          transition:opacity 0.8s ease; max-width:480px;
+        }
+        .tip-visible { opacity:1; }
+        .tip-hidden { opacity:0; }
+
+        /* Back to welcome */
+        .back-welcome-btn {
+          background:transparent; border:1px solid #1e2530; border-radius:8px;
+          color:#8a95a7; font-size:16px; cursor:pointer; padding:4px 10px;
+          transition:all .2s; font-family:Heebo,sans-serif;
+        }
+        .back-welcome-btn:hover { border-color:#f4a24e; color:#dde3ec; }
+
+        @media (max-width:700px) {
+          .welcome-grid { grid-template-columns:1fr; }
+          .welcome-card:last-child { max-width:none; }
+          .welcome-title { font-size:26px; }
+          .welcome-subtitle { font-size:14px; margin-bottom:24px; }
+        }
 
         /* Hat selector */
         .hat-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; transition:all .3s ease; }

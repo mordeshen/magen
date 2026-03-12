@@ -16,8 +16,8 @@ export const config = {
   api: { bodyParser: { sizeLimit: "10mb" } },
 };
 
-// --- Rate limiter: 10 requests/minute per IP ---
-const RATE_LIMIT = 10;
+// --- Rate limiter: 5 requests/minute per IP ---
+const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 60_000;
 const rateMap = new Map(); // ip -> timestamp[]
 
@@ -98,7 +98,7 @@ const VALID_ROLES = new Set(["user", "assistant"]);
 const ALLOWED_ATTACHMENT_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
 ]);
-const MAX_CONTENT_LENGTH = 10_000;
+const MAX_CONTENT_LENGTH = 500;
 const MAX_MESSAGES = 50;
 const MAX_ATTACHMENT_BASE64 = 10 * 1024 * 1024; // ~10MB base64
 

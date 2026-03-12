@@ -980,10 +980,17 @@ const WELCOME_TIPS = [
 ];
 
 function FloatingTip() {
-  const [idx, setIdx] = useState(() => Math.floor(Math.random() * WELCOME_TIPS.length));
+  const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setIdx(Math.floor(Math.random() * WELCOME_TIPS.length));
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
@@ -992,7 +999,7 @@ function FloatingTip() {
       }, 800);
     }, 8000);
     return () => clearInterval(interval);
-  }, []);
+  }, [mounted]);
 
   return (
     <div className={`floating-tip ${visible ? "tip-visible" : "tip-hidden"}`}>

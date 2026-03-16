@@ -1124,8 +1124,15 @@ function PricingModal({ onClose, onSuccess }) {
       }
 
       // Check if user has phone — if not, ask for it
-      const { data: { user } } = await sb.auth.getUser();
-      const hasPhone = user?.user_metadata?.phone || user?.phone;
+      let hasPhone = false;
+      try {
+        const userResult = await Promise.race([
+          sb.auth.getUser(),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+        const user = userResult?.data?.user;
+        hasPhone = !!(user?.user_metadata?.phone || user?.phone);
+      } catch {}
       if (!hasPhone) {
         setPendingPlanId(planId);
         setNeedsPhone(true);

@@ -1158,21 +1158,33 @@ function PricingModal({ onClose, onSuccess }) {
     setNeedsPhone(false);
     try {
       const { supabase: sb } = await import("../lib/supabase");
-      // Save phone to user metadata
-      await sb.auth.updateUser({ data: { phone } });
+      // Save phone to user metadata (non-blocking, with timeout)
+      try {
+        await Promise.race([
+          sb.auth.updateUser({ data: { phone } }),
+          new Promise((resolve) => setTimeout(resolve, 3000))
+        ]);
+      } catch {}
 
+      // Get access token
       let accessToken;
-      const result = await Promise.race([
-        sb.auth.getSession(),
-        new Promise((resolve) => setTimeout(() => resolve(null), 3000))
-      ]);
-      accessToken = result?.data?.session?.access_token;
+      try {
+        const result = await Promise.race([
+          sb.auth.getSession(),
+          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+        accessToken = result?.data?.session?.access_token;
+      } catch {}
       if (!accessToken) {
         const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
         if (storageKey) {
-          const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
-          accessToken = stored?.access_token;
+          try { accessToken = JSON.parse(localStorage.getItem(storageKey) || "{}").access_token; } catch {}
         }
+      }
+      if (!accessToken) {
+        alert("לא ניתן לאמת את החיבור. נסה לרענן ולהתחבר מחדש.");
+        setLoadingPlan(null);
+        return;
       }
       await proceedToCheckout(pendingPlanId, accessToken);
     } catch (err) {

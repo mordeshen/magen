@@ -1118,8 +1118,19 @@ function PricingModal({ onClose, onSuccess }) {
       }
       console.log("[checkout-client] token:", accessToken ? "found" : "missing");
       if (!accessToken) {
-        alert("יש להתחבר קודם");
         setLoadingPlan(null);
+        // Redirect to Google login, then back to the page
+        try {
+          const { supabase: loginSb } = await import("../lib/supabase");
+          if (loginSb) {
+            await loginSb.auth.signInWithOAuth({
+              provider: "google",
+              options: { redirectTo: window.location.origin, queryParams: { prompt: "select_account" } },
+            });
+          }
+        } catch {
+          alert("יש להתחבר קודם");
+        }
         return;
       }
 

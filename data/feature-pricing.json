@@ -7,7 +7,7 @@
     "estimated_tokens": 2000,
     "always_on": true,
     "enabled_by_default": true,
-    "plans": ["free"]
+    "plans": ["free", "one_time", "monthly", "premium"]
   },
   {
     "id": "memory",
@@ -17,7 +17,7 @@
     "estimated_tokens": 800,
     "always_on": false,
     "enabled_by_default": true,
-    "plans": ["free"]
+    "plans": ["free", "one_time", "monthly", "premium"]
   },
   {
     "id": "legal_context",
@@ -27,7 +27,7 @@
     "estimated_tokens": 1200,
     "always_on": false,
     "enabled_by_default": true,
-    "plans": ["free"]
+    "plans": ["one_time", "monthly", "premium"]
   },
   {
     "id": "medical_context",
@@ -37,7 +37,7 @@
     "estimated_tokens": 1500,
     "always_on": false,
     "enabled_by_default": true,
-    "plans": ["free"]
+    "plans": ["one_time", "monthly", "premium"]
   },
   {
     "id": "medical_extract",
@@ -47,7 +47,7 @@
     "estimated_tokens": 800,
     "always_on": false,
     "enabled_by_default": true,
-    "plans": ["free"]
+    "plans": ["one_time", "monthly", "premium"]
   },
   {
     "id": "attachments",
@@ -57,6 +57,6 @@
     "estimated_tokens": 5000,
     "always_on": false,
     "enabled_by_default": false,
-    "plans": ["free"]
+    "plans": ["monthly", "premium"]
   }
 ]

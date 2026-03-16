@@ -84,7 +84,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         fullName: user.user_metadata?.full_name || user.email,
-        phone: user.user_metadata?.phone || "",
+        phone: user.user_metadata?.phone || user.phone || "0500000000",
         email: user.email,
         amount: amountNIS,
         title: `מגן — מסלול ${PLAN_NAMES[plan_id]}`,

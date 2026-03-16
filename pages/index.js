@@ -3527,6 +3527,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .feature-panel {
           background:#10151c; border:1px solid #1e2530; border-radius:8px;
           padding:12px; margin:0 0 4px; animation:fadeIn .2s;
+          max-height:60vh; overflow-y:auto;
         }
         .feature-panel-title {
           font-size:12px; font-weight:700; color:#dde3ec; margin-bottom:10px;

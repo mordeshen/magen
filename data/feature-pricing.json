@@ -41,8 +41,8 @@
   },
   {
     "id": "medical_extract",
-    "label": "זיהוי פגיעות",
-    "description": "AI מזהה ושומר פגיעות חדשות",
+    "label": "זיהוי פציעות",
+    "description": "AI מזהה ושומר פציעות חדשות",
     "icon": "🔍",
     "estimated_tokens": 800,
     "always_on": false,

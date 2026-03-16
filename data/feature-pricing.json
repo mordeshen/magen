@@ -2,7 +2,7 @@
   {
     "id": "basic_chat",
     "label": "שיחה בסיסית",
-    "description": "כובע + בסיס ידע זכויות",
+    "description": "שיחה עם הנציגים + בסיס ידע זכויות",
     "icon": "💬",
     "estimated_tokens": 2000,
     "always_on": true,

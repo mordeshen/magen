@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   // POST — create session
   if (req.method === "POST") {
     const { hat, title, messages } = req.body || {};
-    if (!hat || !VALID_HATS.has(hat)) return res.status(400).json({ error: "כובע לא תקין" });
+    if (!hat || !VALID_HATS.has(hat)) return res.status(400).json({ error: "בחירה לא תקינה" });
     if (title && (typeof title !== "string" || title.length > 200)) return res.status(400).json({ error: "כותרת לא תקינה" });
     if (messages && (!Array.isArray(messages) || messages.length > 100)) return res.status(400).json({ error: "הודעות לא תקינות" });
     const { data, error } = await sb

@@ -1,15 +1,23 @@
 // pages/api/chat.js
 // יועץ AI עם 5 כובעים: דן (משפטי), מיכל (סוציאלי), אורי (פסיכולוג), שירה (אירועים), רועי (ותיקים)
 // פרטיות: הודעות לא נשמרות בשרת. קונטקסט פסיכולוג נשמר מקומית אצל המשתמש בלבד.
+// Smart Router: מסווג intent בזול ובונה context דינמי לחיסכון בטוקנים
 
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
 
 // Load site actions for portal guidance
 let SITE_ACTIONS = [];
 try {
   SITE_ACTIONS = JSON.parse(readFileSync(join(process.cwd(), "data", "site-actions.json"), "utf8"));
+} catch {}
+
+// Load feature pricing config
+let FEATURE_CONFIG = [];
+try {
+  FEATURE_CONFIG = JSON.parse(readFileSync(join(process.cwd(), "data", "feature-pricing.json"), "utf8"));
 } catch {}
 
 export const config = {
@@ -26,31 +34,120 @@ const HOURLY_LIMIT = 60;
 const HOURLY_WINDOW_MS = 3_600_000;
 const hourlyMap = new Map(); // ip -> timestamp[]
 
-// --- Daily token limiter ---
-const DAILY_TOKEN_LIMIT = 999_000_000; // TEMPORARY: unlimited during launch period
-const DAILY_TOKEN_LIMIT_PER_IP = 999_000_000; // TEMPORARY: unlimited during launch period
-let dailyTokens = { total: 0, perIp: new Map(), date: new Date().toDateString() };
+// --- Token allowance check (subscription-based) ---
+async function getTokenAllowance(req, ip) {
+  // TEMPORARY: unlimited for everyone until payment is set up
+  return {
+    allowed: true, userId: null, planId: "free",
+    features: { model: "claude-sonnet-4-6", max_tokens: 4096 },
+    unlimited: true, remaining: -1, ip,
+  };
+  // Try JWT auth first
+  try {
+    const userSb = getUserSupabase(req);
+    if (userSb) {
+      const { data: { user } } = await userSb.auth.getUser();
+      if (user) {
+        const admin = getAdminSupabase();
+        let { data: sub } = await admin
+          .from("user_subscriptions")
+          .select("*, subscription_plans(*)")
+          .eq("user_id", user.id)
+          .maybeSingle();
 
-function resetDailyTokensIfNeeded() {
-  const today = new Date().toDateString();
-  if (dailyTokens.date !== today) {
-    dailyTokens = { total: 0, perIp: new Map(), date: today };
+        if (!sub) {
+          await admin.from("user_subscriptions").insert({
+            user_id: user.id, plan_id: "free", daily_tokens_used: 0,
+            daily_reset_date: new Date().toISOString().split("T")[0],
+          });
+          const { data: newSub } = await admin
+            .from("user_subscriptions")
+            .select("*, subscription_plans(*)")
+            .eq("user_id", user.id)
+            .single();
+          sub = newSub;
+        }
+
+        const plan = sub.subscription_plans;
+        const today = new Date().toISOString().split("T")[0];
+
+        // Daily reset
+        if (sub.daily_reset_date < today) {
+          await admin.from("user_subscriptions")
+            .update({ daily_tokens_used: 0, daily_reset_date: today })
+            .eq("user_id", user.id);
+          sub.daily_tokens_used = 0;
+        }
+
+        // Expiry check
+        if (sub.subscription_end && new Date(sub.subscription_end) < new Date()) {
+          await admin.from("user_subscriptions")
+            .update({ plan_id: "free" })
+            .eq("user_id", user.id);
+          return {
+            allowed: true, userId: user.id, planId: "free",
+            features: { model: "claude-sonnet-4-6", max_tokens: 1024 },
+            unlimited: false, remaining: Math.max(0, 50000 - sub.daily_tokens_used), ip,
+          };
+        }
+
+        const unlimited = plan.id === "monthly" || plan.id === "premium";
+        let remaining;
+        if (unlimited) {
+          remaining = -1;
+        } else if (plan.id === "one_time") {
+          remaining = sub.token_balance;
+          if (remaining <= 0) {
+            return { allowed: false, userId: user.id, planId: plan.id, error: "balance_exhausted", remaining: 0, ip };
+          }
+        } else {
+          // free
+          remaining = Math.max(0, (plan.daily_token_limit || 50000) - sub.daily_tokens_used);
+          if (remaining <= 0) {
+            return { allowed: false, userId: user.id, planId: plan.id, error: "daily_limit", remaining: 0, ip };
+          }
+        }
+
+        return {
+          allowed: true, userId: user.id, planId: plan.id,
+          features: { model: plan.model, max_tokens: plan.max_tokens, ...(plan.features || {}) },
+          unlimited, remaining, ip,
+        };
+      }
+    }
+  } catch (e) { console.error("getTokenAllowance JWT error:", e.message); }
+
+  // Anonymous: check ip_daily_usage
+  try {
+    const admin = getAdminSupabase();
+    const today = new Date().toISOString().split("T")[0];
+    const { data } = await admin
+      .from("ip_daily_usage")
+      .select("tokens_used")
+      .eq("ip", ip)
+      .eq("date", today)
+      .maybeSingle();
+
+    const used = data?.tokens_used || 0;
+    const remaining = Math.max(0, 50000 - used);
+    if (remaining <= 0) {
+      return { allowed: false, userId: null, planId: "free", error: "daily_limit", remaining: 0, ip };
+    }
+    return {
+      allowed: true, userId: null, planId: "free",
+      features: { model: "claude-sonnet-4-6", max_tokens: 1024 },
+      unlimited: false, remaining, ip,
+    };
+  } catch (e) {
+    console.error("getTokenAllowance IP error:", e.message);
   }
-}
 
-function isDailyLimitReached(ip) {
-  resetDailyTokensIfNeeded();
-  if (dailyTokens.total >= DAILY_TOKEN_LIMIT) return "global";
-  const ipTokens = dailyTokens.perIp.get(ip) || 0;
-  if (ipTokens >= DAILY_TOKEN_LIMIT_PER_IP) return "ip";
-  return false;
-}
-
-function trackTokenUsage(ip, inputTokens, outputTokens) {
-  resetDailyTokensIfNeeded();
-  const used = (inputTokens || 0) + (outputTokens || 0);
-  dailyTokens.total += used;
-  dailyTokens.perIp.set(ip, (dailyTokens.perIp.get(ip) || 0) + used);
+  // Fallback: allow with defaults (no DB available)
+  return {
+    allowed: true, userId: null, planId: "free",
+    features: { model: "claude-sonnet-4-6", max_tokens: 1024 },
+    unlimited: false, remaining: 50000, ip,
+  };
 }
 
 // Cleanup every 5 minutes
@@ -314,6 +411,67 @@ PTSD בהתפרצות מאוחרת:
 שכר טרחה: עו"ד אסור לגבות אחוז מתגמולים — זו הגנה בחוק.
 `;
 
+// Minimal core approach for Smart Router — essential rules only (~15 lines)
+const CORE_APPROACH_MINIMAL = `
+--- גישה מרכזית (גרסה מקוצרת) ---
+- הנח PTSD בכל פונה — גם אם לא אומר. אל תשאל "כמה אחוזים?" — שאל "איפה אתה עומד מול משרד הביטחון?"
+- "הכל בסדר" = כנראה לא בסדר. "אני אסתדר" = אל תעזוב אותו.
+- היה אקטיבי: הצע זכויות שאולי לא ידועות, שאל על המצב, אל תחכה שישאלו.
+- תמיד תן שלבים מספרים + מספרי טלפון + מה להגיד. נוסחים מוכנים להעתקה.
+- הצע "רוצה שנעשה את זה ביחד עכשיו?" — אל תשלח לבד.
+- אם מתעייף: "בוא ניקח רק שלב אחד היום."
+- אף פעם לא "בהצלחה" יבש — תמיד "אני כאן, תחזור מתי שתרצה."
+- תשובות קצרות: 3-8 שורות (עד 12 עם נוסח פנייה).
+- סיים כל תשובה עם שאלה או הצעה שמניעה לפעולה.
+- קו חם: *6500 (מוקד פצועים) | *8944 (נפש אחת) | shikum.mod.gov.il
+- נוסחי פנייה: בפורמט ---נוסח--- ... ---סוף נוסח--- (עד 500 תווים)
+- פורטל: shikum.mod.gov.il → התחברות → ת.ז. → OTP → "הגשת פנייה לאגף"
+- מהרגש תסיק פרקטיקה. אתה היד שמחזיקה ומובילה.
+`;
+
+const MEDICAL_EXTRACT_INSTRUCTIONS = `
+=== תיעוד פגיעות לתקציר רפואי ===
+כשמשתמש מספר על פגיעה, ניתוח, או מצב רפואי — חלץ את המידע והצע לשמור.
+
+כשאתה מזהה פגיעה, הוסף בסוף התשובה שלך (בשורה נפרדת) בלוק בפורמט:
+---injury---
+{"body_zone":"ZONE","label":"English Label","hebrew_label":"שם בעברית","severity":"severe|moderate|mild","status":"chronic|active_treatment|post_surgical|healed","injury_date":"YYYY-MM-DD","disability_percent":0,"details":"פירוט קצר"}
+---סוף injury---
+
+ובמקביל, הוסף גם בלוק אירוע רפואי:
+---medical_event---
+{"event_date":"YYYY-MM-DD","event_type":"TYPE","title":"כותרת","title_en":"English title","description":"תיאור","icon":"EMOJI","severity":"severe|moderate|mild"}
+---סוף medical_event---
+
+מיפוי body_zone:
+- ראש/מוח/TBI → "head"
+- חזה/צלעות/ריאות → "chest-right" או "chest-left"
+- PTSD/לב/נפשי → "chest-left"
+- בטן/קיבה → "abdomen"
+- אגן/מותניים → "pelvis"
+- כתף → "shoulder-left" או "shoulder-right"
+- יד/זרוע → "arm-left" או "arm-right"
+- ברך/ACL → "knee-left" או "knee-right"
+- קרסול/כף רגל → "ankle-left" או "ankle-right"
+- גב/עמוד שדרה → "back"
+
+מיפוי event_type + icon:
+- פגיעה → "injury" + "💥"
+- ניתוח → "surgery" + "🔪"
+- אשפוז → "hospitalization" + "🏥"
+- אבחנה → "diagnosis" + "🧠"
+- טיפול/פיזיותרפיה/CBT → "treatment" + "💬"
+- ועדה רפואית → "committee" + "⚖️"
+- אבן דרך → "milestone" + "🎯"
+
+חשוב:
+- לפני שמירה, הצג למשתמש סיכום של מה שזיהית ושאל "לשמור בתקציר הרפואי?"
+- אל תנחש disability_percent — השאר 0 עד שהמשתמש יגיד מה נקבע בוועדה
+- ה-JSON חייב להיות בשורה אחת
+- הוסף את הבלוקים רק אחרי שהמשתמש אישר
+`;
+
+
 // --- Fetch approved veteran knowledge from Supabase ---
 async function fetchVeteranKnowledge() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -483,111 +641,140 @@ const HAT_PROMPTS = {
 כלל ברזל: אם יש הרשמה — ציין טלפון או קישור`,
 };
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end();
+// ============================================================
+// Smart Router — Intent classification with Haiku (cheap call)
+// ============================================================
 
-  // --- Origin / CSRF check ---
-  const origin = req.headers.origin || "";
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "");
-  const allowedOrigins = new Set([siteUrl, "http://localhost:3000", "http://localhost:3001", "http://localhost:3002"].filter(Boolean));
-  if (!origin || !allowedOrigins.has(origin)) {
-    return res.status(403).json({ reply: "גישה נדחתה." });
-  }
+const ROUTER_SYSTEM_PROMPT = `סווג את הודעת המשתמש. החזר JSON בלבד.
 
-  // --- Rate limiting ---
-  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
-  const rateLimited = isRateLimited(ip);
-  if (rateLimited === "minute") {
-    return res.status(429).json({ reply: "יותר מדי בקשות. נסה שוב בעוד דקה." });
-  }
-  if (rateLimited === "hour") {
-    return res.status(429).json({ reply: "הגעת למגבלת הבקשות השעתית (60 לשעה). נסה שוב מאוחר יותר." });
-  }
+Intents: rights_query, emotional_support, portal_action, events_query, general_info, greeting
+Hats: lawyer, social, psycho, events, veteran
+Categories (rights): כספי, בריאות, משפטי, לימודים, תעסוקה, מיסים, פנאי
+Depth: minimal (greeting/simple), standard (normal question), detailed (complex legal/medical)
 
-  // --- Daily token limit ---
-  const dailyLimit = isDailyLimitReached(ip);
-  if (dailyLimit === "global") {
-    return res.status(429).json({ reply: "המערכת הגיעה למגבלה היומית. נסה שוב מחר." });
-  }
-  if (dailyLimit === "ip") {
-    return res.status(429).json({ reply: "הגעת למגבלה היומית שלך. נסה שוב מחר." });
-  }
+Format:
+{"intent":"...","suggested_hat":"...","categories":["..."],"needs_portal_guide":false,"needs_medical_context":false,"needs_legal_context":false,"depth":"..."}`;
 
-  // --- Input validation ---
-  const body = req.body;
-  if (!body || typeof body !== "object") {
-    return res.status(400).json({ reply: "בקשה לא תקינה." });
-  }
+async function routeIntent(userMessage, conversationSummary) {
+  const input = conversationSummary
+    ? `הקשר: ${conversationSummary}\n\nהודעה: ${userMessage}`
+    : userMessage;
 
-  const {
-    messages,
-    hat = "lawyer",
-    rights = [],
-    events = [],
-    userCity = null,
-    attachment,
-    lastMessageText,
-    userProfile,
-    memory = [],
-    userRightsStatus = {},
-    legalCase = null,
-  } = body;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
 
-  // Validate hat
-  if (!VALID_HATS.has(hat)) {
-    return res.status(400).json({ reply: "כובע לא חוקי." });
-  }
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 150,
+        system: ROUTER_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: input }],
+      }),
+      signal: controller.signal,
+    });
 
-  // Validate messages
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
-    return res.status(400).json({ reply: "הודעות לא תקינות." });
+    clearTimeout(timeout);
+
+    if (!r.ok) return null;
+    const d = await r.json();
+    const text = d.content?.[0]?.text || "";
+    // Extract JSON from response (might have markdown wrapping)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const result = JSON.parse(jsonMatch[0]);
+    return result;
+  } catch (e) {
+    clearTimeout(timeout);
+    console.error("[chat] router error:", e.message);
+    return null; // fallback to full context
   }
-  for (const m of messages) {
-    if (!m || !VALID_ROLES.has(m.role)) {
-      return res.status(400).json({ reply: "הודעה לא תקינה." });
-    }
-    if (typeof m.content === "string" && m.content.length > MAX_CONTENT_LENGTH) {
-      return res.status(400).json({ reply: "הודעה ארוכה מדי." });
-    }
+}
+
+// ============================================================
+// Conversation Summarizer — compress older messages with Haiku
+// ============================================================
+
+async function summarizeConversation(messages) {
+  if (messages.length <= 6) {
+    return { summary: null, messages };
   }
 
-  // Validate attachment
-  if (attachment) {
-    if (!attachment.media_type || !ALLOWED_ATTACHMENT_TYPES.has(attachment.media_type)) {
-      return res.status(400).json({ reply: "סוג קובץ לא נתמך." });
-    }
-    if (!attachment.base64 || typeof attachment.base64 !== "string" || attachment.base64.length > MAX_ATTACHMENT_BASE64) {
-      return res.status(400).json({ reply: "קובץ גדול מדי." });
-    }
-  }
+  // Keep last 4 messages, summarize the rest
+  const toSummarize = messages.slice(0, -4);
+  const recentMessages = messages.slice(-4);
 
-  // בנה context מהזכויות
-  const rightsCtx = rights
-    .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
+  const conversationText = toSummarize
+    .map(m => `${m.role === "user" ? "משתמש" : "יועץ"}: ${typeof m.content === "string" ? m.content : "[תוכן מורכב]"}`)
     .join("\n");
 
-  // בנה context מהאירועים (לכובע events)
-  let eventsCtx = "";
-  if (hat === "events" && events.length > 0) {
-    const today = new Date().toISOString().split("T")[0];
-    const upcoming = events.filter(e => e.date >= today);
-    const relevant = userCity
-      ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
-      : upcoming;
-    eventsCtx = relevant
-      .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
-      .join("\n");
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 200,
+        system: "סכם את השיחה ב-2-3 משפטים. ציין: עובדות מפתח על המשתמש, מה נדון, הנושא הנוכחי, החלטות שנתקבלו. עברית בלבד.",
+        messages: [{ role: "user", content: conversationText }],
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!r.ok) return { summary: null, messages };
+    const d = await r.json();
+    const summaryText = d.content?.[0]?.text || null;
+
+    if (summaryText) {
+      return {
+        summary: summaryText,
+        messages: recentMessages,
+      };
+    }
+  } catch (e) {
+    console.error("[chat] summarizer error:", e.message);
   }
 
+  return { summary: null, messages };
+}
+
+// ============================================================
+// Context Builder — assemble system prompt based on router
+// ============================================================
+
+function buildSystemPrompt(hat, routerResult, {
+  rights, events, userCity, userProfile, memory, medicalInjuries,
+  legalCase, userRightsStatus, vetKnowledge, activeFeatures,
+}) {
   const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.lawyer;
+  const systemParts = [hatPrompt];
 
-  // Fetch veteran knowledge for AI context
-  const vetKnowledge = await fetchVeteranKnowledge();
-
-  // בנה system prompt
-  let systemParts = [hatPrompt];
+  // Always include core approach — minimal version for router, full only for detailed
   if (hat !== "events") {
-    systemParts.push(CORE_APPROACH);
+    if (routerResult && routerResult.depth === "detailed") {
+      systemParts.push(CORE_APPROACH);
+    } else {
+      systemParts.push(CORE_APPROACH_MINIMAL);
+    }
+  }
+
+  // Portal guide — only when needed
+  if (hat !== "events" && routerResult && routerResult.needs_portal_guide) {
     systemParts.push(MOD_PORTAL_GUIDE);
     // Inject site actions for the lawyer hat
     if (hat === "lawyer" && SITE_ACTIONS.length > 0) {
@@ -600,43 +787,54 @@ export default async function handler(req, res) {
     }
   }
 
-  let knowledgeBase = "";
-  if (hat === "events" && eventsCtx) {
-    knowledgeBase = `---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`;
-  } else {
-    knowledgeBase = `---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`;
-  }
-  systemParts.push(knowledgeBase);
-
-  // Inject veteran knowledge (real tips from experienced veterans)
-  if (vetKnowledge.length > 0) {
-    let vetCtx = "\n--- חכמת ותיקים — ניסיון אמיתי מפצועים שעברו את הדרך ---\n";
-    vetCtx += vetKnowledge.map(k => `• [${k.category}] ${k.title}: ${k.content}${k.upvotes > 0 ? ` (${k.upvotes} ותיקים אישרו)` : ""}`).join("\n");
-    if (hat === "veteran") {
-      vetCtx += "\n\nזה הידע המרכזי שלך. השתמש בו בתשובות — ציין שזה מניסיון אמיתי של ותיקים.";
-    } else {
-      vetCtx += "\n\nאם רלוונטי — שלב תובנות מניסיון ותיקים בתשובותיך.";
+  // Rights context — filtered by categories from router
+  if (hat === "events" && events && events.length > 0) {
+    const today = new Date().toISOString().split("T")[0];
+    const upcoming = events.filter(e => e.date >= today);
+    const relevant = userCity
+      ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
+      : upcoming;
+    const eventsCtx = relevant
+      .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
+      .join("\n");
+    if (eventsCtx) {
+      systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
     }
-    systemParts.push(vetCtx);
-  }
-
-  // User context (if logged in)
-  if (userProfile) {
-    let userCtx = "\n--- מידע על המשתמש ---\n";
-    if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
-    if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
-    if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
-      userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
-    } else if (userProfile.claim_status === "after_recognition" && userProfile.disability_percent != null) {
-      userCtx += `מצב: מוכר, אחוזי נכות: ${userProfile.disability_percent}%\n`;
+  } else if (rights && rights.length > 0) {
+    // Filter rights by router categories
+    let filteredRights = rights;
+    if (routerResult && routerResult.categories && routerResult.categories.length > 0) {
+      const catSet = new Set(routerResult.categories);
+      filteredRights = rights.filter(r => catSet.has(r.category));
+      // If filter yields nothing, fall back to all rights
+      if (filteredRights.length === 0) filteredRights = rights;
     }
-    if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
-    userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
-    systemParts.push(userCtx);
+    const rightsCtx = filteredRights
+      .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
+      .join("\n");
+    systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
   }
 
-  // Legal case context (if exists)
-  if (legalCase && hat !== "events") {
+  // Medical extraction instructions — only when needed
+  if (activeFeatures.has("medical_extract") && hat !== "events" &&
+      routerResult && routerResult.needs_medical_context) {
+    systemParts.push(MEDICAL_EXTRACT_INSTRUCTIONS);
+  }
+
+  // Medical context from DB — only when needed
+  if (activeFeatures.has("medical_context") && medicalInjuries && medicalInjuries.length > 0 &&
+      routerResult && routerResult.needs_medical_context) {
+    let medCtx = "\n--- תקציר רפואי של המשתמש ---\n";
+    medCtx += medicalInjuries.map(inj =>
+      `• ${inj.hebrew_label} (${inj.body_zone}) — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}${inj.details ? `: ${inj.details}` : ""}`
+    ).join("\n");
+    medCtx += "\nהתאם את התשובות למצב הרפואי — אל תשאל על דברים שכבר ידועים.";
+    systemParts.push(medCtx);
+  }
+
+  // Legal case context — only when needed
+  if (activeFeatures.has("legal_context") && legalCase && hat !== "events" &&
+      routerResult && routerResult.needs_legal_context) {
     const STAGE_LABELS = {
       NOT_STARTED: "טרם התחיל", GATHERING_DOCUMENTS: "איסוף מסמכים",
       CLAIM_FILED: "תביעה הוגשה", COMMITTEE_SCHEDULED: "ועדה נקבעה",
@@ -670,16 +868,45 @@ export default async function handler(req, res) {
     systemParts.push(legalCtx);
   }
 
-  // Memory from previous sessions
-  if (memory.length > 0) {
+  // User profile — always if exists (small)
+  if (userProfile) {
+    let userCtx = "\n--- מידע על המשתמש ---\n";
+    if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
+    if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
+    if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
+      userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
+    } else if (userProfile.claim_status === "after_recognition" && userProfile.disability_percent != null) {
+      userCtx += `מצב: מוכר, אחוזי נכות: ${userProfile.disability_percent}%\n`;
+    }
+    if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
+    userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
+    systemParts.push(userCtx);
+  }
+
+  // Memory from previous sessions — always if exists (small)
+  if (activeFeatures.has("memory") && memory && memory.length > 0) {
     let memCtx = "\n--- זיכרון משיחות קודמות ---\n";
     memCtx += memory.map(m => `• ${m.key}: ${m.value}`).join("\n");
     memCtx += "\nהשתמש במידע הזה כדי להמשיך מאיפה שהפסקת — אל תשאל שוב דברים שכבר ידועים.";
     systemParts.push(memCtx);
   }
 
-  // Smart rights detection
-  if (Object.keys(userRightsStatus).length > 0 && hat !== "events") {
+  // Veteran knowledge — only when depth is standard or detailed
+  if (vetKnowledge && vetKnowledge.length > 0 &&
+      (!routerResult || routerResult.depth === "standard" || routerResult.depth === "detailed")) {
+    let vetCtx = "\n--- חכמת ותיקים — ניסיון אמיתי מפצועים שעברו את הדרך ---\n";
+    vetCtx += vetKnowledge.map(k => `• [${k.category}] ${k.title}: ${k.content}${k.upvotes > 0 ? ` (${k.upvotes} ותיקים אישרו)` : ""}`).join("\n");
+    if (hat === "veteran") {
+      vetCtx += "\n\nזה הידע המרכזי שלך. השתמש בו בתשובות — ציין שזה מניסיון אמיתי של ותיקים.";
+    } else {
+      vetCtx += "\n\nאם רלוונטי — שלב תובנות מניסיון ותיקים בתשובותיך.";
+    }
+    systemParts.push(vetCtx);
+  }
+
+  // Unrealized rights — only when depth is detailed
+  if (routerResult && routerResult.depth === "detailed" &&
+      userRightsStatus && Object.keys(userRightsStatus).length > 0 && hat !== "events" && rights) {
     const unrealized = rights.filter(r => {
       const s = userRightsStatus[r.id];
       return !s || s === "not_started";
@@ -708,10 +935,330 @@ export default async function handler(req, res) {
 - אורך תשובה: עד 12 שורות כשכותבים נוסח פנייה. אחרת 3-8 שורות.
 - בסוף כל תשובה, סיים עם שאלה או הצעה שמניעה לפעולה הבאה — כזו שהמשתמש ירצה להגיב עליה`;
 
-  // Build messages array — handle multimodal (last message with attachment)
-  const apiMessages = messages.map((m, idx) => {
-    // If this is the last user message and there's an attachment
-    if (idx === messages.length - 1 && m.role === "user" && attachment) {
+  return system;
+}
+
+// ============================================================
+// Legacy full-context builder (fallback when router fails)
+// ============================================================
+
+function buildFullSystemPrompt(hat, {
+  rights, events, userCity, userProfile, memory, medicalInjuries,
+  legalCase, userRightsStatus, vetKnowledge, activeFeatures,
+}) {
+  const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.lawyer;
+  let systemParts = [hatPrompt];
+  if (hat !== "events") {
+    systemParts.push(CORE_APPROACH);
+    systemParts.push(MOD_PORTAL_GUIDE);
+    if (hat === "lawyer" && SITE_ACTIONS.length > 0) {
+      let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
+      actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
+      actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
+        `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
+      ).join("\n\n");
+      systemParts.push(actionsCtx);
+    }
+  }
+
+  // Rights / events context
+  if (hat === "events" && events && events.length > 0) {
+    const today = new Date().toISOString().split("T")[0];
+    const upcoming = events.filter(e => e.date >= today);
+    const relevant = userCity
+      ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
+      : upcoming;
+    const eventsCtx = relevant
+      .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
+      .join("\n");
+    systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
+  } else {
+    const rightsCtx = (rights || [])
+      .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
+      .join("\n");
+    systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+  }
+
+  // Veteran knowledge
+  if (vetKnowledge && vetKnowledge.length > 0) {
+    let vetCtx = "\n--- חכמת ותיקים — ניסיון אמיתי מפצועים שעברו את הדרך ---\n";
+    vetCtx += vetKnowledge.map(k => `• [${k.category}] ${k.title}: ${k.content}${k.upvotes > 0 ? ` (${k.upvotes} ותיקים אישרו)` : ""}`).join("\n");
+    if (hat === "veteran") {
+      vetCtx += "\n\nזה הידע המרכזי שלך. השתמש בו בתשובות — ציין שזה מניסיון אמיתי של ותיקים.";
+    } else {
+      vetCtx += "\n\nאם רלוונטי — שלב תובנות מניסיון ותיקים בתשובותיך.";
+    }
+    systemParts.push(vetCtx);
+  }
+
+  // User profile
+  if (userProfile) {
+    let userCtx = "\n--- מידע על המשתמש ---\n";
+    if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
+    if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
+    if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
+      userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
+    } else if (userProfile.claim_status === "after_recognition" && userProfile.disability_percent != null) {
+      userCtx += `מצב: מוכר, אחוזי נכות: ${userProfile.disability_percent}%\n`;
+    }
+    if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
+    userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
+    systemParts.push(userCtx);
+  }
+
+  // Medical context
+  if (activeFeatures.has("medical_context") && medicalInjuries && medicalInjuries.length > 0) {
+    let medCtx = "\n--- תקציר רפואי של המשתמש ---\n";
+    medCtx += medicalInjuries.map(inj =>
+      `• ${inj.hebrew_label} (${inj.body_zone}) — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}${inj.details ? `: ${inj.details}` : ""}`
+    ).join("\n");
+    medCtx += "\nהתאם את התשובות למצב הרפואי — אל תשאל על דברים שכבר ידועים.";
+    systemParts.push(medCtx);
+  }
+
+  // Medical extraction
+  if (activeFeatures.has("medical_extract") && hat !== "events") {
+    systemParts.push(MEDICAL_EXTRACT_INSTRUCTIONS);
+  }
+
+  // Legal case
+  if (activeFeatures.has("legal_context") && legalCase && hat !== "events") {
+    const STAGE_LABELS = {
+      NOT_STARTED: "טרם התחיל", GATHERING_DOCUMENTS: "איסוף מסמכים",
+      CLAIM_FILED: "תביעה הוגשה", COMMITTEE_SCHEDULED: "ועדה נקבעה",
+      COMMITTEE_PREPARATION: "הכנה לוועדה", COMMITTEE_COMPLETED: "ועדה הסתיימה",
+      DECISION_RECEIVED: "התקבלה החלטה", APPEAL_CONSIDERATION: "שקילת ערעור",
+      APPEAL_FILED: "ערעור הוגש", RIGHTS_FULFILLMENT: "מימוש זכויות",
+    };
+    const INJURY_LABELS = {
+      orthopedic: "אורתופדית", neurological: "נוירולוגית", ptsd: "פוסט-טראומה",
+      hearing: "שמיעה/טינטון", internal: "פנימית", other: "אחר",
+    };
+    let legalCtx = "\n--- התיק המשפטי של המשתמש ---\n";
+    legalCtx += `שלב נוכחי: ${STAGE_LABELS[legalCase.stage] || legalCase.stage}\n`;
+    const injuryTypes = legalCase.injury_types || (legalCase.injury_type ? [legalCase.injury_type] : []);
+    if (injuryTypes.length > 0) legalCtx += `סוגי פגיעה: ${injuryTypes.map(t => INJURY_LABELS[t] || t).join(", ")}\n`;
+    if (legalCase.disability_percent != null) legalCtx += `אחוזי נכות: ${legalCase.disability_percent}%\n`;
+    if (legalCase.representative_name) legalCtx += `מייצג: ${legalCase.representative_name}${legalCase.representative_org ? ` (${legalCase.representative_org})` : ""}\n`;
+    if (legalCase.committee_date) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const cd = new Date(legalCase.committee_date + "T00:00:00");
+      const daysLeft = Math.round((cd - today) / 86400000);
+      legalCtx += `תאריך ועדה: ${legalCase.committee_date}`;
+      if (daysLeft >= 0) legalCtx += ` (בעוד ${daysLeft} ימים)`;
+      legalCtx += "\n";
+      if (daysLeft >= 0 && daysLeft <= 21) {
+        const prepPhase = daysLeft >= 15 ? "איסוף מסמכים" : daysLeft >= 8 ? "בניית נרטיב" : daysLeft >= 2 ? "סימולציה והכנה" : daysLeft === 1 ? "יום אחרון" : "יום הוועדה";
+        legalCtx += `שלב הכנה נוכחי: ${prepPhase}\n`;
+      }
+    }
+    legalCtx += "התאם את התשובות לשלב שבו המשתמש נמצא בתהליך המשפטי. הצע צעדים רלוונטיים לשלב הנוכחי.";
+    systemParts.push(legalCtx);
+  }
+
+  // Memory
+  if (activeFeatures.has("memory") && memory && memory.length > 0) {
+    let memCtx = "\n--- זיכרון משיחות קודמות ---\n";
+    memCtx += memory.map(m => `• ${m.key}: ${m.value}`).join("\n");
+    memCtx += "\nהשתמש במידע הזה כדי להמשיך מאיפה שהפסקת — אל תשאל שוב דברים שכבר ידועים.";
+    systemParts.push(memCtx);
+  }
+
+  // Unrealized rights
+  if (userRightsStatus && Object.keys(userRightsStatus).length > 0 && hat !== "events" && rights) {
+    const unrealized = rights.filter(r => {
+      const s = userRightsStatus[r.id];
+      return !s || s === "not_started";
+    });
+    if (unrealized.length > 0) {
+      let rightsCtxExtra = "\n--- זכויות שהמשתמש טרם מימש ---\n";
+      rightsCtxExtra += unrealized.map(r => `• ${r.title} (${r.category}): ${r.summary}`).join("\n");
+      rightsCtxExtra += "\nכשאתה מזהה שהמשתמש עשוי להיות זכאי לאחת מהזכויות שטרם מימש — ציין בטבעיות: \"אגב, אולי לא ידעת — מגיע לך גם [שם הזכות].\"";
+      systemParts.push(rightsCtxExtra);
+    }
+  }
+
+  const system = `${systemParts.join("\n\n")}
+
+---
+הנחיות כלליות:
+- דבר בעברית ישראלית טבעית, פשוטה — כאילו אתה מדבר עם חבר
+- שאל שאלות כדי להתאים — לא להרצות
+- היה אקטיבי: הצע, שאל, אל תחכה שישאלו אותך
+- תמיד תן שלבים מעשיים — מספרי טלפון, מה להגיד, מה לבקש
+- אם הוא צריך לעשות משהו — הצע לעשות את זה ביחד עכשיו
+- כשהוא צריך להגיש פנייה — תכתוב לו נוסח מוכן שהוא יעתיק ויהדביק בפורטל. הנוסח חייב להיות עד 500 תווים!
+- הצג את הנוסח בצורה ברורה ומובדלת, ואמור "הנה הנוסח, תעתיק ותדביק:"
+- אחרי הנוסח, תגיד אם כדאי לצרף קובץ ואיזה (תמונה/מסמך/קבלה)
+- קו חם: מוקד פצועים *6500 | נפש אחת *8944 | אגף השיקום shikum.mod.gov.il
+- אורך תשובה: עד 12 שורות כשכותבים נוסח פנייה. אחרת 3-8 שורות.
+- בסוף כל תשובה, סיים עם שאלה או הצעה שמניעה לפעולה הבאה — כזו שהמשתמש ירצה להגיב עליה`;
+
+  return system;
+}
+
+// ============================================================
+// Main handler
+// ============================================================
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).end();
+
+  // --- Origin / CSRF check ---
+  const origin = req.headers.origin || "";
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "");
+  const allowedOrigins = new Set([siteUrl, "http://localhost:3000", "http://localhost:3001", "http://localhost:3002"].filter(Boolean));
+  if (!origin || !allowedOrigins.has(origin)) {
+    return res.status(403).json({ reply: "גישה נדחתה." });
+  }
+
+  // --- Rate limiting ---
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+  const rateLimited = isRateLimited(ip);
+  if (rateLimited === "minute") {
+    return res.status(429).json({ reply: "יותר מדי בקשות. נסה שוב בעוד דקה." });
+  }
+  if (rateLimited === "hour") {
+    return res.status(429).json({ reply: "הגעת למגבלת הבקשות השעתית (60 לשעה). נסה שוב מאוחר יותר." });
+  }
+
+  // --- Token allowance check ---
+  const allowance = await getTokenAllowance(req, ip);
+  if (!allowance.allowed) {
+    return res.status(402).json({
+      reply: "נגמרו הטוקנים שלך. שדרג את המסלול כדי להמשיך.",
+      tokenInfo: { used: 0, remaining: 0, plan: allowance.planId },
+    });
+  }
+
+  // --- Input validation ---
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ reply: "בקשה לא תקינה." });
+  }
+
+  const {
+    messages,
+    hat: clientHat = "lawyer",
+    rights = [],
+    events = [],
+    userCity = null,
+    lastMessageText,
+    userProfile,
+    memory = [],
+    userRightsStatus = {},
+    legalCase = null,
+    enabledFeatures: requestedFeatures = [],
+    hatExplicit = false,
+  } = body;
+  let { attachment } = body;
+
+  // --- Resolve active features based on plan ---
+  const allowedFeatureIds = new Set(
+    FEATURE_CONFIG
+      .filter(f => f.plans.includes(allowance.planId))
+      .map(f => f.id)
+  );
+  const activeFeatures = new Set(
+    FEATURE_CONFIG
+      .filter(f => f.always_on || (requestedFeatures.includes(f.id) && allowedFeatureIds.has(f.id)))
+      .map(f => f.id)
+  );
+
+  // Gate attachments by feature
+  if (!activeFeatures.has("attachments")) {
+    attachment = null;
+  }
+
+  // Validate hat
+  if (!VALID_HATS.has(clientHat)) {
+    return res.status(400).json({ reply: "בחירה לא חוקית." });
+  }
+
+  // Validate messages
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > MAX_MESSAGES) {
+    return res.status(400).json({ reply: "הודעות לא תקינות." });
+  }
+  for (const m of messages) {
+    if (!m || !VALID_ROLES.has(m.role)) {
+      return res.status(400).json({ reply: "הודעה לא תקינה." });
+    }
+    if (typeof m.content === "string" && m.content.length > MAX_CONTENT_LENGTH) {
+      return res.status(400).json({ reply: "הודעה ארוכה מדי." });
+    }
+  }
+
+  // Validate attachment
+  if (attachment) {
+    if (!attachment.media_type || !ALLOWED_ATTACHMENT_TYPES.has(attachment.media_type)) {
+      return res.status(400).json({ reply: "סוג קובץ לא נתמך." });
+    }
+    if (!attachment.base64 || typeof attachment.base64 !== "string" || attachment.base64.length > MAX_ATTACHMENT_BASE64) {
+      return res.status(400).json({ reply: "קובץ גדול מדי." });
+    }
+  }
+
+  // --- Extract last user message for router ---
+  const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+  const lastUserText = lastUserMsg
+    ? (typeof lastUserMsg.content === "string" ? lastUserMsg.content : lastMessageText || "")
+    : "";
+
+  // --- Step 1: Summarize conversation if needed ---
+  const { summary: conversationSummary, messages: optimizedMessages } = await summarizeConversation(messages);
+
+  // --- Step 2: Route intent + fetch data in parallel ---
+  const [routerResult, vetKnowledge, medicalInjuries] = await Promise.all([
+    routeIntent(lastUserText, conversationSummary),
+    fetchVeteranKnowledge(),
+    (activeFeatures.has("medical_context") && allowance.userId) ? (async () => {
+      try {
+        const admin = getAdminSupabase();
+        const { data } = await admin.from("injuries")
+          .select("body_zone, hebrew_label, severity, status, details, disability_percent")
+          .eq("user_id", allowance.userId).limit(20);
+        return data || [];
+      } catch { return []; }
+    })() : Promise.resolve([]),
+  ]);
+
+  console.log("[chat] router:", JSON.stringify(routerResult));
+
+  // --- Step 3: Determine hat (client choice is primary) ---
+  const hat = clientHat; // Client's hat choice is always primary for now
+
+  // --- Step 4: Build system prompt ---
+  const contextData = {
+    rights, events, userCity, userProfile, memory, medicalInjuries,
+    legalCase, userRightsStatus, vetKnowledge, activeFeatures,
+  };
+
+  let system;
+  if (routerResult) {
+    // Smart Router path — build lean context
+    system = buildSystemPrompt(hat, routerResult, contextData);
+  } else {
+    // Fallback — full context (router failed or timed out)
+    console.log("[chat] router failed, using full context fallback");
+    system = buildFullSystemPrompt(hat, contextData);
+  }
+
+  console.log("[chat] system prompt tokens (estimated):", Math.round(system.length / 4));
+
+  // --- Step 5: Build messages array with optional summary prefix ---
+  let finalMessages = optimizedMessages;
+  if (conversationSummary) {
+    // Prepend summary as a system-style context in the first user message
+    finalMessages = [
+      { role: "user", content: `[סיכום שיחה קודמת: ${conversationSummary}]` },
+      { role: "assistant", content: "הבנתי, ממשיכים." },
+      ...optimizedMessages,
+    ];
+  }
+
+  // Build API messages — handle multimodal (last message with attachment)
+  const apiMessages = finalMessages.map((m, idx) => {
+    if (idx === finalMessages.length - 1 && m.role === "user" && attachment) {
       const contentBlocks = [];
 
       if (attachment.media_type && attachment.media_type.startsWith("image/")) {
@@ -745,7 +1292,8 @@ export default async function handler(req, res) {
     return { role: m.role, content: m.content };
   });
 
-  const maxTokens = attachment ? 2048 : 1024;
+  const selectedModel = allowance.features.model || "claude-sonnet-4-6";
+  const maxTokens = attachment ? Math.max(2048, allowance.features.max_tokens || 1024) : (allowance.features.max_tokens || 1024);
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -756,7 +1304,7 @@ export default async function handler(req, res) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: selectedModel,
         max_tokens: maxTokens,
         system,
         messages: apiMessages,
@@ -772,8 +1320,24 @@ export default async function handler(req, res) {
     const d = await r.json();
     const reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
 
-    // Track token usage
-    trackTokenUsage(ip, d.usage?.input_tokens, d.usage?.output_tokens);
+    // Track token usage via RPC
+    const tokensUsed = (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0);
+    let tokenInfo = { used: tokensUsed, remaining: allowance.remaining, plan: allowance.planId };
+    try {
+      const admin = getAdminSupabase();
+      if (allowance.userId) {
+        const { data: deductResult } = await admin.rpc("deduct_tokens", {
+          p_user_id: allowance.userId, p_amount: tokensUsed, p_is_daily: allowance.planId === "free",
+        });
+        if (deductResult) tokenInfo.remaining = deductResult.remaining;
+      } else {
+        const today = new Date().toISOString().split("T")[0];
+        const { data: ipResult } = await admin.rpc("increment_ip_usage", {
+          p_ip: ip, p_date: today, p_amount: tokensUsed,
+        });
+        if (ipResult) tokenInfo.remaining = ipResult.remaining;
+      }
+    } catch (e) { console.error("Token tracking error:", e); }
 
     // Extract memory facts from conversation (non-blocking)
     let extractedMemory = [];
@@ -826,7 +1390,12 @@ export default async function handler(req, res) {
       } catch {}
     }
 
-    res.json({ reply, extractedMemory, sessionTitle });
+    // Calculate estimated cost of active features
+    const estimatedCost = FEATURE_CONFIG
+      .filter(f => activeFeatures.has(f.id))
+      .reduce((sum, f) => sum + f.estimated_tokens, 0);
+
+    res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost });
   } catch (err) {
     console.error("API route error:", err);
     res.status(500).json({ reply: "שגיאה פנימית." });

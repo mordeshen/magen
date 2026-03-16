@@ -1504,7 +1504,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         {/* Feature toggles panel */}
         {showFeaturePanel && (
           <div className="feature-panel">
-            <div className="feature-panel-title">פיצ'רים — בחר מה פעיל בשיחה <span className="feature-beta">תקופת הרצה — הכל פתוח</span></div>
+            <div className="feature-panel-title">פיצ'רים — בחר מה פעיל בשיחה</div>
             {featureConfig.map(f => {
               const isOn = f.always_on || enabledFeatures[f.id];
               return (

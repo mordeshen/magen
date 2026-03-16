@@ -1064,6 +1064,9 @@ function TokenBadge({ subscription, onClick }) {
 function PricingModal({ onClose, onSuccess }) {
   const [plans, setPlans] = useState([]);
   const [loadingPlan, setLoadingPlan] = useState(null);
+  const [needsPhone, setNeedsPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [pendingPlanId, setPendingPlanId] = useState(null);
 
   useEffect(() => {
     fetch("/api/plans").then(r => r.json()).then(setPlans).catch(() => {});
@@ -1091,14 +1094,12 @@ function PricingModal({ onClose, onSuccess }) {
       console.log("[checkout-client] getting access token...");
       let accessToken;
       try {
-        // Try getSession first with short timeout, fallback to localStorage
         const result = await Promise.race([
           sb.auth.getSession(),
           new Promise((resolve) => setTimeout(() => resolve(null), 3000))
         ]);
         accessToken = result?.data?.session?.access_token;
         if (!accessToken) {
-          // Fallback: read token directly from localStorage
           const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
           if (storageKey) {
             const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
@@ -1107,7 +1108,6 @@ function PricingModal({ onClose, onSuccess }) {
         }
       } catch (sessErr) {
         console.error("[checkout-client] getSession failed:", sessErr.message);
-        // Fallback: read token directly from localStorage
         try {
           const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
           if (storageKey) {
@@ -1122,29 +1122,79 @@ function PricingModal({ onClose, onSuccess }) {
         setLoadingPlan(null);
         return;
       }
-      console.log("[checkout-client] fetching /api/checkout...");
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ plan_id: planId }),
-      });
-      console.log("[checkout-client] response status:", r.status);
-      let d;
-      try { d = await r.json(); } catch { d = {}; }
-      console.log("[checkout-client] response data:", d);
-      if (d.paymentUrl) {
-        console.log("[checkout-client] redirecting to payment...");
-        window.location.href = d.paymentUrl;
+
+      // Check if user has phone — if not, ask for it
+      const { data: { user } } = await sb.auth.getUser();
+      const hasPhone = user?.user_metadata?.phone || user?.phone;
+      if (!hasPhone) {
+        setPendingPlanId(planId);
+        setNeedsPhone(true);
+        setLoadingPlan(null);
         return;
       }
-      const errMsg = d.error === "payment not configured"
-        ? "מערכת התשלומים עדיין לא מוגדרת. נסה שוב מאוחר יותר."
-        : "שגיאה ביצירת התשלום. נסה שוב.";
-      alert(errMsg);
+
+      await proceedToCheckout(planId, accessToken);
     } catch (err) {
       console.error("[checkout-client] error:", err);
       alert("שגיאה בחיבור לשרת.");
+      setLoadingPlan(null);
     }
+  }
+
+  async function handlePhoneSubmit() {
+    const phone = phoneInput.replace(/[\s\-]/g, "");
+    if (!/^0[0-9]{8,9}$/.test(phone)) {
+      alert("יש להזין מספר טלפון ישראלי תקין");
+      return;
+    }
+    setLoadingPlan(pendingPlanId);
+    setNeedsPhone(false);
+    try {
+      const { supabase: sb } = await import("../lib/supabase");
+      // Save phone to user metadata
+      await sb.auth.updateUser({ data: { phone } });
+
+      let accessToken;
+      const result = await Promise.race([
+        sb.auth.getSession(),
+        new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+      ]);
+      accessToken = result?.data?.session?.access_token;
+      if (!accessToken) {
+        const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
+        if (storageKey) {
+          const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+          accessToken = stored?.access_token;
+        }
+      }
+      await proceedToCheckout(pendingPlanId, accessToken);
+    } catch (err) {
+      console.error("[checkout-client] phone submit error:", err);
+      alert("שגיאה. נסה שוב.");
+      setLoadingPlan(null);
+    }
+  }
+
+  async function proceedToCheckout(planId, accessToken) {
+    console.log("[checkout-client] fetching /api/checkout...");
+    const r = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ plan_id: planId }),
+    });
+    console.log("[checkout-client] response status:", r.status);
+    let d;
+    try { d = await r.json(); } catch { d = {}; }
+    console.log("[checkout-client] response data:", d);
+    if (d.paymentUrl) {
+      console.log("[checkout-client] redirecting to payment...");
+      window.location.href = d.paymentUrl;
+      return;
+    }
+    const errMsg = d.error === "payment not configured"
+      ? "מערכת התשלומים עדיין לא מוגדרת. נסה שוב מאוחר יותר."
+      : "שגיאה ביצירת התשלום. נסה שוב.";
+    alert(errMsg);
     setLoadingPlan(null);
   }
 
@@ -1160,31 +1210,55 @@ function PricingModal({ onClose, onSuccess }) {
     <div className="pricing-overlay" onClick={onClose}>
       <div className="pricing-modal" onClick={e => e.stopPropagation()}>
         <button className="pricing-close" onClick={onClose}>✕</button>
-        <h2 className="pricing-title">בחר מסלול</h2>
-        <div className="pricing-grid">
-          {plans.map(p => (
-            <div key={p.id} className={`plan-card ${p.id === "premium" ? "plan-featured" : ""}`}>
-              <div className="plan-icon">{PLAN_ICONS[p.id] || "📦"}</div>
-              <div className="plan-name">{p.name}</div>
-              <div className="plan-price">
-                {p.price === 0 ? "חינם" : `${p.price / 100}₪`}
-                {p.period_days ? <span className="plan-period">/חודש</span> : null}
-              </div>
-              <div className="plan-desc">{PLAN_DESCS[p.id] || ""}</div>
-              {p.id === "free" ? (
-                <button className="plan-btn plan-btn-current" disabled>המסלול הנוכחי</button>
-              ) : (
-                <button
-                  className={`plan-btn ${p.id === "premium" ? "plan-btn-premium" : ""}`}
-                  onClick={() => handleCheckout(p.id)}
-                  disabled={loadingPlan !== null}
-                >
-                  {loadingPlan === p.id ? "מעבד..." : "שדרג"}
-                </button>
-              )}
+
+        {needsPhone ? (
+          <div className="phone-prompt">
+            <h2 className="pricing-title">רגע לפני התשלום</h2>
+            <p className="phone-prompt-desc">מספר הטלפון נדרש לצורך יצירת קישור תשלום מאובטח ושליחת אישור.</p>
+            <input
+              className="phone-prompt-input"
+              type="tel"
+              dir="ltr"
+              placeholder="050-1234567"
+              value={phoneInput}
+              onChange={e => setPhoneInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handlePhoneSubmit()}
+              autoFocus
+            />
+            <div className="phone-prompt-actions">
+              <button className="plan-btn" onClick={handlePhoneSubmit}>המשך לתשלום</button>
+              <button className="phone-prompt-back" onClick={() => { setNeedsPhone(false); setPendingPlanId(null); }}>חזרה</button>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            <h2 className="pricing-title">בחר מסלול</h2>
+            <div className="pricing-grid">
+              {plans.map(p => (
+                <div key={p.id} className={`plan-card ${p.id === "premium" ? "plan-featured" : ""}`}>
+                  <div className="plan-icon">{PLAN_ICONS[p.id] || "📦"}</div>
+                  <div className="plan-name">{p.name}</div>
+                  <div className="plan-price">
+                    {p.price === 0 ? "חינם" : `${p.price / 100}₪`}
+                    {p.period_days ? <span className="plan-period">/חודש</span> : null}
+                  </div>
+                  <div className="plan-desc">{PLAN_DESCS[p.id] || ""}</div>
+                  {p.id === "free" ? (
+                    <button className="plan-btn plan-btn-current" disabled>המסלול הנוכחי</button>
+                  ) : (
+                    <button
+                      className={`plan-btn ${p.id === "premium" ? "plan-btn-premium" : ""}`}
+                      onClick={() => handleCheckout(p.id)}
+                      disabled={loadingPlan !== null}
+                    >
+                      {loadingPlan === p.id ? "מעבד..." : "שדרג"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -3632,6 +3706,25 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .pricing-title {
           text-align:center; color:var(--stone-50); font-size:22px; margin-bottom:24px;
         }
+        .phone-prompt { text-align:center; padding:20px 0; }
+        .phone-prompt-desc {
+          color:var(--text-secondary); font-size:14px; line-height:1.7;
+          margin-bottom:20px; max-width:320px; margin-inline:auto;
+        }
+        .phone-prompt-input {
+          display:block; width:100%; max-width:280px; margin:0 auto 20px;
+          padding:12px 16px; font-size:18px; font-family:'Heebo',sans-serif;
+          background:var(--stone-800); border:1px solid var(--border-default);
+          border-radius:8px; color:var(--text-primary); text-align:center;
+          letter-spacing:1px;
+        }
+        .phone-prompt-input:focus { border-color:var(--accent-primary); outline:none; }
+        .phone-prompt-actions { display:flex; flex-direction:column; align-items:center; gap:12px; }
+        .phone-prompt-back {
+          background:none; border:none; color:var(--text-secondary); font-size:13px;
+          cursor:pointer; font-family:'Heebo',sans-serif;
+        }
+        .phone-prompt-back:hover { color:var(--text-primary); }
         .pricing-grid {
           display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
           gap:12px;

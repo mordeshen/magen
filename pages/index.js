@@ -1267,6 +1267,7 @@ function PricingModal({ onClose, onSuccess }) {
 function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat, onBack }) {
   const { user, profile, userRights: chatUserRights, userMemory, chatSessions, saveSession, loadSession, deleteSession, saveMemory, legalCase, saveLegalCase, subscription, loadSubscription, refreshTokenBalance } = useUser();
   const [showPricing, setShowPricing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [hat, setHat]         = useState(initialHat || "lawyer");
   const [msgs, setMsgs]       = useState([]);
   const [input, setInput]     = useState("");
@@ -1934,7 +1935,18 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
       <p className="chat-disclaimer">⚠️ המידע הוא לצרכי אינפורמציה בלבד ואינו מחליף ייעוץ מקצועי מוסמך.</p>
 
-      {showPricing && <PricingModal onClose={() => setShowPricing(false)} onSuccess={() => { setShowPricing(false); loadSubscription(); }} />}
+      {showPricing && <PricingModal onClose={() => setShowPricing(false)} onSuccess={() => { setShowPricing(false); setPaymentSuccess(true); loadSubscription(); }} />}
+      {paymentSuccess && (
+        <div className="payment-success-overlay" onClick={() => setPaymentSuccess(false)}>
+          <div className="payment-success-card" onClick={e => e.stopPropagation()}>
+            <div className="payment-success-icon">&#10003;</div>
+            <h3>התשלום התקבל בהצלחה</h3>
+            <p>תודה רבה על האמון. המסלול שלך שודרג והפיצ'רים המתקדמים זמינים עכשיו.</p>
+            <p className="payment-success-sub">חשבונית תשלח למייל שלך בדקות הקרובות.</p>
+            <button className="payment-success-btn" onClick={() => setPaymentSuccess(false)}>מעולה, בואו נתחיל</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3695,8 +3707,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .pricing-modal {
           background:#10151c; border:1px solid #1e2530; border-radius:8px;
-          padding:32px 24px; max-width:700px; width:100%; position:relative;
-          max-height:90vh; overflow-y:auto;
+          padding:32px 24px; max-width:520px; width:100%; position:relative;
+          max-height:85vh; overflow-y:auto;
         }
         .pricing-close {
           position:absolute; top:12px; left:12px; background:none; border:none;
@@ -3725,6 +3737,39 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           cursor:pointer; font-family:'Heebo',sans-serif;
         }
         .phone-prompt-back:hover { color:var(--text-primary); }
+
+        /* ── Payment Success ── */
+        .payment-success-overlay {
+          position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:9999;
+          display:flex; align-items:center; justify-content:center;
+          animation:fadeIn .3s;
+        }
+        .payment-success-card {
+          background:var(--stone-900); border:1px solid var(--status-success);
+          border-radius:8px; padding:40px 32px; max-width:400px; width:90vw;
+          text-align:center;
+        }
+        .payment-success-icon {
+          width:56px; height:56px; border-radius:50%;
+          background:rgba(22,163,106,.15); color:var(--status-success);
+          font-size:28px; font-weight:700; display:flex; align-items:center;
+          justify-content:center; margin:0 auto 20px;
+        }
+        .payment-success-card h3 {
+          color:var(--stone-50); font-size:20px; font-weight:700; margin-bottom:12px;
+        }
+        .payment-success-card p {
+          color:var(--text-secondary); font-size:14px; line-height:1.7; margin-bottom:8px;
+        }
+        .payment-success-sub {
+          font-size:12.5px; color:var(--text-muted); margin-bottom:24px;
+        }
+        .payment-success-btn {
+          background:var(--status-success); color:#fff; border:none; border-radius:6px;
+          padding:12px 32px; font-size:15px; font-weight:700; cursor:pointer;
+          font-family:'Heebo',sans-serif; transition:background .15s;
+        }
+        .payment-success-btn:hover { background:#15803d; }
         .pricing-grid {
           display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
           gap:12px;

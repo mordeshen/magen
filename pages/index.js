@@ -1712,36 +1712,43 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           )}
         </div>
 
-        {/* Feature toggles panel */}
+        {/* Feature toggles — full page overlay */}
         {showFeaturePanel && (
-          <div className="feature-panel">
-            <div className="feature-panel-title">פיצ'רים — בחר מה פעיל בשיחה</div>
-            {featureConfig.map(f => {
-              const allowed = f.plans.includes(userPlan);
-              const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
-              return (
-                <div key={f.id} className={`feature-row ${!allowed ? "feature-locked" : ""}`}>
-                  <span className="feature-icon">{f.icon}</span>
-                  <div className="feature-info">
-                    <span className="feature-label">{f.label}</span>
-                    <span className="feature-desc">{f.description}</span>
-                  </div>
-                  <span className="feature-cost">~{(f.estimated_tokens/1000).toFixed(1)}K</span>
-                  {f.always_on ? (
-                    <span className="feature-always">תמיד</span>
-                  ) : !allowed ? (
-                    <button className="feature-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
-                  ) : (
-                    <label className="feature-switch">
-                      <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
-                      <span className="feature-slider" />
-                    </label>
-                  )}
-                </div>
-              );
-            })}
-            <div className="feature-total">
-              עלות משוערת להודעה: <strong>~{(estimatedCost/1000).toFixed(1)}K טוקנים</strong>
+          <div className="feature-overlay" onClick={() => setShowFeaturePanel(false)}>
+            <div className="feature-modal" onClick={e => e.stopPropagation()}>
+              <div className="feature-modal-header">
+                <h3>פיצ'רים — בחר מה פעיל בשיחה</h3>
+                <button className="feature-modal-close" onClick={() => setShowFeaturePanel(false)}>✕</button>
+              </div>
+              <div className="feature-modal-body">
+                {featureConfig.map(f => {
+                  const allowed = f.plans.includes(userPlan);
+                  const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
+                  return (
+                    <div key={f.id} className={`feature-row ${!allowed ? "feature-locked" : ""}`}>
+                      <span className="feature-icon">{f.icon}</span>
+                      <div className="feature-info">
+                        <span className="feature-label">{f.label}</span>
+                        <span className="feature-desc">{f.description}</span>
+                      </div>
+                      <span className="feature-cost">~{(f.estimated_tokens/1000).toFixed(1)}K</span>
+                      {f.always_on ? (
+                        <span className="feature-always">תמיד</span>
+                      ) : !allowed ? (
+                        <button className="feature-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
+                      ) : (
+                        <label className="feature-switch">
+                          <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
+                          <span className="feature-slider" />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="feature-modal-footer">
+                עלות משוערת להודעה: <strong>~{(estimatedCost/1000).toFixed(1)}K טוקנים</strong>
+              </div>
             </div>
           </div>
         )}
@@ -3523,11 +3530,34 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .feature-toggle-btn:hover { border-color:var(--accent-primary); color:#dde3ec; }
 
-        /* ── Feature Panel ── */
-        .feature-panel {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
-          padding:12px; margin:0 0 4px; animation:fadeIn .2s;
-          max-height:60vh; overflow-y:auto;
+        /* ── Feature Modal (full page overlay) ── */
+        .feature-overlay {
+          position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:9999;
+          display:flex; align-items:center; justify-content:center;
+          animation:fadeIn .2s;
+        }
+        .feature-modal {
+          background:var(--stone-900); border:1px solid var(--border-default); border-radius:8px;
+          width:90vw; max-width:480px; max-height:85vh; display:flex; flex-direction:column;
+        }
+        .feature-modal-header {
+          display:flex; align-items:center; justify-content:space-between;
+          padding:20px 24px 16px; border-bottom:1px solid var(--border-default);
+        }
+        .feature-modal-header h3 {
+          font-size:16px; font-weight:700; color:var(--text-primary); margin:0;
+        }
+        .feature-modal-close {
+          background:none; border:none; color:var(--text-secondary); font-size:18px;
+          cursor:pointer; padding:4px 8px; border-radius:6px;
+        }
+        .feature-modal-close:hover { color:var(--text-primary); background:rgba(255,255,255,.05); }
+        .feature-modal-body {
+          flex:1; overflow-y:auto; padding:16px 24px;
+        }
+        .feature-modal-footer {
+          padding:14px 24px; border-top:1px solid var(--border-default);
+          font-size:12.5px; color:var(--text-secondary); text-align:center;
         }
         .feature-panel-title {
           font-size:12px; font-weight:700; color:#dde3ec; margin-bottom:10px;

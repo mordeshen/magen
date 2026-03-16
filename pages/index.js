@@ -1817,44 +1817,29 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           )}
         </div>
 
-        {/* Feature toggles — full page overlay */}
+        {/* Feature toggles — inline collapsible panel */}
         {showFeaturePanel && (
-          <div className="feature-overlay" onClick={() => setShowFeaturePanel(false)}>
-            <div className="feature-modal" onClick={e => e.stopPropagation()}>
-              <div className="feature-modal-header">
-                <h3>פיצ'רים — בחר מה פעיל בשיחה</h3>
-                <button className="feature-modal-close" onClick={() => setShowFeaturePanel(false)}>✕</button>
-              </div>
-              <div className="feature-modal-body">
-                {featureConfig.map(f => {
-                  const allowed = f.plans.includes(userPlan);
-                  const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
-                  return (
-                    <div key={f.id} className={`feature-row ${!allowed ? "feature-locked" : ""}`}>
-                      <span className="feature-icon">{f.icon}</span>
-                      <div className="feature-info">
-                        <span className="feature-label">{f.label}</span>
-                        <span className="feature-desc">{f.description}</span>
-                      </div>
-                      <span className="feature-cost">~{(f.estimated_tokens/1000).toFixed(1)}K</span>
-                      {f.always_on ? (
-                        <span className="feature-always">תמיד</span>
-                      ) : !allowed ? (
-                        <button className="feature-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
-                      ) : (
-                        <label className="feature-switch">
-                          <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
-                          <span className="feature-slider" />
-                        </label>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="feature-modal-footer">
-                עלות משוערת להודעה: <strong>~{(estimatedCost/1000).toFixed(1)}K טוקנים</strong>
-              </div>
-            </div>
+          <div className="feature-inline">
+            {featureConfig.map(f => {
+              const allowed = f.plans.includes(userPlan);
+              const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
+              return (
+                <div key={f.id} className={`feature-inline-row ${!allowed ? "feature-locked" : ""}`}>
+                  <span className="feature-inline-label">{f.label}</span>
+                  <span className="feature-inline-cost">~{(f.estimated_tokens/1000).toFixed(1)}K</span>
+                  {f.always_on ? (
+                    <span className="feature-inline-always">ON</span>
+                  ) : !allowed ? (
+                    <button className="feature-inline-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
+                  ) : (
+                    <label className="feature-switch-sm">
+                      <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
+                      <span className="feature-slider-sm" />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -3646,35 +3631,45 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .feature-toggle-btn:hover { border-color:var(--accent-primary); color:#dde3ec; }
 
-        /* ── Feature Modal (full page overlay) ── */
-        .feature-overlay {
-          position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:9999;
-          display:flex; align-items:center; justify-content:center;
-          animation:fadeIn .2s;
+        /* ── Feature Inline Panel (collapsible under chat header) ── */
+        .feature-inline {
+          background:rgba(0,0,0,.25); border-bottom:1px solid var(--border-default);
+          padding:8px 16px; display:flex; flex-wrap:wrap; gap:6px 14px;
+          animation:fadeIn .15s;
         }
-        .feature-modal {
-          background:var(--stone-900); border:1px solid var(--border-default); border-radius:8px;
-          width:90vw; max-width:480px; max-height:85vh; display:flex; flex-direction:column;
+        .feature-inline-row {
+          display:flex; align-items:center; gap:6px; font-size:12px;
         }
-        .feature-modal-header {
-          display:flex; align-items:center; justify-content:space-between;
-          padding:20px 24px 16px; border-bottom:1px solid var(--border-default);
+        .feature-inline-label {
+          color:var(--text-secondary); font-weight:500;
         }
-        .feature-modal-header h3 {
-          font-size:16px; font-weight:700; color:var(--text-primary); margin:0;
+        .feature-inline-cost {
+          color:var(--text-muted); font-size:10.5px;
         }
-        .feature-modal-close {
-          background:none; border:none; color:var(--text-secondary); font-size:18px;
-          cursor:pointer; padding:4px 8px; border-radius:6px;
+        .feature-inline-always {
+          font-size:9px; font-weight:700; color:var(--status-success);
+          background:rgba(22,163,106,.12); padding:1px 5px; border-radius:3px;
         }
-        .feature-modal-close:hover { color:var(--text-primary); background:rgba(255,255,255,.05); }
-        .feature-modal-body {
-          flex:1; overflow-y:auto; padding:16px 24px;
+        .feature-inline-upgrade {
+          font-size:10px; font-weight:600; color:var(--accent-primary);
+          background:rgba(217,119,6,.1); border:none; padding:2px 8px;
+          border-radius:4px; cursor:pointer; font-family:'Heebo',sans-serif;
         }
-        .feature-modal-footer {
-          padding:14px 24px; border-top:1px solid var(--border-default);
-          font-size:12.5px; color:var(--text-secondary); text-align:center;
+        .feature-inline-upgrade:hover { background:rgba(217,119,6,.2); }
+        .feature-switch-sm {
+          position:relative; width:28px; height:16px; display:inline-block;
         }
+        .feature-switch-sm input { opacity:0; width:0; height:0; }
+        .feature-slider-sm {
+          position:absolute; inset:0; background:var(--stone-700); border-radius:8px;
+          cursor:pointer; transition:background .15s;
+        }
+        .feature-slider-sm::before {
+          content:""; position:absolute; width:12px; height:12px; border-radius:50%;
+          background:#fff; top:2px; left:2px; transition:transform .15s;
+        }
+        .feature-switch-sm input:checked + .feature-slider-sm { background:var(--status-success); }
+        .feature-switch-sm input:checked + .feature-slider-sm::before { transform:translateX(12px); }
         .feature-panel-title {
           font-size:12px; font-weight:700; color:#dde3ec; margin-bottom:10px;
         }

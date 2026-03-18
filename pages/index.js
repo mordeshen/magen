@@ -100,16 +100,16 @@ function ChatBubbleContent({ text }) {
               setTimeout(() => setCopiedIdx(null), 2000);
             }}
           >
-            {copiedIdx === i ? "הועתק ✓" : "העתק נוסח 📋"}
+            {copiedIdx === i ? "\u2713 הועתק" : "העתק נוסח"}
           </button>
         </div>
         {bm && bookmarkletUrl && (
           <div className="bookmarklet-block">
-            <div className="bookmarklet-header">🪄 מילוי אוטומטי</div>
+            <div className="bookmarklet-header">מילוי אוטומטי</div>
             <p className="bookmarklet-desc">גרור את הכפתור לסרגל הסימניות, או לחץ עליו כשאתה בדף הנכון:</p>
             <a href={bookmarkletUrl} className="bookmarklet-btn"
                onClick={e => { e.preventDefault(); setShowInstructions(true); }}>
-              📋 מלא טופס — {bm.label}
+              מלא טופס — {bm.label}
             </a>
             {showInstructions && (
               <div className="bookmarklet-steps">
@@ -154,7 +154,7 @@ function RightCard({ r, open, onToggle }) {
       {open && (
         <div className="card-body">
           <p>{r.details}</p>
-          {r.tip && <div className="tip-box">💡 {r.tip}</div>}
+          {r.tip && <div className="tip-box">{r.tip}</div>}
           {r.link && <a href={r.link} target="_blank" rel="noopener noreferrer" className="ext-link" onClick={e=>e.stopPropagation()}>למידע נוסף ←</a>}
           {user && (
             <div className="right-status" onClick={e => e.stopPropagation()}>
@@ -200,12 +200,12 @@ function EventCard({ ev }) {
       </div>
       <h3 className="ev-h">{ev.title}</h3>
       <div className="ev-meta">
-        <span>📅 {formatDate(ev.date)}{ev.time ? ` · ${ev.time}` : ""}</span>
-        <span>📍 {ev.location}</span>
+        <span>{formatDate(ev.date)}{ev.time ? ` \u00B7 ${ev.time}` : ""}</span>
+        <span>{ev.location}</span>
       </div>
       <p className="ev-desc">{ev.description}</p>
       <div className="ev-foot">
-        {ev.registration && <span className="ev-reg">📞 {ev.registration}</span>}
+        {ev.registration && <span className="ev-reg">{ev.registration}</span>}
         {ev.link && !/^https?:\/\/[^/]+\/?$/.test(ev.link) && <a href={ev.link} target="_blank" rel="noopener noreferrer" className="ext-link">פרטים ←</a>}
       </div>
     </div>
@@ -242,7 +242,7 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
       return (
         <div className="sb-avatar-wrap">
           <button className="sb-mini-avatar anon" onClick={signInWithGoogle} disabled={loading} title="התחבר">
-            <span>👤</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/></svg>
           </button>
         </div>
       );
@@ -264,12 +264,12 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
               </div>
               <div>
                 <div className="profile-name">{displayName}</div>
-                {profile?.city && <div className="sb-popup-detail">📍 {profile.city}</div>}
+                {profile?.city && <div className="sb-popup-detail">{profile.city}</div>}
               </div>
             </div>
 
             {profile?.claim_status === "before_recognition" && profile?.claim_stage && (
-              <div className="sb-popup-status">📋 {profile.claim_stage}</div>
+              <div className="sb-popup-status">{profile.claim_stage}</div>
             )}
             {profile?.claim_status === "after_recognition" && profile?.disability_percent != null && (
               <div className="sb-popup-status">אחוזי נכות: {profile.disability_percent}%</div>
@@ -286,20 +286,20 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
               </div>
               <div className="sb-popup-stat">
                 <span className="sb-popup-stat-num">{notStarted}</span>
-                <span className="sb-popup-stat-label">לא התחילו</span>
+                <span className="sb-popup-stat-label">טרם נבדקו</span>
               </div>
             </div>
 
             <div className="progress-section">
-              <div className="progress-label">מימוש זכויות: {completedRights}/{totalRights}</div>
+              <div className="progress-label">זכויות שבדקת: {completedRights}/{totalRights}</div>
               <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressPct}%` }}/></div>
             </div>
-            {notStarted > 0 && <button className="nudge nudge-btn" onClick={() => { setPopupOpen(false); onShowUnstarted(); }}>{notStarted} זכויות שטרם בדקת →</button>}
+            {notStarted > 0 && <button className="nudge nudge-btn" onClick={() => { setPopupOpen(false); onShowUnstarted(); }}>יש זכויות שאולי מתאימות לך →</button>}
             <div className="sb-popup-links">
-              <button className="sb-popup-link" onClick={toggleProfilePanel}>⚙ הגדרות פרופיל</button>
-              <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">🏢 האזור האישי שלי</a>
-              <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">🌐 אגף השיקום</a>
-              <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>📋 תנאי שימוש</button>
+              <button className="sb-popup-link" onClick={toggleProfilePanel}>הגדרות פרופיל</button>
+              <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">האזור האישי שלי</a>
+              <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">אגף השיקום</a>
+              <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
             <button className="signout-link" onClick={signOut}>התנתק</button>
           </div>
@@ -329,13 +329,13 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
           {avatar ? <img src={avatar} alt="" /> : <span>{displayName[0]}</span>}
         </div>
         <div className="profile-name">{displayName}</div>
-        <button className="profile-settings-btn" onClick={toggleProfilePanel} title="הגדרות">⚙</button>
+        <button className="profile-settings-btn" onClick={toggleProfilePanel} title="הגדרות">{"\u2699"}</button>
       </div>
       <div className="progress-section">
-        <div className="progress-label">מימוש זכויות: {completedRights}/{totalRights}</div>
+        <div className="progress-label">זכויות שבדקת: {completedRights}/{totalRights}</div>
         <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressPct}%` }}/></div>
       </div>
-      {notStarted > 0 && <button className="nudge nudge-btn" onClick={onShowUnstarted}>{notStarted} זכויות שטרם בדקת →</button>}
+      {notStarted > 0 && <button className="nudge nudge-btn" onClick={onShowUnstarted}>יש זכויות שאולי מתאימות לך →</button>}
       <button className="signout-link" onClick={signOut}>התנתק</button>
     </div>
   );
@@ -455,7 +455,7 @@ function UserTopBar({ onProfile }) {
     return (
       <button className="user-top-btn" onClick={signInWithGoogle} title="התחבר">
         <div className="user-top-avatar anon">
-          <span>👤</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/></svg>
         </div>
       </button>
     );
@@ -501,15 +501,15 @@ function ProfileView({ rights, onNavigateToRight }) {
           </div>
           <div>
             <h2 className="profile-card-name">{displayName}</h2>
-            {profile?.city && <p className="profile-card-detail">📍 {profile.city}</p>}
+            {profile?.city && <p className="profile-card-detail">{profile.city}</p>}
             {profile?.claim_status === "before_recognition" && profile?.claim_stage && (
-              <p className="profile-card-detail">📋 {profile.claim_stage}</p>
+              <p className="profile-card-detail">{profile.claim_stage}</p>
             )}
             {profile?.claim_status === "after_recognition" && profile?.disability_percent != null && (
               <p className="profile-card-detail">אחוזי נכות: {profile.disability_percent}%</p>
             )}
           </div>
-          <button className="profile-edit-btn" onClick={toggleProfilePanel}>⚙ עריכה</button>
+          <button className="profile-edit-btn" onClick={toggleProfilePanel}>עריכה</button>
         </div>
       </div>
 
@@ -622,7 +622,7 @@ function FeedbackModal({ open, onClose }) {
       <div className="settings-panel" onClick={e => e.stopPropagation()}>
         {sent ? (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>🙏</div>
+            <div style={{ fontSize: 24, marginBottom: 12, color: "var(--status-success)" }}>{"\u2713"}</div>
             <h3 style={{ color: "var(--stone-50)", marginBottom: 8 }}>תודה!</h3>
             <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>ההודעה שלך התקבלה. אנחנו קוראים הכל.</p>
             <button className="save-btn" style={{ marginTop: 16 }} onClick={onClose}>סגור</button>
@@ -693,14 +693,9 @@ function KnowledgeView() {
     if (!formTitle.trim() || !formContent.trim()) return;
     setSubmitting(true);
     try {
-      const { supabase } = await import("../lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) { alert("יש להתחבר כדי לשתף"); setSubmitting(false); return; }
-
       await fetch("/api/knowledge", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category: formCat, title: formTitle.trim(), content: formContent.trim() }),
       });
       setFormTitle("");
@@ -713,14 +708,9 @@ function KnowledgeView() {
 
   async function handleVote(knowledgeId) {
     try {
-      const { supabase } = await import("../lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
       const r = await fetch("/api/knowledge", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ knowledge_id: knowledgeId }),
       });
       const d = await r.json();
@@ -741,7 +731,7 @@ function KnowledgeView() {
       </div>
 
       <div className="knowledge-explainer">
-        <div className="knowledge-explainer-icon">🧠</div>
+        <div className="knowledge-explainer-icon">{"\u2736"}</div>
         <div className="knowledge-explainer-text">
           <strong>איך זה עובד?</strong> אתם משתפים טיפים מהניסיון שלכם, ואחרי אישור — היועץ AI משתמש בהם כדי לעזור לפצועים חדשים. ככה הידע שלכם ממשיך לעזור.
         </div>
@@ -750,7 +740,7 @@ function KnowledgeView() {
       {user ? (
         <div style={{marginBottom:20}}>
           <button className="knowledge-share-btn" onClick={() => setShowForm(!showForm)}>
-            {showForm ? "ביטול" : "✍️ שתף מהניסיון שלך"}
+            {showForm ? "ביטול" : "שתף מהניסיון שלך"}
           </button>
         </div>
       ) : (
@@ -820,51 +810,42 @@ function KnowledgeView() {
 
 const TIPS = [
   {
-    icon: "⚖",
     title: "קח עו\"ד או נציג מארגון נכי צה\"ל — חינם",
-    content: "ארגון נכי צה\"ל נותן ייצוג חינם בוועדות רפואיות ובערעורים. בנוסף, תוכנית ממשלתית חדשה מציעה ייצוג ב-500 ₪ בלבד. לא ללכת לוועדה לבד!",
-    action: "📞 ארגון נכי צה\"ל: 03-5254646",
+    content: "ארגון נכי צה\"ל נותן ייצוג חינם בוועדות רפואיות ובערעורים. בנוסף, תוכנית ממשלתית חדשה מציעה ייצוג ב-500 \u20AA בלבד. לא ללכת לוועדה לבד!",
+    action: "ארגון נכי צה\"ל: 03-5254646",
   },
   {
-    icon: "📋",
     title: "הזמן תיק רפואי צבאי מיד",
     content: "התיק הרפואי הצבאי הוא הבסיס לכל תביעה. ככל שתזמין מוקדם יותר — תקבל מוקדם יותר. ההזמנה חינם ומקוונת.",
-    action: "🌐 archives.mod.gov.il",
+    action: "archives.mod.gov.il",
   },
   {
-    icon: "🚫",
     title: "אל תלך לוועדה רפואית בלי נציג",
     content: "ועדה רפואית קובעת את אחוזי הנכות שלך, וזה משפיע על כל הזכויות. עם ייצוג — הסיכוי לאחוזים נכונים עולה משמעותית. הם גם יכולים להוריד אחוזים בערעור!",
   },
   {
-    icon: "💪",
     title: "אל תמעיט בפגיעה בפני הוועדה",
     content: "יש נטייה טבעית להגיד \"אני בסדר\". בוועדה — תספר בדיוק מה קשה לך ביומיום. זה לא מגזים — זה מדויק. הרופאים צריכים לשמוע את התמונה המלאה.",
   },
   {
-    icon: "⏰",
     title: "הגש תביעה מהר — עיכובים עולים כסף",
     content: "תביעה תוך שנה מהשחרור = תגמולים מיום השחרור. אחרי שנה = תגמולים רק מיום ההגשה. כל יום שעובר הוא כסף שאתה מפסיד.",
   },
   {
-    icon: "🧠",
     title: "טיפול נפשי זמין גם לפני הכרה רשמית",
     content: "לא צריך לחכות להכרה רשמית כדי לקבל עזרה. מדיניות חדשה מאפשרת טיפול נפשי מיידי. נפש אחת *8944 זמין 24/7, אנונימי, אנשי מקצוע שהיו שם.",
-    action: "📞 נפש אחת: *8944",
+    action: "נפש אחת: *8944",
   },
   {
-    icon: "🗂",
     title: "שמור כל מסמך ומספר פנייה",
     content: "כל פנייה, קבלה, מכתב, אישור — שמור! צלם ותשמור בענן. מספרי פניות חשובים למעקב. אם אין תשובה תוך 30 יום — התקשר עם מספר הפנייה.",
   },
   {
-    icon: "📞",
     title: "התקשר *6500 לכל שאלה",
     content: "מוקד הפצועים *6500 הוא הכתובת לכל דבר. קצין שיקום, ועדה רפואית, תגמולים, ציוד — הכל מתחיל שם. תגיד: \"אני נכה צה\"ל, מספר תיק ___, ואני צריך...\"",
-    action: "📞 מוקד פצועים: *6500",
+    action: "מוקד פצועים: *6500",
   },
   {
-    icon: "🤝",
     title: "מרכז \"בידיים טובות\" — עזרה חינם בהגשה",
     content: "מרכז \"בידיים טובות\" (מוטה גור 5, פתח תקווה) מסייע חינם בהכנת תיק, הגשת תביעה, וליווי לוועדות רפואיות. שווה לבוא גם אם כבר התחלת תהליך.",
   },
@@ -881,7 +862,6 @@ function TipsView() {
         {TIPS.map((tip, i) => (
           <div key={i} className="tip-card">
             <div className="tip-card-num">{i + 1}</div>
-            <div className="tip-card-icon">{tip.icon}</div>
             <h3 className="tip-card-title">{tip.title}</h3>
             <p className="tip-card-content">{tip.content}</p>
             {tip.action && <div className="tip-card-action">{tip.action}</div>}
@@ -948,19 +928,19 @@ function TermsView() {
 // ─── Chat ──────────────────────────────────────────────────
 
 const HATS = [
-  { id:"lawyer",  icon:"⚖",  label:"דן",  name:"דן", desc:"ייעוץ בזכויות ומשפט" },
-  { id:"social",  icon:"🤝",  label:"מיכל", name:"מיכל", desc:"ניווט בירוקרטיה ושירותים" },
-  { id:"psycho",  icon:"💙",  label:"אורי", name:"אורי", desc:"שיחה אישית ותמיכה" },
-  { id:"veteran", icon:"🎖",  label:"רועי", name:"רועי", desc:"חכמת ותיקים" },
-  { id:"events",  icon:"🎯",  label:"שירה", name:"שירה", desc:"אירועים ופעילויות" },
+  { id:"lawyer",  icon:"ד", emoji:"\u2696", label:"דן",  name:"דן", desc:"ייעוץ בזכויות ומשפט" },
+  { id:"social",  icon:"מ", emoji:"\uD83E\uDD1D", label:"מיכל", name:"מיכל", desc:"ניווט בירוקרטיה ושירותים" },
+  { id:"psycho",  icon:"א", emoji:"\uD83D\uDC99", label:"אורי", name:"אורי", desc:"שיחה אישית ותמיכה" },
+  { id:"veteran", icon:"ר", emoji:"\uD83C\uDF96", label:"רועי", name:"רועי", desc:"חכמת ותיקים" },
+  { id:"events",  icon:"ש", emoji:"\uD83C\uDFAF", label:"שירה", name:"שירה", desc:"אירועים ופעילויות" },
 ];
 
 const HAT_GREETINGS = {
-  lawyer:  "היי, אני דן 👋\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
-  social:  "היי, אני מיכל 👋\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
-  psycho:  "היי, אני אורי 👋\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
-  veteran: "היי, אני רועי 👋\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
-  events:  "היי, אני שירה 👋\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
+  lawyer:  "היי, אני דן\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
+  social:  "היי, אני מיכל\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
+  psycho:  "היי, אני אורי\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
+  veteran: "היי, אני רועי\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
+  events:  "היי, אני שירה\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
 };
 
 const HAT_DETAILS = {
@@ -1004,7 +984,7 @@ function FloatingTip() {
 
   return (
     <div className={`floating-tip ${visible ? "tip-visible" : "tip-hidden"}`}>
-      💡 {WELCOME_TIPS[idx]}
+      {WELCOME_TIPS[idx]}
     </div>
   );
 }
@@ -1012,12 +992,13 @@ function FloatingTip() {
 function WelcomeScreen({ onSelect }) {
   return (
     <div className="welcome-screen">
-      <div className="welcome-title">שלום</div>
-      <div className="welcome-subtitle">מי תרצה שילווה אותך היום?</div>
+      <div className="welcome-header">
+        <div className="welcome-title">מי ילווה אותך?</div>
+      </div>
       <div className="welcome-grid">
         {HATS.map((h, i) => (
-          <button key={h.id} className="welcome-card" style={{ animationDelay: `${i * 0.1}s` }} onClick={() => onSelect(h.id)}>
-            <div className="wc-icon-wrap">{h.icon}</div>
+          <button key={h.id} className={`welcome-card wc-${h.id}`} style={{ animationDelay: `${i * 0.08}s` }} onClick={() => onSelect(h.id)}>
+            <div className="wc-icon-wrap">{h.emoji}</div>
             <div className="wc-name">{h.name}</div>
             <div className="wc-role">{h.desc}</div>
             <div className="wc-desc">{HAT_DETAILS[h.id]}</div>
@@ -1054,7 +1035,7 @@ function TokenBadge({ subscription, onClick }) {
 
   return (
     <button className={`token-badge ${colorClass}`} onClick={onClick} title="שימוש בטוקנים">
-      🪙 {label}
+      {label}
     </button>
   );
 }
@@ -1085,65 +1066,26 @@ function PricingModal({ onClose, onSuccess }) {
     setLoadingPlan(planId);
     try {
       const { supabase: sb } = await import("../lib/supabase");
-      console.log("[checkout-client] supabase imported, client:", sb ? "ok" : "null");
       if (!sb) {
         alert("שגיאת הגדרות — נסה לרענן את הדף");
         setLoadingPlan(null);
         return;
       }
-      console.log("[checkout-client] getting access token...");
-      let accessToken;
-      try {
-        const result = await Promise.race([
-          sb.auth.getSession(),
-          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
-        ]);
-        accessToken = result?.data?.session?.access_token;
-        if (!accessToken) {
-          const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
-          if (storageKey) {
-            const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
-            accessToken = stored?.access_token;
-          }
-        }
-      } catch (sessErr) {
-        console.error("[checkout-client] getSession failed:", sessErr.message);
-        try {
-          const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
-          if (storageKey) {
-            const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
-            accessToken = stored?.access_token;
-          }
-        } catch {}
-      }
-      console.log("[checkout-client] token:", accessToken ? "found" : "missing");
-      if (!accessToken) {
+
+      // Check session via cookies — no localStorage needed
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) {
         setLoadingPlan(null);
-        // Redirect to Google login, then back to the page
-        try {
-          const { supabase: loginSb } = await import("../lib/supabase");
-          if (loginSb) {
-            await loginSb.auth.signInWithOAuth({
-              provider: "google",
-              options: { redirectTo: window.location.origin, queryParams: { prompt: "select_account" } },
-            });
-          }
-        } catch {
-          alert("יש להתחבר קודם");
-        }
+        await sb.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.origin, queryParams: { prompt: "select_account" } },
+        });
         return;
       }
 
       // Check if user has phone — if not, ask for it
-      let hasPhone = false;
-      try {
-        const userResult = await Promise.race([
-          sb.auth.getUser(),
-          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
-        ]);
-        const user = userResult?.data?.user;
-        hasPhone = !!(user?.user_metadata?.phone || user?.phone);
-      } catch {}
+      const { data: { user: u } } = await sb.auth.getUser();
+      const hasPhone = !!(u?.user_metadata?.phone || u?.phone);
       if (!hasPhone) {
         setPendingPlanId(planId);
         setNeedsPhone(true);
@@ -1151,7 +1093,7 @@ function PricingModal({ onClose, onSuccess }) {
         return;
       }
 
-      await proceedToCheckout(planId, accessToken);
+      await proceedToCheckout(planId);
     } catch (err) {
       console.error("[checkout-client] error:", err);
       alert("שגיאה בחיבור לשרת.");
@@ -1169,35 +1111,8 @@ function PricingModal({ onClose, onSuccess }) {
     setNeedsPhone(false);
     try {
       const { supabase: sb } = await import("../lib/supabase");
-      // Save phone to user metadata (non-blocking, with timeout)
-      try {
-        await Promise.race([
-          sb.auth.updateUser({ data: { phone } }),
-          new Promise((resolve) => setTimeout(resolve, 3000))
-        ]);
-      } catch {}
-
-      // Get access token
-      let accessToken;
-      try {
-        const result = await Promise.race([
-          sb.auth.getSession(),
-          new Promise((resolve) => setTimeout(() => resolve(null), 3000))
-        ]);
-        accessToken = result?.data?.session?.access_token;
-      } catch {}
-      if (!accessToken) {
-        const storageKey = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
-        if (storageKey) {
-          try { accessToken = JSON.parse(localStorage.getItem(storageKey) || "{}").access_token; } catch {}
-        }
-      }
-      if (!accessToken) {
-        alert("לא ניתן לאמת את החיבור. נסה לרענן ולהתחבר מחדש.");
-        setLoadingPlan(null);
-        return;
-      }
-      await proceedToCheckout(pendingPlanId, accessToken);
+      try { await sb.auth.updateUser({ data: { phone } }); } catch {}
+      await proceedToCheckout(pendingPlanId);
     } catch (err) {
       console.error("[checkout-client] phone submit error:", err);
       alert("שגיאה. נסה שוב.");
@@ -1205,11 +1120,11 @@ function PricingModal({ onClose, onSuccess }) {
     }
   }
 
-  async function proceedToCheckout(planId, accessToken) {
+  async function proceedToCheckout(planId) {
     console.log("[checkout-client] fetching /api/checkout...");
     const r = await fetch("/api/checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan_id: planId }),
     });
     console.log("[checkout-client] response status:", r.status);
@@ -1228,7 +1143,7 @@ function PricingModal({ onClose, onSuccess }) {
     setLoadingPlan(null);
   }
 
-  const PLAN_ICONS = { free: "🆓", one_time: "⚡", monthly: "🔄", premium: "👑" };
+  const PLAN_ICONS = { free: "\u2014", one_time: "\u2736", monthly: "\u25CF", premium: "\u2726" };
   const PLAN_DESCS = {
     free: "50K טוקנים/יום",
     one_time: "200K טוקנים (עד שנגמר)",
@@ -1266,7 +1181,7 @@ function PricingModal({ onClose, onSuccess }) {
             <div className="pricing-grid">
               {plans.map(p => (
                 <div key={p.id} className={`plan-card ${p.id === "premium" ? "plan-featured" : ""}`}>
-                  <div className="plan-icon">{PLAN_ICONS[p.id] || "📦"}</div>
+                  <div className="plan-icon">{PLAN_ICONS[p.id] || "\u25A0"}</div>
                   <div className="plan-name">{p.name}</div>
                   <div className="plan-price">
                     {p.price === 0 ? "חינם" : `${p.price / 100}₪`}
@@ -1579,21 +1494,8 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         payload.generateTitle = !sessionId && newMsgs.length >= 2;
       }
 
-      // Build headers with optional Bearer token (with timeout to avoid hanging)
+      // Auth is handled via cookies — no Bearer token needed
       const headers = { "Content-Type": "application/json" };
-      if (user) {
-        try {
-          const { supabase: sb } = await import("../lib/supabase");
-          if (sb) {
-            const sessionPromise = sb.auth.getSession();
-            const timeout = new Promise(r => setTimeout(r, 3000));
-            const result = await Promise.race([sessionPromise, timeout]);
-            if (result?.data?.session?.access_token) {
-              headers["Authorization"] = `Bearer ${result.data.session.access_token}`;
-            }
-          }
-        } catch {}
-      }
 
       const r = await fetch("/api/chat", {
         method: "POST", headers,
@@ -1645,16 +1547,12 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         try {
           const injuryData = JSON.parse(injuryMatch[1].trim());
           reply = reply.replace(/---injury---\s*\n?.*?\n?---סוף injury---/s, "").trim();
-          // Save injury via API
-          const { supabase: sb } = await import("../lib/supabase");
-          const { data: { session: sess } } = await sb.auth.getSession();
-          if (sess?.access_token) {
-            fetch("/api/medical-summary", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${sess.access_token}` },
-              body: JSON.stringify(injuryData),
-            }).catch(() => {});
-          }
+          // Save injury via API (auth via cookies)
+          fetch("/api/medical-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(injuryData),
+          }).catch(() => {});
         } catch {}
       }
 
@@ -1664,15 +1562,12 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         try {
           const evtData = JSON.parse(medEvtMatch[1].trim());
           reply = reply.replace(/---medical_event---\s*\n?.*?\n?---סוף medical_event---/s, "").trim();
-          const { supabase: sb } = await import("../lib/supabase");
-          const { data: { session: sess } } = await sb.auth.getSession();
-          if (sess?.access_token) {
-            fetch("/api/medical-events", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${sess.access_token}` },
-              body: JSON.stringify(evtData),
-            }).catch(() => {});
-          }
+          // Save medical event via API (auth via cookies)
+          fetch("/api/medical-events", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(evtData),
+          }).catch(() => {});
         } catch {}
       }
 
@@ -1750,11 +1645,11 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   function handleNewChat() {
     setSessionId(null);
     const greetings = {
-      lawyer: "היי, אני דן 👋\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
-      social: "היי, אני מיכל 👋\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
-      psycho: "היי, אני אורי 👋\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
-      veteran: "היי, אני רועי 👋\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
-      events: "היי, אני שירה 👋\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
+      lawyer: "היי, אני דן\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
+      social: "היי, אני מיכל\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
+      psycho: "היי, אני אורי\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
+      veteran: "היי, אני רועי\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
+      events: "היי, אני שירה\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
     };
     setMsgs([{ role: "assistant", content: greetings[hat] }]);
     setShowHistory(false);
@@ -1768,7 +1663,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       {/* Privacy banner — fades out */}
       {banner && (
         <div className="privacy-banner">
-          <span className="prv-icon">🔒</span>
+          <span className="prv-icon">{"\u25CF"}</span>
           <span>שיחה זו היא <strong>פרטית ומאובטחת</strong> — המידע שלך לא מועבר לצד שלישי ולא מזוהה.</span>
           <button className="prv-close" onClick={() => setBanner(false)}>✕</button>
         </div>
@@ -1780,7 +1675,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         {!(isPsycho && msgs.length > 1) && <span className="hat-label">דבר עם:</span>}
         {HATS.map(h => (
           <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""}`} onClick={() => switchHat(h.id)} title={h.desc}>
-            <span className="hat-icon">{h.icon}</span>
+            <span className="hat-icon">{h.emoji}</span>
             <span className="hat-name">{h.label}</span>
           </button>
         ))}
@@ -1800,53 +1695,62 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       {/* Chat window */}
       <div className={`chat-wrap ${isPsycho ? "chat-wrap-full" : ""}`}>
         <div className="chat-hdr">
-          <div className="chat-ava">{curHat.icon}</div>
-          <div>
-            <div className="chat-name">{curHat.name} — שיט.קום</div>
-            <div className="chat-sub">{curHat.desc}</div>
+          <div className="chat-hdr-top">
+            <div className="chat-ava">{curHat.icon}</div>
+            <div className="chat-hdr-info">
+              <div className="chat-name">{curHat.name}</div>
+              <div className="chat-sub-row">
+                <span className="chat-sub">{curHat.desc}</span>
+                <button className="token-expand" onClick={() => setShowFeaturePanel(!showFeaturePanel)}>
+                  <span className="token-expand-sum">{(estimatedCost/1000).toFixed(1)}K</span>
+                  <span className="token-expand-unit">טוקנים/הודעה</span>
+                  <span className={`token-expand-caret ${showFeaturePanel ? "open" : ""}`} />
+                </button>
+              </div>
+            </div>
+            <TokenBadge subscription={subscription} onClick={() => setShowPricing(true)} />
+            <div className="chat-online">● מחובר</div>
+            {user && (
+              <button className="chat-history-btn" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">
+                {showHistory ? "\u2715" : "\u2630"}
+              </button>
+            )}
           </div>
-          <TokenBadge subscription={subscription} onClick={() => setShowPricing(true)} />
-          <button className="feature-toggle-btn" onClick={() => setShowFeaturePanel(!showFeaturePanel)} title="פיצ'רים פעילים">
-            ⚡ {showFeaturePanel ? "✕" : `~${(estimatedCost/1000).toFixed(1)}K`}
-          </button>
-          <div className="chat-online">● מחובר</div>
-          {user && (
-            <button className="chat-history-btn" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">
-              {showHistory ? "✕" : "📋"}
-            </button>
+          {showFeaturePanel && (
+            <div className="feature-ledger">
+              {featureConfig.map(f => {
+                const allowed = f.plans.includes(userPlan);
+                const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
+                return (
+                  <div key={f.id} className={`ledger-row ${!allowed ? "ledger-locked" : ""} ${isOn ? "ledger-on" : ""}`}>
+                    <span className="ledger-indicator" />
+                    <span className="ledger-name">{f.label}</span>
+                    <span className="ledger-cost">{(f.estimated_tokens/1000).toFixed(1)}K</span>
+                    {f.always_on ? (
+                      <span className="ledger-status ledger-fixed">ON</span>
+                    ) : !allowed ? (
+                      <button className="ledger-status ledger-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
+                    ) : (
+                      <label className="feature-switch-sm">
+                        <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
+                        <span className="feature-slider-sm" />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+              <div className="ledger-total">
+                <span className="ledger-total-label">סה״כ</span>
+                <span className="ledger-total-value">{(estimatedCost/1000).toFixed(1)}K</span>
+              </div>
+            </div>
           )}
         </div>
-
-        {/* Feature toggles — inline collapsible panel */}
-        {showFeaturePanel && (
-          <div className="feature-inline">
-            {featureConfig.map(f => {
-              const allowed = f.plans.includes(userPlan);
-              const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
-              return (
-                <div key={f.id} className={`feature-inline-row ${!allowed ? "feature-locked" : ""}`}>
-                  <span className="feature-inline-label">{f.label}</span>
-                  <span className="feature-inline-cost">~{(f.estimated_tokens/1000).toFixed(1)}K</span>
-                  {f.always_on ? (
-                    <span className="feature-inline-always">ON</span>
-                  ) : !allowed ? (
-                    <button className="feature-inline-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
-                  ) : (
-                    <label className="feature-switch-sm">
-                      <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
-                      <span className="feature-slider-sm" />
-                    </label>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
 
         {/* Login hint toast */}
         {loginHint && (
           <div className="login-hint-toast">
-            💡 התחבר כדי לשמור שיחות ולהמשיך מאיפה שהפסקת
+            התחבר כדי לשמור שיחות ולהמשיך מאיפה שהפסקת
           </div>
         )}
 
@@ -1885,7 +1789,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
                     {m.attachment.preview ? (
                       <img src={m.attachment.preview} alt="" className="msg-attach-img"/>
                     ) : (
-                      <div className="msg-attach-file">📄 {m.attachment.file_name}</div>
+                      <div className="msg-attach-file">{m.attachment.file_name}</div>
                     )}
                   </div>
                 )}
@@ -1915,7 +1819,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
             {attachment.preview ? (
               <img src={attachment.preview} alt="" className="attach-thumb"/>
             ) : (
-              <span className="attach-file-name">📄 {attachment.file_name}</span>
+              <span className="attach-file-name">{attachment.file_name}</span>
             )}
             <button className="attach-remove" onClick={() => setAttachment(null)}>✕</button>
           </div>
@@ -1923,15 +1827,15 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
         <div className="chat-inp-row">
           {/* Attach button */}
-          <button className="attach-btn" onClick={() => fileRef.current?.click()} title="צרף קובץ">📎</button>
+          <button className="attach-btn" onClick={() => fileRef.current?.click()} title="צרף קובץ">{"\u2795"}</button>
           <input ref={fileRef} type="file" accept="image/*,.pdf" style={{display:"none"}} onChange={handleFile}/>
           {/* Camera button — mobile only */}
-          <button className="camera-btn" onClick={() => cameraRef.current?.click()} title="צלם">📷</button>
+          <button className="camera-btn" onClick={() => cameraRef.current?.click()} title="צלם">{"\u25CB"}</button>
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleFile}/>
           {/* Voice button for psycho */}
           {isPsycho && (
             <button className={`voice-btn ${isRecording?"recording":""}`} onClick={toggleRecording} title={isRecording?"הפסק הקלטה":"הקלט"}>
-              {isRecording ? "⏹" : "🎤"}
+              {isRecording ? "\u25A0" : "\u25CF"}
             </button>
           )}
           <textarea
@@ -1948,7 +1852,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         </div>
       </div>
 
-      <p className="chat-disclaimer">⚠️ המידע הוא לצרכי אינפורמציה בלבד ואינו מחליף ייעוץ מקצועי מוסמך.</p>
+      <p className="chat-disclaimer">המידע הוא לצרכי אינפורמציה בלבד ואינו מחליף ייעוץ מקצועי מוסמך.</p>
 
       {showPricing && <PricingModal onClose={() => setShowPricing(false)} onSuccess={() => { setShowPricing(false); setPaymentSuccess(true); loadSubscription(); }} />}
       {paymentSuccess && (
@@ -2037,7 +1941,7 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
           <p>ליווי אישי בתהליך המשפטי</p>
         </div>
         <div className="case-login-prompt">
-          <div className="case-login-icon">⚖</div>
+          <div className="case-login-icon">{"\u2696"}</div>
           <p>התחבר כדי לנהל את התיק המשפטי שלך</p>
           <button className="auth-btn google" onClick={signInWithGoogle}>
             <span>G</span> התחבר עם Google
@@ -2050,12 +1954,12 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
   // No case — creation wizard
   if (!legalCase) {
     const INJURY_OPTIONS = [
-      { id: "orthopedic", label: "אורתופדית", icon: "🦴" },
-      { id: "neurological", label: "נוירולוגית", icon: "🧠" },
-      { id: "ptsd", label: "פוסט-טראומה", icon: "💜" },
-      { id: "hearing", label: "שמיעה/טינטון", icon: "👂" },
-      { id: "internal", label: "פנימית", icon: "🫀" },
-      { id: "other", label: "אחר", icon: "📋" },
+      { id: "orthopedic", label: "אורתופדית", icon: "A" },
+      { id: "neurological", label: "נוירולוגית", icon: "N" },
+      { id: "ptsd", label: "פוסט-טראומה", icon: "P" },
+      { id: "hearing", label: "שמיעה/טינטון", icon: "S" },
+      { id: "internal", label: "פנימית", icon: "F" },
+      { id: "other", label: "אחר", icon: "+" },
     ];
 
     async function handleWizardSubmit() {
@@ -2299,7 +2203,7 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
           {caseReminders.map(r => (
             <div key={r.id} className="reminder-card">
               <div className="reminder-header">
-                <span className="reminder-type">{r.type === "committee_prep" ? "📅" : r.type === "deadline" ? "⏰" : r.type === "tip" ? "💡" : r.type === "encouragement" ? "💪" : "🏆"}</span>
+                <span className="reminder-type">{r.type === "committee_prep" ? "\u25CF" : r.type === "deadline" ? "\u25B2" : r.type === "tip" ? "\u2736" : r.type === "encouragement" ? "\u2192" : "\u2713"}</span>
                 <strong>{r.title}</strong>
                 <button className="reminder-dismiss" onClick={() => dismissReminder(r.id)}>✕</button>
               </div>
@@ -2310,7 +2214,7 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
       )}
 
       {/* Edit button */}
-      <button className="case-edit-btn" onClick={openEdit}>✏ עריכת פרטי התיק</button>
+      <button className="case-edit-btn" onClick={openEdit}>עריכת פרטי התיק</button>
 
       {/* Edit Modal */}
       {editMode && (
@@ -2392,13 +2296,7 @@ function MedicalSummaryView() {
     if (!user) return;
     setLoading(true);
     try {
-      const { supabase } = await import("../lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) { setLoading(false); return; }
-      const r = await fetch("/api/medical-summary", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const r = await fetch("/api/medical-summary");
       if (r.ok) {
         const d = await r.json();
         setData(d);
@@ -2412,7 +2310,7 @@ function MedicalSummaryView() {
   if (!user) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "#718096" }}>
-        <div style={{ fontSize: 36, marginBottom: 16, opacity: 0.5 }}>🛡</div>
+        <div style={{ fontSize: 28, marginBottom: 16, opacity: 0.3, color: "var(--accent-primary)" }}>{"\u271A"}</div>
         <div style={{ fontSize: 15, fontWeight: 600, color: "#dde3ec", marginBottom: 8 }}>תקציר רפואי</div>
         <div style={{ fontSize: 13 }}>יש להתחבר כדי לצפות בתקציר הרפואי</div>
       </div>
@@ -2471,14 +2369,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   }
 
   const NAV = [
-    { id:"chat",    icon:"◇", label:"יועץ AI" },
-    { id:"case",    icon:"⚖", label:"התיק שלי" },
-    { id:"medical", icon:"🛡", label:"תקציר רפואי" },
-    { id:"rights",  icon:"◫", label:"זכויות" },
-    { id:"tips",    icon:"💡", label:"צעדים ראשונים" },
-    { id:"events",  icon:"◉", label:"אירועים", badge: upcomingCount||null },
-    { id:"knowledge", icon:"🎖", label:"חכמת ותיקים" },
-    { id:"updates", icon:"◎", label:"עדכונים", badge: updates.length||null },
+    { id:"chat",    icon:"\u25C7", label:"שיחה" },
+    { id:"case",    icon:"\u2696", label:"התיק שלי" },
+    { id:"medical", icon:"\u271A", label:"תקציר רפואי" },
+    { id:"rights",  icon:"\u25AB", label:"זכויות" },
+    { id:"tips",    icon:"\u2736", label:"צעדים ראשונים" },
+    { id:"events",  icon:"\u25CB", label:"אירועים", badge: upcomingCount||null },
+    { id:"knowledge", icon:"\u2726", label:"חכמת ותיקים" },
+    { id:"updates", icon:"\u25CE", label:"עדכונים", badge: updates.length||null },
   ];
 
   // SVG favicon (shield)
@@ -2491,7 +2389,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         <meta name="viewport" content="width=device-width,initial-scale=1"/>
         <meta name="description" content="מרכז זכויות, אירועים ויועץ AI לפצועי צה״ל"/>
         <link rel="icon" href={faviconSvg} type="image/svg+xml"/>
-        <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+        <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
       </Head>
 
       <div className="root" dir="rtl">
@@ -2530,12 +2428,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
             <SidebarProfile rights={rights} onShowUnstarted={showUnstartedRights} />
           </div>
           <div className="mobile-menu-footer">
-            <a href="tel:*6500" className="hotline">📞 מוקד פצועים <strong>*6500</strong></a>
-            <a href="tel:*8944" className="hotline red">🆘 נפש אחת <strong>*8944</strong></a>
-            <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="hotline personal-area">🏢 האזור האישי שלי</a>
-            <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="hotline">🌐 אגף השיקום</a>
-            <button className="hotline feedback-btn" onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}>💬 רעיונות לשימור/שיפור?</button>
-            <button className="hotline terms-link" onClick={() => { setView("terms"); setMenuOpen(false); }}>📋 תנאי שימוש</button>
+            <a href="tel:*6500" className="hotline">מוקד פצועים <strong>*6500</strong></a>
+            <a href="tel:*8944" className="hotline red">נפש אחת <strong>*8944</strong></a>
+            <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="hotline personal-area">האזור האישי שלי</a>
+            <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="hotline">אגף השיקום</a>
+            <button className="hotline feedback-btn" onClick={() => { setFeedbackOpen(true); setMenuOpen(false); }}>רעיונות לשימור/שיפור?</button>
+            <button className="hotline terms-link" onClick={() => { setView("terms"); setMenuOpen(false); }}>תנאי שימוש</button>
           </div>
         </div>
 
@@ -2565,9 +2463,9 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           </nav>
 
           <div className="sb-footer">
-            <a href="tel:*6500" className="sb-footer-icon" data-tooltip="מוקד פצועים *6500">📞</a>
-            <a href="tel:*8944" className="sb-footer-icon red" data-tooltip="נפש אחת *8944">🆘</a>
-            <button className="sb-footer-icon" data-tooltip="רעיונות לשימור/שיפור?" onClick={() => setFeedbackOpen(true)}>💬</button>
+            <a href="tel:*6500" className="sb-footer-icon" data-tooltip="מוקד פצועים *6500">*6500</a>
+            <a href="tel:*8944" className="sb-footer-icon red" data-tooltip="נפש אחת *8944">*8944</a>
+            <button className="sb-footer-icon" data-tooltip="רעיונות לשימור/שיפור?" onClick={() => setFeedbackOpen(true)}>{"\u2709"}</button>
           </div>
         </aside>
 
@@ -2703,17 +2601,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           {view==="chat" && <>
             {chatHat === null && !pendingChatPromptRef.current ? (
               <>
-                <div className="pg-hdr">
-                  <h1>יועץ AI אישי</h1>
-                  <p>פרטי, אקטיבי, בשבילך</p>
-                </div>
                 <WelcomeScreen onSelect={(hatId) => setChatHat(hatId)} />
               </>
             ) : (
               <>
                 <div className="pg-hdr">
-                  <h1>יועץ AI אישי</h1>
-                  <p>דן · מיכל · אורי · רועי · שירה — פרטי, אקטיבי, בשבילך</p>
+                  <p style={{color:"var(--stone-400)",fontSize:13}}>שיחה פרטית ומאובטחת</p>
                 </div>
                 <Chat rights={rights} events={events} pendingChatPromptRef={pendingChatPromptRef} initialHat={chatHat || "lawyer"} onBack={() => setChatHat(null)} onStageUpdate={(stageId) => {
                   setStageToast(stageId);
@@ -2731,7 +2624,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
       <style jsx global>{`
         :root {
-          /* Base palette */
+          /* Base palette — warm stone */
           --stone-950: #0c0a09;
           --stone-900: #1c1917;
           --stone-800: #292524;
@@ -2751,17 +2644,23 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           --status-warning: #d97706;
           --status-info: #2563eb;
           --status-success: #16a34a;
+          --status-success-light: #34d399;
           --status-muted: #57534e;
           /* Olive — secondary */
           --olive-700: #4a5c3e;
           --olive-600: #5a6f4a;
           --olive-400: #8fa677;
           --olive-100: #ecfccb;
+          /* Surface variants — warm tones */
+          --surface-deep: #13110f;
+          --surface-card: #1f1c19;
+          --surface-input: #171412;
+          --surface-hover: #262220;
           /* Semantic mapping */
           --bg-primary: var(--stone-900);
           --bg-elevated: var(--stone-800);
           --bg-surface: var(--stone-700);
-          --bg-overlay: rgba(12, 10, 9, 0.8);
+          --bg-overlay: rgba(12, 10, 9, 0.85);
           --text-primary: var(--stone-200);
           --text-secondary: var(--stone-400);
           --text-muted: var(--stone-600);
@@ -2772,9 +2671,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           --accent-primary: var(--copper-500);
           --accent-hover: var(--copper-600);
           --accent-secondary: var(--olive-700);
+          --link-color: #b8956a;
+          --link-hover: var(--copper-400);
           /* Motion tokens */
           --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
           --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
           --duration-fast: 0.15s;
           --duration-normal: 0.4s;
           --duration-slow: 0.6s;
@@ -2788,13 +2690,23 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           }
         }
         *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-        body { background:var(--stone-950); color:var(--text-primary); font-family:'Heebo',sans-serif; line-height:1.7; }
+        body {
+          background:var(--stone-950); color:var(--text-primary);
+          font-family:'Heebo',sans-serif; line-height:1.7;
+        }
+        /* Subtle grain texture overlay */
+        body::after {
+          content:""; position:fixed; inset:0; pointer-events:none; z-index:9999;
+          opacity:0.025;
+          background-image:url('data:image/svg+xml,%3Csvg viewBox=%220 0 256 256%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%224%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/%3E%3C/svg%3E');
+        }
         ::selection { background:rgba(217,119,6,.3); color:#fff; }
+        *:focus-visible { outline:2px solid var(--copper-500); outline-offset:2px; }
         * { scrollbar-width:thin; scrollbar-color:var(--stone-700) transparent; }
         *::-webkit-scrollbar { width:6px; height:6px; }
         *::-webkit-scrollbar-track { background:transparent; }
         *::-webkit-scrollbar-thumb { background:var(--stone-700); border-radius:3px; }
-        *::-webkit-scrollbar-thumb:hover { background:var(--stone-700); }
+        *::-webkit-scrollbar-thumb:hover { background:var(--stone-600); }
 
         /* ── Layout ── */
         .root { display:flex; min-height:100vh; }
@@ -2835,12 +2747,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         /* Badge dot */
         .nav-badge-dot {
-          position:absolute; top:6px; left:6px; width:8px; height:8px;
-          background:linear-gradient(135deg,var(--copper-600),var(--accent-primary)); border-radius:50%;
+          position:absolute; top:6px; left:6px; width:6px; height:6px;
+          background:var(--accent-primary); border-radius:50%;
           border:2px solid var(--stone-900);
         }
         /* Full badge (mobile menu) */
-        .nav-badge { background:linear-gradient(135deg,var(--copper-600),var(--accent-primary)); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; }
+        .nav-badge { background:var(--accent-primary); color:var(--stone-950); font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; font-family:'IBM Plex Mono',monospace; }
 
         /* ── Fixed Avatar (top-left corner) ── */
         .fixed-avatar-wrap { position:fixed; top:28px; left:28px; z-index:9999; }
@@ -2849,25 +2761,24 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .sb-avatar-wrap { position:relative; }
         .sb-mini-avatar {
           width:44px; height:44px; border-radius:50%;
-          background:linear-gradient(135deg,var(--copper-600),var(--accent-primary));
+          background:var(--copper-600);
           display:flex; align-items:center; justify-content:center; flex-shrink:0;
           font-weight:700; color:#fff; font-size:16px; overflow:hidden;
-          border:2px solid transparent; cursor:pointer; transition:all .2s ease;
-          box-shadow:0 2px 12px rgba(232,115,74,.3);
+          border:2px solid transparent; cursor:pointer;
+          transition:border-color var(--duration-fast) var(--ease-out-quad);
         }
-        .sb-mini-avatar:hover { transform:translateY(-2px); }
+        .sb-mini-avatar:hover { border-color:var(--copper-400); }
         .sb-mini-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
         .sb-mini-avatar.anon {
-          background:linear-gradient(135deg,#2a3444,var(--border-default));
-          border:1.5px solid var(--stone-700); color:var(--text-secondary); font-size:18px;
-          box-shadow:0 2px 12px rgba(0,0,0,.3);
+          background:var(--surface-card);
+          border:1.5px solid var(--stone-700); color:var(--text-secondary); font-size:16px;
         }
         .sb-mini-avatar.anon:hover { border-color:var(--accent-primary); }
 
         /* ── Sidebar Popup ── */
         .sb-popup {
           position:absolute; left:0; top:calc(100% + 10px);
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:18px 20px; min-width:260px; z-index:9999;
           box-shadow:0 8px 32px rgba(0,0,0,.4); animation:fadeIn .15s ease;
         }
@@ -2884,7 +2795,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .sb-popup-stats { display:flex; gap:8px; margin:10px 0 6px; }
         .sb-popup-stat { flex:1; text-align:center; background:var(--stone-950); border-radius:8px; padding:8px 4px; }
         .sb-popup-stat-num { display:block; font-size:18px; font-weight:900; color:var(--text-secondary); }
-        .sb-popup-stat-num.done { color:#34d399; }
+        .sb-popup-stat-num.done { color:var(--status-success-light); }
         .sb-popup-stat-num.prog { color:var(--accent-primary); }
         .sb-popup-stat-label { font-size:10px; color:var(--text-muted); }
 
@@ -2899,11 +2810,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .auth-providers { display:flex; flex-direction:column; gap:8px; }
         .auth-btn {
           width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--stone-700);
-          background:#161e28; color:var(--stone-300); font-family:'Heebo',sans-serif;
+          background:var(--surface-input); color:var(--stone-300); font-family:'Heebo',sans-serif;
           font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px;
           justify-content:center; transition:all .2s ease;
         }
-        .auth-btn:hover { background:#1a2430; border-color:var(--stone-700); }
+        .auth-btn:hover { background:var(--surface-hover); border-color:var(--stone-700); }
         .auth-btn.google { border-color:rgba(66,133,244,.3); }
         .auth-btn.google:hover { background:rgba(66,133,244,.08); }
         .auth-btn.apple { border-color:rgba(255,255,255,.15); }
@@ -2924,7 +2835,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .progress-section { margin-top:10px; }
         .progress-label { font-size:11px; color:var(--text-secondary); margin-bottom:4px; }
         .progress-bar { height:6px; background:var(--border-default); border-radius:3px; overflow:hidden; }
-        .progress-fill { height:100%; background:linear-gradient(90deg,var(--copper-600),var(--accent-primary)); border-radius:3px; transition:width .5s ease; }
+        .progress-fill { height:100%; background:var(--accent-primary); border-radius:3px; transition:width .5s ease; }
         .nudge { font-size:11.5px; color:var(--accent-primary); margin-top:8px; }
         .nudge-btn {
           background:none; border:none; font-family:'Heebo',sans-serif; cursor:pointer;
@@ -2946,7 +2857,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         .settings-panel {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:28px 32px; width:360px; max-width:90vw; max-height:80vh; overflow-y:auto;
         }
         .settings-panel h3 { font-size:18px; font-weight:700; color:var(--stone-50); margin-bottom:20px; }
@@ -2967,12 +2878,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .interest-chip.on { background:rgba(244,162,78,.12); border-color:var(--accent-primary); color:var(--accent-primary); font-weight:700; }
         .settings-actions { display:flex; gap:10px; margin-top:20px; }
         .save-btn {
-          flex:1; padding:11px; border-radius:8px; border:none;
-          background:linear-gradient(135deg,var(--copper-600),var(--accent-primary)); color:#fff;
+          flex:1; padding:11px; border-radius:6px; border:none;
+          background:var(--accent-primary); color:var(--stone-950);
           font-family:'Heebo',sans-serif; font-size:14px; font-weight:700; cursor:pointer;
-          transition:all .2s ease;
+          transition:background var(--duration-fast) var(--ease-out-quad);
         }
-        .save-btn:hover:not(:disabled) { transform:scale(1.02); box-shadow:0 4px 16px rgba(244,162,78,.3); }
+        .save-btn:hover:not(:disabled) { background:var(--accent-hover); }
         .save-btn:disabled { opacity:.6; cursor:not-allowed; }
         .signout-btn {
           padding:11px 20px; border-radius:8px; border:1px solid var(--stone-700);
@@ -3000,30 +2911,30 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .user-top-avatar {
           width:40px; height:40px; border-radius:50%;
-          background:linear-gradient(135deg,var(--copper-600),var(--accent-primary));
+          background:var(--copper-600);
           display:flex; align-items:center; justify-content:center;
           font-weight:700; color:#fff; font-size:16px; overflow:hidden;
-          box-shadow:0 2px 12px rgba(232,115,74,.3);
-          transition:transform .2s ease;
+          transition:border-color var(--duration-fast) var(--ease-out-quad);
+          border:2px solid transparent;
         }
-        .user-top-btn:hover .user-top-avatar { transform:translateY(-2px); }
+        .user-top-btn:hover .user-top-avatar { border-color:var(--copper-400); }
         .user-top-avatar.anon {
-          background:linear-gradient(135deg,#2a3444,var(--border-default));
-          border:1.5px solid var(--stone-700); box-shadow:0 2px 12px rgba(0,0,0,.3);
-          font-size:18px;
+          background:var(--surface-card);
+          border:1.5px solid var(--stone-700);
+          font-size:16px;
         }
         .user-top-btn:hover .user-top-avatar.anon { border-color:var(--accent-primary); }
         .user-top-avatar img { width:40px; height:40px; min-width:40px; min-height:40px; object-fit:cover; border-radius:50%; display:block; }
 
         /* Profile view */
         .profile-card {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:24px 28px; margin-bottom:20px;
         }
         .profile-card-header { display:flex; align-items:center; gap:16px; }
         .profile-big-avatar {
           width:56px; height:56px; border-radius:50%; flex-shrink:0;
-          background:linear-gradient(135deg,var(--copper-600),var(--accent-primary));
+          background:var(--copper-600);
           display:flex; align-items:center; justify-content:center;
           font-weight:700; color:#fff; font-size:22px; overflow:hidden;
         }
@@ -3031,7 +2942,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .profile-card-name { font-size:20px; font-weight:700; color:var(--stone-50); }
         .profile-card-detail { font-size:13px; color:var(--text-secondary); margin-top:4px; }
         .profile-edit-btn {
-          margin-right:auto; padding:8px 16px; border-radius:8px;
+          margin-inline-start:auto; padding:8px 16px; border-radius:8px;
           border:1px solid var(--border-default); background:transparent; color:var(--text-secondary);
           font-family:'Heebo',sans-serif; font-size:13px; cursor:pointer;
           transition:all .2s ease;
@@ -3041,23 +2952,23 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .profile-section-title { font-size:16px; font-weight:700; color:var(--stone-50); margin-bottom:12px; }
         .profile-section-sub { font-size:13px; color:var(--text-secondary); margin-bottom:10px; }
         .profile-stats { display:flex; gap:16px; margin-bottom:8px; }
-        .profile-stat { text-align:center; flex:1; background:#141c26; border:1px solid var(--border-default); border-radius:8px; padding:16px; }
+        .profile-stat { text-align:center; flex:1; background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px; padding:16px; }
         .profile-stat-num { font-size:28px; font-weight:900; color:var(--text-secondary); }
-        .profile-stat-num.done { color:#34d399; }
+        .profile-stat-num.done { color:var(--status-success-light); }
         .profile-stat-num.prog { color:var(--accent-primary); }
         .profile-stat-label { font-size:12px; color:var(--text-secondary); margin-top:4px; }
         .profile-right-item {
           display:flex; align-items:center; gap:10px; padding:12px 16px;
-          background:#141c26; border:1px solid var(--border-default); border-radius:10px;
-          font-size:14px; color:#c2ccd8;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:10px;
+          font-size:14px; color:var(--text-primary);
         }
         .profile-right-item.clickable { cursor:pointer; transition:all .2s ease; }
-        .profile-right-item.clickable:hover { border-color:rgba(244,162,78,.3); background:#1a2430; transform:translateX(-2px); }
-        .profile-right-item.prog { border-right:3px solid var(--accent-primary); }
-        .profile-right-item.done { border-right:3px solid #34d399; }
-        .profile-right-arrow { margin-right:auto; color:var(--accent-primary); font-size:16px; opacity:.6; }
+        .profile-right-item.clickable:hover { border-color:rgba(244,162,78,.3); background:var(--surface-hover); transform:translateX(-2px); }
+        .profile-right-item.prog { border-inline-start:3px solid var(--accent-primary); }
+        .profile-right-item.done { border-inline-start:3px solid var(--status-success-light); }
+        .profile-right-arrow { margin-inline-start:auto; color:var(--accent-primary); font-size:16px; opacity:.6; }
         .profile-right-item.clickable:hover .profile-right-arrow { opacity:1; }
-        .profile-check { margin-right:auto; color:#34d399; font-weight:700; }
+        .profile-check { margin-inline-start:auto; color:var(--status-success-light); font-weight:700; }
         .profile-more { font-size:13px; color:var(--text-secondary); margin-top:8px; }
         .profile-more-btn {
           background:none; border:1px solid rgba(244,162,78,.2); border-radius:10px;
@@ -3072,11 +2983,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* Mini footer icons */
         .sb-footer-icon {
           position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center;
-          border-radius:8px; background:#161e28; border:none; font-size:16px;
+          border-radius:8px; background:var(--surface-input); border:none; font-size:10px; font-weight:700;
           color:var(--text-secondary); text-decoration:none; cursor:pointer; transition:all .2s ease;
-          font-family:'Heebo',sans-serif;
+          font-family:'IBM Plex Mono','Heebo',sans-serif; letter-spacing:-0.5px;
         }
-        .sb-footer-icon:hover { background:#1a2430; color:var(--text-primary); }
+        .sb-footer-icon:hover { background:var(--surface-hover); color:var(--text-primary); }
         .sb-footer-icon.red { color:var(--copper-600); }
         .sb-footer-icon.red:hover { background:rgba(224,82,82,.1); }
         .sb-footer-icon::after {
@@ -3089,21 +3000,21 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         /* Mobile menu hotlines (kept full) */
         .hotline {
-          font-size:12px; padding:10px 12px; border-radius:8px; background:#161e28;
+          font-size:12px; padding:10px 12px; border-radius:8px; background:var(--surface-input);
           color:var(--text-secondary); text-decoration:none; display:block; transition:all .2s ease;
         }
-        .hotline:hover { color:var(--text-primary); background:#1a2430; transform:translateX(-2px); }
+        .hotline:hover { color:var(--text-primary); background:var(--surface-hover); transform:translateX(-2px); }
         .hotline.red { color:var(--copper-600); }
-        .hotline.personal-area { color:#6ab0f3; border:1px solid rgba(106,176,243,.15); background:rgba(106,176,243,.06); }
-        .hotline.personal-area:hover { color:#8cc5ff; background:rgba(106,176,243,.12); }
+        .hotline.personal-area { color:var(--link-color); border:1px solid rgba(184,149,106,.15); background:rgba(184,149,106,.06); }
+        .hotline.personal-area:hover { color:var(--link-hover); background:rgba(184,149,106,.12); }
         .terms-link { cursor:pointer; border:none; text-align:right; font-family:'Heebo',sans-serif; width:100%; color:var(--text-secondary) !important; }
         .terms-link:hover { color:var(--text-secondary) !important; }
 
         /* ── Main ── */
-        .main { flex:1; padding:40px 48px; max-width:920px; overflow-y:auto; }
+        .main { flex:1; padding:clamp(20px,4vw,48px) clamp(16px,4vw,48px); max-width:920px; overflow-y:auto; }
         .pg-hdr { margin-bottom:28px; }
-        .pg-hdr h1 { font-size:28px; font-weight:900; letter-spacing:-.5px; color:var(--stone-50); }
-        .pg-hdr p { font-size:13.5px; color:var(--text-secondary); margin-top:6px; line-height:1.6; }
+        .pg-hdr h1 { font-size:clamp(24px,3vw,32px); font-weight:900; letter-spacing:-0.03em; color:var(--stone-50); line-height:1.1; }
+        .pg-hdr p { font-size:13.5px; color:var(--text-secondary); margin-top:8px; line-height:1.6; letter-spacing:0.01em; }
 
         /* ── Filter banner ── */
         .filter-banner {
@@ -3121,21 +3032,21 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* ── Filters ── */
         .filters { margin-bottom:24px; }
         .srch {
-          width:100%; max-width:340px; padding:11px 16px; background:#141c26;
-          border:1px solid var(--border-default); border-radius:10px; color:var(--text-primary);
+          width:100%; max-width:340px; padding:11px 16px; background:var(--surface-input);
+          border:1px solid var(--border-default); border-radius:8px; color:var(--text-primary);
           font-family:'Heebo',sans-serif; font-size:14px; direction:rtl; outline:none;
-          margin-bottom:12px; transition:all .25s ease;
+          margin-bottom:12px; transition:border-color var(--duration-fast) var(--ease-out-quad);
         }
-        .srch:focus { border-color:var(--accent-primary); box-shadow:0 0 0 3px rgba(244,162,78,.12); }
+        .srch:focus { border-color:var(--accent-primary); }
         .srch::placeholder { color:var(--text-muted); }
         .chips { display:flex; flex-wrap:wrap; gap:7px; }
         .chip {
-          padding:6px 14px; border-radius:20px; border:1px solid var(--border-default);
+          padding:6px 14px; border-radius:4px; border:1px solid var(--border-default);
           background:transparent; color:var(--text-secondary); font-family:'Heebo',sans-serif;
-          font-size:12.5px; cursor:pointer; transition:all .2s ease;
+          font-size:12.5px; cursor:pointer; transition:all var(--duration-fast) var(--ease-out-quad);
         }
-        .chip:hover { border-color:rgba(244,162,78,.4); color:var(--stone-300); background:rgba(244,162,78,.05); }
-        .chip.on { background:rgba(244,162,78,.12); border-color:var(--accent-primary); color:var(--accent-primary); font-weight:700; }
+        .chip:hover { border-color:var(--stone-600); color:var(--stone-300); }
+        .chip.on { background:rgba(244,162,78,.1); border-color:var(--accent-primary); color:var(--accent-primary); font-weight:700; }
         .past-toggle { font-size:12.5px; color:var(--text-secondary); margin-top:12px; display:flex; align-items:center; gap:7px; cursor:pointer; }
 
         /* ── Organizer legend ── */
@@ -3151,28 +3062,29 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .org-count { background:var(--border-default); color:var(--text-secondary); font-size:10px; padding:2px 7px; border-radius:10px; }
 
         /* ── Badges ── */
-        .badge { font-size:11px; font-weight:700; padding:4px 10px; border-radius:6px; white-space:nowrap; }
-        .cat-badge { background:#1a2230; color:var(--text-secondary); }
+        .badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:3px; white-space:nowrap; letter-spacing:0.04em; }
+        .cat-badge { background:var(--surface-deep); color:var(--text-secondary); border:1px solid var(--border-subtle); }
         .urg-badge { }
         .free-badge { background:rgba(63,185,122,.12); color:var(--status-success); }
         .soon-badge { background:rgba(244,162,78,.12); color:var(--accent-primary); animation:pulse 2.5s ease-in-out infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.65} }
         .org-badge { }
-        .ext-link { display:inline-block; margin-top:12px; font-size:13px; color:#6ab0f3; text-decoration:none; font-weight:600; transition:all .2s ease; }
-        .ext-link:hover { color:var(--accent-primary); }
+        .ext-link { display:inline-block; margin-top:12px; font-size:13px; color:var(--link-color); text-decoration:none; font-weight:600; transition:color var(--duration-fast) var(--ease-out-quad); }
+        .ext-link:hover { color:var(--link-hover); }
 
         /* ── Rights cards ── */
         .stack { display:flex; flex-direction:column; gap:12px; }
         .card {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
-          padding:22px 26px; cursor:pointer; transition:all .25s ease; position:relative;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
+          padding:22px 26px; cursor:pointer; position:relative;
+          transition:border-color var(--duration-fast) var(--ease-out-quad);
         }
-        .card:hover { border-color:rgba(244,162,78,.25); transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,0,0,.2); }
-        .card.open { border-color:rgba(244,162,78,.35); background:#161e2a; }
+        .card:hover { border-color:var(--border-accent); }
+        .card.open { border-color:var(--border-accent); background:var(--surface-hover); }
         .card-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
-        .card-h { font-size:16.5px; font-weight:700; margin-bottom:6px; line-height:1.5; color:var(--stone-50); }
-        .card-sub { font-size:13.5px; color:#95a3b5; line-height:1.7; }
-        .card-body { margin-top:16px; padding-top:16px; border-top:1px solid var(--border-default); font-size:14px; color:#c2ccd8; line-height:1.8; }
+        .card-h { font-size:16.5px; font-weight:700; margin-bottom:6px; line-height:1.4; color:var(--stone-50); letter-spacing:-0.02em; }
+        .card-sub { font-size:13.5px; color:var(--text-secondary); line-height:1.7; }
+        .card-body { margin-top:16px; padding-top:16px; border-top:1px solid var(--border-default); font-size:14px; color:var(--text-primary); line-height:1.8; }
         .tip-box {
           margin-top:14px; background:rgba(244,162,78,.06); border:1px solid rgba(244,162,78,.15);
           border-radius:10px; padding:14px 16px; font-size:13.5px; line-height:1.7; color:#d4b896;
@@ -3191,34 +3103,34 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .status-btn:hover { border-color:var(--stone-700); color:var(--stone-300); }
         .status-btn.active { background:rgba(244,162,78,.12); border-color:var(--accent-primary); color:var(--accent-primary); font-weight:700; }
         .status-btn.in-prog.active { background:rgba(78,203,138,.1); border-color:var(--status-success); color:var(--status-success); }
-        .status-btn.done.active { background:rgba(52,211,153,.12); border-color:#34d399; color:#34d399; }
+        .status-btn.done.active { background:rgba(52,211,153,.12); border-color:var(--status-success-light); color:var(--status-success-light); }
 
         /* ── Event cards ── */
         .ev-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
         .ev-card {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
-          padding:22px 24px; transition:all .25s ease;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
+          padding:22px 24px; transition:border-color var(--duration-fast) var(--ease-out-quad);
         }
-        .ev-card:hover { border-color:rgba(244,162,78,.25); transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,0,0,.2); }
+        .ev-card:hover { border-color:var(--border-accent); }
         .ev-top { display:flex; gap:7px; margin-bottom:12px; flex-wrap:wrap; }
-        .ev-h { font-size:15.5px; font-weight:700; margin-bottom:8px; line-height:1.5; color:var(--stone-50); }
+        .ev-h { font-size:15.5px; font-weight:700; margin-bottom:8px; line-height:1.4; color:var(--stone-50); letter-spacing:-0.01em; }
         .ev-meta { font-size:12.5px; color:var(--text-secondary); margin-bottom:12px; display:flex; flex-direction:column; gap:5px; }
-        .ev-desc { font-size:13.5px; color:#a0afc0; line-height:1.7; }
+        .ev-desc { font-size:13.5px; color:var(--text-secondary); line-height:1.7; }
         .ev-foot { margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
         .ev-reg { font-size:12.5px; color:var(--text-secondary); }
 
         /* ── Updates ── */
         .update-card {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
-          padding:22px 26px; transition:all .25s ease;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
+          padding:22px 26px; transition:border-color var(--duration-fast) var(--ease-out-quad);
         }
-        .update-card:hover { border-color:var(--stone-700); transform:translateY(-1px); }
+        .update-card:hover { border-color:var(--stone-600); }
         .upd-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
         .upd-date { font-size:11.5px; color:var(--text-secondary); font-weight:600; }
         .update-card h3 { font-size:16px; font-weight:700; margin-bottom:8px; color:var(--stone-50); }
-        .update-card p { font-size:13.5px; color:#a0afc0; line-height:1.75; }
-        .update-card.high { border-right:3px solid var(--copper-600); }
-        .update-card.medium { border-right:3px solid var(--accent-primary); }
+        .update-card p { font-size:13.5px; color:var(--text-secondary); line-height:1.75; }
+        .update-card.high { border-inline-start:3px solid var(--copper-600); }
+        .update-card.medium { border-inline-start:3px solid var(--accent-primary); }
 
         /* ── Empty ── */
         .empty { color:var(--text-secondary); padding:48px; text-align:center; font-size:14.5px; line-height:1.6; }
@@ -3232,14 +3144,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           border-radius:8px; padding:18px 22px; margin-bottom:20px;
         }
         .knowledge-explainer-icon { font-size:28px; flex-shrink:0; }
-        .knowledge-explainer-text { font-size:14px; color:#a0afc0; line-height:1.7; }
+        .knowledge-explainer-text { font-size:14px; color:var(--text-secondary); line-height:1.7; }
         .knowledge-explainer-text strong { color:var(--stone-50); }
         .knowledge-login-hint {
           color:var(--text-secondary); font-size:13px; margin-bottom:16px;
-          padding:10px 16px; background:rgba(255,255,255,.03); border-radius:10px;
+          padding:10px 16px; background:rgba(250,250,249,.03); border-radius:10px;
         }
         .knowledge-form-label {
-          display:block; font-size:13px; color:#8a98a8; margin-bottom:4px; font-weight:500;
+          display:block; font-size:13px; color:var(--text-secondary); margin-bottom:4px; font-weight:500;
         }
         .knowledge-share-btn {
           padding:10px 22px; border-radius:20px; border:1px solid rgba(244,162,78,.3);
@@ -3248,18 +3160,18 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .knowledge-share-btn:hover { background:rgba(244,162,78,.15); }
         .knowledge-form {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:20px 24px; margin-bottom:16px;
         }
         .knowledge-card {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
-          padding:22px 26px; transition:all .25s ease;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
+          padding:22px 26px; transition:border-color var(--duration-fast) var(--ease-out-quad);
         }
-        .knowledge-card:hover { border-color:rgba(244,162,78,.2); }
+        .knowledge-card:hover { border-color:var(--border-accent); }
         .knowledge-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
         .knowledge-date { font-size:11.5px; color:var(--text-secondary); }
         .knowledge-title { font-size:16px; font-weight:700; color:var(--stone-50); margin-bottom:8px; }
-        .knowledge-content { font-size:14px; color:#a0afc0; line-height:1.75; }
+        .knowledge-content { font-size:14px; color:var(--text-secondary); line-height:1.75; }
         .knowledge-foot { margin-top:12px; display:flex; align-items:center; }
         .knowledge-vote-btn {
           padding:6px 14px; border-radius:20px; border:1px solid var(--border-default);
@@ -3273,33 +3185,32 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* ── Tips ── */
         .tips-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
         .tip-card {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:24px 24px 20px; position:relative; transition:all .25s ease;
         }
-        .tip-card:hover { border-color:rgba(244,162,78,.25); transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,0,0,.2); }
+        .tip-card:hover { border-color:var(--border-accent); }
         .tip-card-num {
           position:absolute; top:16px; left:16px; width:28px; height:28px;
           background:rgba(244,162,78,.12); border-radius:50%; display:flex;
           align-items:center; justify-content:center; font-size:13px;
           font-weight:900; color:var(--accent-primary);
         }
-        .tip-card-icon { font-size:28px; margin-bottom:12px; }
-        .tip-card-title { font-size:15.5px; font-weight:700; color:var(--stone-50); margin-bottom:10px; line-height:1.5; }
-        .tip-card-content { font-size:13.5px; color:#a0afc0; line-height:1.75; }
+        .tip-card-title { font-size:15.5px; font-weight:700; color:var(--stone-50); margin-bottom:10px; line-height:1.4; letter-spacing:-0.01em; }
+        .tip-card-content { font-size:13.5px; color:var(--text-secondary); line-height:1.75; }
         .tip-card-action {
-          margin-top:12px; padding:8px 14px; background:rgba(106,176,243,.06);
-          border:1px solid rgba(106,176,243,.15); border-radius:8px;
-          font-size:13px; color:#6ab0f3; direction:ltr; text-align:left;
+          margin-top:12px; padding:8px 14px; background:rgba(184,149,106,.06);
+          border:1px solid rgba(184,149,106,.15); border-radius:8px;
+          font-size:13px; color:var(--link-color); direction:ltr; text-align:left;
         }
 
         /* ── Terms ── */
         .terms-content { display:flex; flex-direction:column; gap:16px; }
         .terms-section {
-          background:#141c26; border:1px solid var(--border-default); border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:22px 26px;
         }
         .terms-section h3 { font-size:16px; font-weight:700; color:var(--stone-50); margin-bottom:10px; }
-        .terms-section p { font-size:14px; color:#a0afc0; line-height:1.8; margin-bottom:8px; }
+        .terms-section p { font-size:14px; color:var(--text-secondary); line-height:1.8; margin-bottom:8px; }
         .terms-section p:last-child { margin-bottom:0; }
         .terms-section strong { color:var(--accent-primary); }
 
@@ -3318,8 +3229,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* Privacy banner — with fade out */
         .privacy-banner {
           display:flex; align-items:center; gap:14px;
-          background:rgba(78,203,138,.08); border:1px solid rgba(78,203,138,.2);
-          border-radius:8px; padding:14px 18px; font-size:13.5px; color:#8dd4a8; line-height:1.6;
+          background:rgba(78,203,138,.06); border:1px solid rgba(78,203,138,.15);
+          border-radius:8px; padding:14px 18px; font-size:13px; color:var(--stone-400); line-height:1.6;
           overflow:hidden;
           animation:bannerFade 18s ease-in-out forwards;
         }
@@ -3328,15 +3239,16 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           85% { opacity:0; max-height:100px; padding:14px 18px; }
           100% { opacity:0; max-height:0; padding:0 18px; margin-bottom:0; border-width:0; pointer-events:none; }
         }
-        .prv-icon { font-size:18px; flex-shrink:0; }
+        .prv-icon { font-size:10px; flex-shrink:0; color:var(--status-success); }
         .prv-close { margin-right:auto; background:transparent; border:none; color:var(--text-secondary); cursor:pointer; font-size:16px; padding:2px 6px; transition:.2s; }
         .prv-close:hover { color:var(--text-primary); }
 
         /* ── Welcome Screen ── */
         .welcome-screen {
-          display:flex; flex-direction:column; align-items:center;
-          padding:30px 20px 20px; min-height:50vh;
+          display:flex; flex-direction:column;
+          padding:20px 0 20px; min-height:50vh;
         }
+        .welcome-header { margin-bottom:32px; }
         .welcome-title {
           font-size:32px; font-weight:700; color:var(--text-primary); margin-bottom:6px;
         }
@@ -3348,14 +3260,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           max-width:560px; width:100%;
         }
         .welcome-card {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:22px 18px; cursor:pointer; text-align:center;
-          transition:all 0.4s ease; font-family:Heebo,sans-serif;
-          animation:welcomeCardIn 0.6s ease-out both;
+          font-family:Heebo,sans-serif;
+          animation:welcomeCardIn var(--duration-slow) var(--ease-out-expo) both;
+          transition:all 0.4s ease;
         }
         .welcome-card:hover {
           border-color:rgba(244,162,78,.35); transform:translateY(-2px);
-          box-shadow:0 6px 20px rgba(0,0,0,.3);
         }
         .welcome-card:active { transform:scale(0.98); }
         .welcome-card:last-child { grid-column:1 / -1; max-width:270px; justify-self:center; }
@@ -3369,7 +3281,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .wc-desc { font-size:12.5px; color:var(--text-secondary); line-height:1.6; }
 
         @keyframes welcomeCardIn {
-          from { opacity:0; transform:translateY(12px); }
+          from { opacity:0; transform:translateY(16px); }
           to   { opacity:1; transform:translateY(0); }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -3379,26 +3291,25 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* Floating tip */
         .floating-tip {
           margin-top:32px; padding:12px 20px; border-radius:8px;
-          background:rgba(16,21,28,.85); border:1px solid rgba(30,37,48,.6);
+          background:var(--surface-deep); border:1px solid var(--border-subtle);
           font-size:13px; color:var(--text-secondary); text-align:center;
           transition:opacity 0.8s ease; max-width:480px;
+          border-inline-start:3px solid var(--accent-primary);
         }
         .tip-visible { opacity:1; }
         .tip-hidden { opacity:0; }
 
         /* Back to welcome */
         .back-welcome-btn {
-          background:transparent; border:1px solid #1e2530; border-radius:8px;
+          background:transparent; border:1px solid var(--border-subtle); border-radius:8px;
           color:var(--text-secondary); font-size:16px; cursor:pointer; padding:4px 10px;
           transition:all .2s; font-family:Heebo,sans-serif;
         }
-        .back-welcome-btn:hover { border-color:var(--accent-primary); color:#dde3ec; }
+        .back-welcome-btn:hover { border-color:var(--accent-primary); color:var(--stone-50); }
 
         @media (max-width:700px) {
           .welcome-grid { grid-template-columns:1fr; }
-          .welcome-card:last-child { max-width:none; }
-          .welcome-title { font-size:26px; }
-          .welcome-subtitle { font-size:14px; margin-bottom:24px; }
+          .welcome-card:first-child, .welcome-card:last-child { grid-column:auto; max-width:none; }
         }
 
         /* Hat selector */
@@ -3413,11 +3324,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .hat-label { font-size:13.5px; color:var(--text-secondary); font-weight:600; }
         .hat-btn {
           display:flex; align-items:center; gap:8px; padding:10px 18px; border-radius:8px;
-          border:1px solid var(--border-default); background:#141c26; color:var(--text-secondary);
+          border:1px solid var(--border-default); background:var(--surface-card); color:var(--text-secondary);
           font-family:'Heebo',sans-serif; font-size:14px; cursor:pointer; transition:all .25s ease;
         }
-        .hat-btn:hover { border-color:rgba(244,162,78,.3); color:var(--stone-300); background:#181f2a; transform:translateY(-1px); }
-        .hat-btn.active { border-color:var(--accent-primary); background:rgba(244,162,78,.1); color:var(--accent-primary); font-weight:700; box-shadow:0 2px 12px rgba(244,162,78,.15); }
+        .hat-btn:hover { border-color:rgba(244,162,78,.3); color:var(--stone-300); background:var(--surface-hover); }
+        .hat-btn.active { border-color:var(--accent-primary); background:rgba(244,162,78,.08); color:var(--accent-primary); font-weight:700; }
         .hat-icon { font-size:18px; }
         .hat-name { font-weight:600; }
 
@@ -3429,31 +3340,34 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           font-size:12.5px; cursor:pointer; transition:all .2s ease;
         }
         .city-btn:hover { border-color:rgba(52,211,153,.4); color:var(--stone-300); background:rgba(52,211,153,.05); }
-        .city-btn.active { background:rgba(52,211,153,.12); border-color:#34d399; color:#34d399; font-weight:700; }
+        .city-btn.active { background:rgba(52,211,153,.12); border-color:var(--status-success-light); color:var(--status-success-light); font-weight:700; }
 
         /* Events hat accent */
-        .hat-btn.active.hat-events { border-color:#34d399; background:rgba(52,211,153,.1); color:#34d399; box-shadow:0 2px 12px rgba(52,211,153,.15); }
+        .hat-btn.active.hat-events { border-color:var(--status-success-light); background:rgba(52,211,153,.08); color:var(--status-success-light); }
 
         /* Chat window */
         .chat-wrap {
-          background:#141c26; border:1px solid var(--border-default); border-radius:18px; overflow:hidden;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px; overflow:hidden;
           display:flex; flex-direction:column; height:calc(100vh - 340px); max-height:580px;
         }
         /* Psycho mode — fullscreen chat */
         .psycho-mode .chat-wrap-full {
           height:calc(100vh - 200px); max-height:none;
         }
-        .chat-hdr { display:flex; align-items:center; gap:14px; padding:16px 20px; border-bottom:1px solid var(--border-default); }
+        .chat-hdr { display:flex; flex-direction:column; border-bottom:1px solid var(--border-default); }
+        .chat-hdr-top { display:flex; align-items:center; gap:14px; padding:16px 20px; }
+        .chat-hdr-info { flex:1; min-width:0; }
         .chat-ava {
-          width:40px; height:40px; background:rgba(244,162,78,.1); border:1px solid rgba(244,162,78,.2);
-          border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;
+          width:40px; height:40px; background:rgba(244,162,78,.08); border:1px solid rgba(244,162,78,.2);
+          border-radius:50%; display:flex; align-items:center; justify-content:center;
+          font-size:16px; font-weight:700; color:var(--accent-primary); flex-shrink:0;
         }
-        .chat-name { font-size:14.5px; font-weight:700; color:var(--stone-50); }
-        .chat-sub { font-size:11.5px; color:var(--text-secondary); margin-top:2px; }
-        .chat-online { margin-right:auto; font-size:11px; color:var(--status-success); }
+        .chat-name { font-size:15px; font-weight:700; color:var(--stone-50); letter-spacing:-0.01em; }
+        .chat-sub { font-size:11px; color:var(--text-secondary); letter-spacing:0.02em; }
+        .chat-online { font-size:11px; color:var(--status-success); }
         .login-hint-toast {
           position:fixed; top:90px; left:40px; z-index:61;
-          background:#1a2332; border:1px solid rgba(244,162,78,.25); border-radius:10px;
+          background:var(--surface-card); border:1px solid rgba(244,162,78,.25); border-radius:10px;
           padding:10px 16px; font-size:13px; color:var(--stone-300);
           animation: hintFadeInOut 6s ease forwards;
           box-shadow:0 4px 16px rgba(0,0,0,.3);
@@ -3469,7 +3383,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           background:transparent; color:var(--text-secondary); font-size:14px; cursor:pointer;
           display:flex; align-items:center; justify-content:center; transition:all .2s ease;
         }
-        .chat-history-btn:hover { border-color:var(--stone-700); color:var(--stone-300); background:rgba(255,255,255,.03); }
+        .chat-history-btn:hover { border-color:var(--stone-700); color:var(--stone-300); background:rgba(250,250,249,.03); }
 
         /* ── Chat History Drawer ── */
         .chat-history {
@@ -3498,8 +3412,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           padding:8px 12px; border:none; background:transparent; cursor:pointer;
           font-family:'Heebo',sans-serif; text-align:right; border-radius:8px;
         }
-        .history-item-btn:hover { background:rgba(255,255,255,.03); }
-        .history-title { font-size:13px; color:#c2ccd8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+        .history-item-btn:hover { background:rgba(250,250,249,.03); }
+        .history-title { font-size:13px; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
         .history-date { font-size:11px; color:var(--text-muted); flex-shrink:0; }
         .history-delete {
           width:24px; height:24px; border:none; background:transparent;
@@ -3507,21 +3421,21 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           display:flex; align-items:center; justify-content:center;
         }
         .history-delete:hover { color:var(--status-urgent); background:rgba(224,82,82,.08); }
-        .chat-msgs { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
-        .msg { display:flex; gap:10px; align-items:flex-end; animation:msgIn .3s ease; }
+        .chat-msgs { flex:1; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:18px; }
+        .msg { display:flex; gap:10px; align-items:flex-start; animation:msgIn .3s ease; }
         .msg.user { flex-direction:row-reverse; }
-        @keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        .msg-ava { width:30px; height:30px; background:#1a2430; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
-        .bubble { max-width:76%; padding:12px 16px; border-radius:18px; font-size:14px; line-height:1.8; white-space:pre-wrap; }
-        .msg.user .bubble { background:rgba(244,162,78,.12); color:var(--text-primary); border-bottom-right-radius:4px; }
-        .msg.assistant .bubble { background:#1a2230; border:1px solid var(--border-default); color:#c2ccd8; border-bottom-left-radius:4px; }
+        @keyframes msgIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .msg-ava { width:30px; height:30px; background:var(--surface-card); border:1px solid var(--border-subtle); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:var(--accent-primary); flex-shrink:0; }
+        .bubble { max-width:78%; padding:14px 18px; border-radius:8px; font-size:14px; line-height:1.85; white-space:pre-wrap; }
+        .msg.user .bubble { background:rgba(244,162,78,.08); color:var(--text-primary); border-inline-end:2px solid var(--accent-primary); }
+        .msg.assistant .bubble { background:var(--surface-card); border:1px solid var(--border-default); color:var(--text-primary); }
 
         /* Nusach (prepared text) block */
         .nusach-block {
           margin:10px 0; padding:12px 14px; background:rgba(78,203,138,.08); border:1px solid rgba(78,203,138,.25);
           border-radius:10px; position:relative;
         }
-        .nusach-text { font-size:14px; line-height:1.7; color:#dde3ec; white-space:pre-wrap; }
+        .nusach-text { font-size:14px; line-height:1.7; color:var(--stone-50); white-space:pre-wrap; }
         .nusach-copy {
           display:inline-flex; align-items:center; gap:6px; margin-top:10px;
           padding:7px 16px; border-radius:8px; border:1px solid rgba(78,203,138,.3);
@@ -3537,14 +3451,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           border:1px solid rgba(244,162,78,.25); border-radius:10px;
         }
         .bookmarklet-header { font-weight:700; color:var(--accent-primary); margin-bottom:6px; }
-        .bookmarklet-desc { font-size:13px; color:#8a94a6; margin-bottom:10px; }
+        .bookmarklet-desc { font-size:13px; color:var(--text-muted); margin-bottom:10px; }
         .bookmarklet-btn {
           display:inline-block; padding:10px 20px; background:var(--copper-600);
           color:#fff; border-radius:8px; text-decoration:none; font-weight:600;
           font-size:14px; cursor:grab;
         }
         .bookmarklet-btn:hover { background:#d4623e; }
-        .bookmarklet-steps { margin-top:12px; font-size:13px; color:#8a94a6; }
+        .bookmarklet-steps { margin-top:12px; font-size:13px; color:var(--text-muted); }
         .bookmarklet-steps ol { padding-right:20px; margin:6px 0 0; }
         .bookmarklet-steps li { margin:4px 0; }
         .bookmarklet-steps a { color:var(--copper-600); }
@@ -3578,7 +3492,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* Message attachments */
         .msg-attachment { margin-bottom:8px; }
         .msg-attach-img { max-width:200px; max-height:150px; border-radius:10px; }
-        .msg-attach-file { font-size:12px; color:var(--text-secondary); background:#1a2430; padding:6px 10px; border-radius:6px; }
+        .msg-attach-file { font-size:12px; color:var(--text-secondary); background:var(--surface-hover); padding:6px 10px; border-radius:6px; }
 
         /* Chat input row */
         .chat-inp-row { display:flex; gap:8px; padding:14px 18px; border-top:1px solid var(--border-default); align-items:flex-end; }
@@ -3593,69 +3507,130 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .voice-btn.recording { background:rgba(224,82,82,.15); border-color:var(--status-urgent); color:var(--status-urgent); animation:pulse 1.5s infinite; }
 
         .chat-inp {
-          flex:1; padding:9px 16px; background:var(--stone-950); border:1px solid var(--border-default); border-radius:10px;
+          flex:1; padding:9px 16px; background:var(--surface-input); border:1px solid var(--border-default); border-radius:8px;
           color:var(--text-primary); font-family:'Heebo',sans-serif; font-size:14px; direction:rtl; outline:none;
-          transition:all .25s ease; resize:none; min-height:36px; max-height:80px; line-height:1.5;
+          transition:border-color var(--duration-fast) var(--ease-out-quad); resize:none; min-height:36px; max-height:80px; line-height:1.5;
         }
         .chat-inp-multi { max-height:120px; }
-        .chat-inp:focus { border-color:var(--accent-primary); box-shadow:0 0 0 3px rgba(244,162,78,.1); }
+        .chat-inp:focus { border-color:var(--accent-primary); }
         .chat-inp::placeholder { color:var(--text-muted); }
         .chat-send {
-          width:42px; height:36px; background:linear-gradient(135deg,var(--copper-600),var(--accent-primary));
-          border:none; border-radius:10px; color:#fff; font-size:17px; cursor:pointer;
-          transition:all .2s ease; flex-shrink:0;
+          width:42px; height:36px; background:var(--accent-primary);
+          border:none; border-radius:6px; color:var(--stone-950); font-size:17px; font-weight:700; cursor:pointer;
+          transition:background var(--duration-fast) var(--ease-out-quad); flex-shrink:0;
         }
-        .chat-send:hover:not(:disabled) { transform:scale(1.05); box-shadow:0 4px 16px rgba(244,162,78,.3); }
-        .chat-send:disabled { background:var(--border-default); cursor:not-allowed; transform:none; box-shadow:none; }
+        .chat-send:hover:not(:disabled) { background:var(--accent-hover); }
+        .chat-send:disabled { background:var(--border-default); cursor:not-allowed; color:var(--text-muted); }
         .chat-disclaimer { font-size:11.5px; color:var(--text-muted); text-align:center; }
 
         /* ── Token Badge ── */
         .token-badge {
           display:inline-flex; align-items:center; gap:4px;
-          background:#10151c; border:1px solid #1e2530; border-radius:20px;
-          padding:4px 10px; font-size:12px; color:#dde3ec; cursor:pointer;
-          transition:all .2s; margin-right:auto; margin-left:8px;
-          font-family:Heebo,sans-serif;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:4px;
+          padding:4px 10px; font-size:11px; color:var(--stone-50); cursor:pointer;
+          transition:all .2s; margin-inline-start:auto;
+          font-family:'IBM Plex Mono',monospace; font-weight:600; letter-spacing:-0.02em;
         }
         .token-badge:hover { border-color:var(--accent-primary); }
         .tb-green { color:var(--status-success); border-color:rgba(78,203,138,.3); }
         .tb-yellow { color:var(--accent-primary); border-color:rgba(244,162,78,.3); }
         .tb-red { color:var(--status-urgent); border-color:rgba(224,82,82,.3); }
 
-        /* ── Feature Toggle Button ── */
-        .feature-toggle-btn {
+        /* ── Token Expand (inline in sub row) ── */
+        .chat-sub-row {
+          display:flex; align-items:center; gap:10px; margin-top:2px;
+        }
+        .token-expand {
           display:inline-flex; align-items:center; gap:4px;
-          background:#10151c; border:1px solid #1e2530; border-radius:20px;
-          padding:4px 10px; font-size:11px; color:var(--text-secondary); cursor:pointer;
-          transition:all .2s; font-family:Heebo,sans-serif;
+          background:none; border:none; cursor:pointer; padding:0;
+          font-family:'IBM Plex Mono',monospace;
         }
-        .feature-toggle-btn:hover { border-color:var(--accent-primary); color:#dde3ec; }
+        .token-expand-sum {
+          font-size:11px; font-weight:600; color:var(--stone-400);
+          letter-spacing:-0.02em;
+        }
+        .token-expand-unit {
+          font-size:9.5px; font-weight:400; color:var(--text-muted);
+          font-family:Heebo,sans-serif; letter-spacing:0.02em;
+        }
+        .token-expand-caret {
+          display:inline-block; width:0; height:0;
+          border-inline-start:3.5px solid transparent;
+          border-inline-end:3.5px solid transparent;
+          border-top:4px solid var(--stone-600);
+          transition:transform var(--duration-fast) var(--ease-out-quad);
+        }
+        .token-expand-caret.open { transform:rotate(180deg); }
+        .token-expand:hover .token-expand-sum { color:var(--stone-300); }
+        .token-expand:hover .token-expand-caret { border-top-color:var(--stone-400); }
 
-        /* ── Feature Inline Panel (collapsible under chat header) ── */
-        .feature-inline {
-          background:rgba(0,0,0,.25); border-bottom:1px solid var(--border-default);
-          padding:8px 16px; display:flex; flex-wrap:wrap; gap:6px 14px;
-          animation:fadeIn .15s;
+        /* ── Feature Ledger ── */
+        .feature-ledger {
+          border-top:1px solid var(--border-subtle);
+          padding:0 20px;
+          animation:fadeIn .12s;
         }
-        .feature-inline-row {
-          display:flex; align-items:center; gap:6px; font-size:12px;
+        .ledger-row {
+          display:grid; grid-template-columns:3px 1fr 48px 42px;
+          gap:0 10px; align-items:center;
+          padding:7px 0;
+          border-bottom:1px solid rgba(255,255,255,.03);
         }
-        .feature-inline-label {
-          color:var(--text-secondary); font-weight:500;
+        .ledger-row:last-of-type { border-bottom:none; }
+        .ledger-indicator {
+          width:3px; height:14px; border-radius:1px;
+          background:var(--stone-700); transition:background var(--duration-fast);
         }
-        .feature-inline-cost {
-          color:var(--text-muted); font-size:10.5px;
+        .ledger-on .ledger-indicator { background:var(--olive-400); }
+        .ledger-locked .ledger-indicator { background:var(--stone-800); }
+        .ledger-name {
+          font-size:12px; font-weight:500; color:var(--text-secondary);
+          letter-spacing:-0.01em;
         }
-        .feature-inline-always {
-          font-size:9px; font-weight:700; color:var(--status-success);
-          background:rgba(22,163,106,.12); padding:1px 5px; border-radius:3px;
+        .ledger-on .ledger-name { color:var(--stone-300); }
+        .ledger-locked .ledger-name { color:var(--stone-600); }
+        .ledger-cost {
+          font-size:10.5px; font-family:'IBM Plex Mono',monospace;
+          font-weight:500; color:var(--stone-500); text-align:left;
+          letter-spacing:-0.02em;
         }
-        .feature-inline-upgrade {
-          font-size:10px; font-weight:600; color:var(--accent-primary);
-          background:rgba(217,119,6,.1); border:none; padding:2px 8px;
-          border-radius:4px; cursor:pointer; font-family:'Heebo',sans-serif;
+        .ledger-on .ledger-cost { color:var(--stone-400); }
+        .ledger-status {
+          font-size:9.5px; font-weight:600; letter-spacing:0.03em;
+          text-align:center; font-family:Heebo,sans-serif;
         }
-        .feature-inline-upgrade:hover { background:rgba(217,119,6,.2); }
+        .ledger-fixed {
+          color:var(--olive-400); opacity:.7;
+        }
+        .ledger-upgrade {
+          color:var(--accent-primary); background:none; border:none;
+          cursor:pointer; padding:0; font-family:Heebo,sans-serif;
+          font-size:9.5px; font-weight:600;
+        }
+        .ledger-upgrade:hover { text-decoration:underline; }
+        .ledger-toggle {
+          color:var(--stone-600); background:none; border:none;
+          cursor:pointer; padding:2px 0; font-family:Heebo,sans-serif;
+          font-size:9.5px; font-weight:600;
+          transition:color var(--duration-fast);
+        }
+        .ledger-toggle:hover { color:var(--stone-400); }
+        .ledger-toggle-on { color:var(--olive-400); }
+        .ledger-toggle-on:hover { color:var(--status-urgent); }
+        .ledger-total {
+          display:grid; grid-template-columns:3px 1fr 48px 42px;
+          gap:0 10px; align-items:center;
+          padding:6px 0 8px;
+          border-top:1px solid var(--border-subtle);
+        }
+        .ledger-total-label {
+          grid-column:2; font-size:11px; font-weight:600;
+          color:var(--stone-400); letter-spacing:0.02em;
+        }
+        .ledger-total-value {
+          font-size:11px; font-family:'IBM Plex Mono',monospace;
+          font-weight:700; color:var(--stone-200); letter-spacing:-0.02em;
+        }
         .feature-switch-sm {
           position:relative; width:28px; height:16px; display:inline-block;
         }
@@ -3671,7 +3646,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .feature-switch-sm input:checked + .feature-slider-sm { background:var(--status-success); }
         .feature-switch-sm input:checked + .feature-slider-sm::before { transform:translateX(12px); }
         .feature-panel-title {
-          font-size:12px; font-weight:700; color:#dde3ec; margin-bottom:10px;
+          font-size:12px; font-weight:700; color:var(--stone-50); margin-bottom:10px;
         }
         .feature-beta {
           font-size:10px; color:var(--status-success); background:rgba(78,203,138,.1);
@@ -3685,9 +3660,9 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .feature-locked { opacity:.45; }
         .feature-icon { font-size:16px; flex-shrink:0; width:24px; text-align:center; }
         .feature-info { flex:1; min-width:0; }
-        .feature-label { font-size:12px; color:#dde3ec; font-weight:600; display:block; }
-        .feature-desc { font-size:10px; color:#5a6478; }
-        .feature-cost { font-size:10px; color:#5a6478; flex-shrink:0; font-family:Heebo,sans-serif; }
+        .feature-label { font-size:12px; color:var(--stone-50); font-weight:600; display:block; }
+        .feature-desc { font-size:10px; color:var(--text-muted); }
+        .feature-cost { font-size:10px; color:var(--text-muted); flex-shrink:0; font-family:Heebo,sans-serif; }
         .feature-always {
           font-size:9px; color:var(--status-success); background:rgba(78,203,138,.1);
           padding:2px 6px; border-radius:6px; flex-shrink:0;
@@ -3702,7 +3677,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.06);
           font-size:11px; color:var(--text-secondary); text-align:center;
         }
-        .feature-total strong { color:#dde3ec; }
+        .feature-total strong { color:var(--stone-50); }
 
         /* Feature toggle switch */
         .feature-switch {
@@ -3710,7 +3685,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .feature-switch input { opacity:0; width:0; height:0; position:absolute; }
         .feature-slider {
-          position:absolute; inset:0; background:#1e2530; border-radius:9px;
+          position:absolute; inset:0; background:var(--border-subtle); border-radius:9px;
           cursor:pointer; transition:all .2s;
         }
         .feature-slider::before {
@@ -3731,15 +3706,15 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           padding:20px;
         }
         .pricing-modal {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
           padding:32px 24px; max-width:520px; width:100%; position:relative;
           max-height:85vh; overflow-y:auto;
         }
         .pricing-close {
           position:absolute; top:12px; left:12px; background:none; border:none;
-          color:#5a6478; font-size:18px; cursor:pointer;
+          color:var(--text-muted); font-size:18px; cursor:pointer;
         }
-        .pricing-close:hover { color:#dde3ec; }
+        .pricing-close:hover { color:var(--stone-50); }
         .pricing-title {
           text-align:center; color:var(--stone-50); font-size:22px; margin-bottom:24px;
         }
@@ -3800,25 +3775,25 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           gap:12px;
         }
         .plan-card {
-          background:#0a0e14; border:1px solid #1e2530; border-radius:8px;
+          background:var(--stone-950); border:1px solid var(--border-subtle); border-radius:8px;
           padding:20px 16px; text-align:center; transition:border-color .2s;
         }
         .plan-card:hover { border-color:var(--accent-primary); }
         .plan-featured { border-color:var(--accent-primary); box-shadow:0 0 20px rgba(244,162,78,.1); }
-        .plan-icon { font-size:28px; margin-bottom:8px; }
+        .plan-icon { font-size:22px; margin-bottom:8px; color:var(--accent-primary); }
         .plan-name { color:var(--stone-50); font-weight:600; font-size:16px; margin-bottom:4px; }
         .plan-price { color:var(--accent-primary); font-size:22px; font-weight:700; margin-bottom:4px; }
         .plan-period { font-size:13px; color:var(--text-secondary); font-weight:400; }
         .plan-desc { color:var(--text-secondary); font-size:12.5px; margin-bottom:14px; min-height:36px; }
         .plan-btn {
-          width:100%; padding:8px; border-radius:8px; border:1px solid #1e2530;
-          background:var(--border-default); color:#dde3ec; font-size:14px; cursor:pointer;
+          width:100%; padding:8px; border-radius:8px; border:1px solid var(--border-subtle);
+          background:var(--border-default); color:var(--stone-50); font-size:14px; cursor:pointer;
           font-family:Heebo,sans-serif; transition:all .2s;
         }
-        .plan-btn:hover:not(:disabled) { background:var(--accent-primary); color:#0a0e14; border-color:var(--accent-primary); }
+        .plan-btn:hover:not(:disabled) { background:var(--accent-primary); color:var(--stone-950); border-color:var(--accent-primary); }
         .plan-btn:disabled { opacity:.5; cursor:not-allowed; }
         .plan-btn-current { background:transparent; border-color:var(--status-success); color:var(--status-success); }
-        .plan-btn-premium { background:linear-gradient(135deg,var(--accent-primary),var(--copper-600)); color:#0a0e14; border:none; font-weight:600; }
+        .plan-btn-premium { background:linear-gradient(135deg,var(--accent-primary),var(--copper-600)); color:var(--stone-950); border:none; font-weight:600; }
         .plan-btn-premium:hover:not(:disabled) { box-shadow:0 4px 16px rgba(244,162,78,.4); }
 
         /* ── Mobile Header (hidden on desktop) ── */
@@ -3829,7 +3804,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* ── Legal Case ── */
         .case-section { max-width:800px; }
         .case-login-prompt {
-          text-align:center; padding:60px 20px; background:#10151c; border:1px solid #1e2530;
+          text-align:center; padding:60px 20px; background:var(--surface-deep); border:1px solid var(--border-subtle);
           border-radius:8px; margin-top:20px;
         }
         .case-login-icon { font-size:48px; margin-bottom:16px; }
@@ -3846,7 +3821,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           min-width:72px; flex-shrink:0;
         }
         .stage-circle {
-          width:40px; height:40px; border-radius:50%; background:#1a2230; border:2px solid var(--stone-700);
+          width:40px; height:40px; border-radius:50%; background:var(--surface-card); border:2px solid var(--stone-700);
           display:flex; align-items:center; justify-content:center; font-size:16px;
           transition:all .3s ease;
         }
@@ -3861,7 +3836,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         /* Case Card */
         .case-card {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
           padding:20px 24px; margin-bottom:16px;
         }
         .case-card-header { display:flex; align-items:center; gap:14px; margin-bottom:12px; }
@@ -3892,14 +3867,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         /* Prep Section */
         .prep-section {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
           padding:20px 24px; margin-bottom:16px;
         }
         .prep-title { font-size:16px; font-weight:700; color:var(--accent-primary); margin-bottom:6px; }
         .prep-desc { font-size:13px; color:var(--text-secondary); margin-bottom:16px; }
         .prep-tasks { display:flex; flex-direction:column; gap:12px; }
         .prep-task {
-          background:#161e28; border:1px solid var(--border-default); border-radius:10px;
+          background:var(--surface-input); border:1px solid var(--border-default); border-radius:10px;
           padding:14px 16px; transition:all .2s ease;
         }
         .prep-task.checked { border-color:rgba(78,203,138,.3); background:rgba(78,203,138,.05); }
@@ -3925,7 +3900,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .injury-tips h3 { font-size:16px; font-weight:700; color:var(--stone-50); margin-bottom:14px; }
         .tip-boxes { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
         .tip-box {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
           padding:16px 18px;
         }
         .tip-box h4 { font-size:13.5px; font-weight:700; color:var(--stone-300); margin-bottom:10px; }
@@ -3940,7 +3915,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .case-reminders { margin-bottom:16px; }
         .case-reminders h3 { font-size:16px; font-weight:700; color:var(--stone-50); margin-bottom:12px; }
         .reminder-card {
-          background:#10151c; border:1px solid #1e2530; border-radius:10px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:10px;
           padding:14px 16px; margin-bottom:8px;
         }
         .reminder-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
@@ -3955,7 +3930,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* Case Edit Button */
         .case-edit-btn {
           display:block; width:100%; padding:12px; border-radius:10px;
-          border:1px solid var(--border-default); background:#161e28; color:var(--text-secondary);
+          border:1px solid var(--border-default); background:var(--surface-input); color:var(--text-secondary);
           font-family:'Heebo',sans-serif; font-size:14px; cursor:pointer;
           transition:all .2s ease; margin-bottom:16px;
         }
@@ -3967,14 +3942,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           display:flex; align-items:center; justify-content:center; padding:16px;
         }
         .case-modal {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
           padding:28px; max-width:500px; width:100%; max-height:85vh; overflow-y:auto;
         }
         .case-modal h3 { font-size:18px; font-weight:700; color:var(--stone-50); margin-bottom:20px; }
 
         /* Wizard */
         .case-wizard {
-          background:#10151c; border:1px solid #1e2530; border-radius:8px;
+          background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
           padding:28px; margin-top:20px;
         }
         .wizard-step h3 { font-size:17px; font-weight:700; color:var(--stone-50); margin-bottom:18px; }
@@ -3982,7 +3957,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .wizard-opt {
           display:flex; flex-direction:column; align-items:center; gap:8px;
           padding:16px 10px; border-radius:8px; border:1px solid var(--border-default);
-          background:#161e28; color:var(--text-secondary); font-family:'Heebo',sans-serif;
+          background:var(--surface-input); color:var(--text-secondary); font-family:'Heebo',sans-serif;
           font-size:13px; cursor:pointer; transition:all .2s ease;
         }
         .wizard-opt:hover { border-color:var(--stone-700); }
@@ -3991,7 +3966,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .wizard-stages { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; max-height:360px; overflow-y:auto; }
         .wizard-stage {
           display:flex; align-items:center; gap:12px; padding:12px 16px;
-          border-radius:10px; border:1px solid var(--border-default); background:#161e28;
+          border-radius:10px; border:1px solid var(--border-default); background:var(--surface-input);
           color:var(--text-secondary); font-family:'Heebo',sans-serif; cursor:pointer;
           text-align:right; transition:all .2s ease;
         }
@@ -4008,7 +3983,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .wizard-field input, .wizard-field select, .wizard-field textarea {
           width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-default);
-          background:#161e28; color:var(--stone-300); font-family:'Heebo',sans-serif;
+          background:var(--surface-input); color:var(--stone-300); font-family:'Heebo',sans-serif;
           font-size:14px; direction:rtl;
         }
         .wizard-field input:focus, .wizard-field select:focus, .wizard-field textarea:focus {
@@ -4035,7 +4010,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .edit-injury-opt {
           display:flex; align-items:center; gap:8px; padding:8px 12px;
-          border-radius:8px; border:1px solid var(--border-default); background:#161e28;
+          border-radius:8px; border:1px solid var(--border-default); background:var(--surface-input);
           color:var(--text-secondary); font-size:13px; cursor:pointer; transition:all .2s ease;
         }
         .edit-injury-opt.selected { border-color:var(--status-urgent); background:rgba(224,82,82,.08); color:var(--stone-300); }
@@ -4047,7 +4022,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           z-index:400; animation:slideUp .3s ease;
         }
         .stage-toast-content {
-          background:#1a2230; border:1px solid rgba(244,162,78,.3);
+          background:var(--surface-card); border:1px solid rgba(244,162,78,.3);
           border-radius:8px; padding:14px 20px; display:flex;
           align-items:center; gap:14px; box-shadow:0 8px 32px rgba(0,0,0,.4);
           font-size:14px; color:var(--stone-300);
@@ -4055,7 +4030,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .stage-toast-btns { display:flex; gap:8px; }
         .stage-toast-yes {
           padding:6px 16px; border-radius:8px; border:none;
-          background:var(--status-success); color:#0a0e14; font-family:'Heebo',sans-serif;
+          background:var(--status-success); color:var(--stone-950); font-family:'Heebo',sans-serif;
           font-size:13px; font-weight:600; cursor:pointer;
         }
         .stage-toast-no {

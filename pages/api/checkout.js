@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   let user;
   try {
-    const userSb = getUserSupabase(req);
+    const userSb = getUserSupabase(req, res);
     if (!userSb) {
       console.log("[checkout] no user supabase client");
       return res.status(401).json({ error: "unauthorized" });

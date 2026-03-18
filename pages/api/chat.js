@@ -35,7 +35,7 @@ const HOURLY_WINDOW_MS = 3_600_000;
 const hourlyMap = new Map(); // ip -> timestamp[]
 
 // --- Token allowance check (subscription-based) ---
-async function getTokenAllowance(req, ip) {
+async function getTokenAllowance(req, res, ip) {
   // TEMPORARY: unlimited for everyone until payment is set up
   return {
     allowed: true, userId: null, planId: "free",
@@ -44,7 +44,7 @@ async function getTokenAllowance(req, ip) {
   };
   // Try JWT auth first
   try {
-    const userSb = getUserSupabase(req);
+    const userSb = getUserSupabase(req, res);
     if (userSb) {
       const { data: { user } } = await userSb.auth.getUser();
       if (user) {
@@ -1123,7 +1123,7 @@ export default async function handler(req, res) {
   }
 
   // --- Token allowance check ---
-  const allowance = await getTokenAllowance(req, ip);
+  const allowance = await getTokenAllowance(req, res, ip);
   if (!allowance.allowed) {
     return res.status(402).json({
       reply: "נגמרו הטוקנים שלך. שדרג את המסלול כדי להמשיך.",

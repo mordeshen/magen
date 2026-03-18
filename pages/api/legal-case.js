@@ -1,10 +1,7 @@
 // pages/api/legal-case.js
 // CRUD API for legal case management — requires Supabase JWT auth
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { getUserSupabase } from "./lib/supabase-admin";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "100kb" } },
@@ -23,16 +20,8 @@ const VALID_INJURY_TYPES = new Set([
   "orthopedic", "neurological", "ptsd", "hearing", "internal", "other",
 ]);
 
-function getSupabase(req) {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!token || !supabaseUrl || !supabaseKey) return null;
-  return createClient(supabaseUrl, supabaseKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-}
-
 export default async function handler(req, res) {
-  const sb = getSupabase(req);
+  const sb = getUserSupabase(req, res);
   if (!sb) return res.status(401).json({ error: "לא מאומת" });
 
   const { data: { user } } = await sb.auth.getUser();

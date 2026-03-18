@@ -2,6 +2,7 @@
 // API for veteran knowledge sharing — read (public), write+vote (auth required)
 
 import { createClient } from "@supabase/supabase-js";
+import { getUserSupabase } from "./lib/supabase-admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -9,14 +10,6 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const config = {
   api: { bodyParser: { sizeLimit: "100kb" } },
 };
-
-function getSupabase(req) {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!token || !supabaseUrl || !supabaseKey) return null;
-  return createClient(supabaseUrl, supabaseKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-}
 
 function getAnonSupabase() {
   if (!supabaseUrl || !supabaseKey) return null;
@@ -85,7 +78,7 @@ export default async function handler(req, res) {
 
   // POST — create knowledge (auth required)
   if (req.method === "POST") {
-    const sb = getSupabase(req);
+    const sb = getUserSupabase(req, res);
     if (!sb) return res.status(401).json({ error: "לא מאומת" });
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return res.status(401).json({ error: "לא מאומת" });
@@ -118,7 +111,7 @@ export default async function handler(req, res) {
 
   // PATCH — vote (auth required)
   if (req.method === "PATCH") {
-    const sb = getSupabase(req);
+    const sb = getUserSupabase(req, res);
     if (!sb) return res.status(401).json({ error: "לא מאומת" });
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return res.status(401).json({ error: "לא מאומת" });

@@ -4,7 +4,7 @@ import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
 
-  const userSb = getUserSupabase(req);
+  const userSb = getUserSupabase(req, res);
   if (!userSb) return res.status(401).json({ error: "unauthorized" });
 
   const { data: { user } } = await userSb.auth.getUser();

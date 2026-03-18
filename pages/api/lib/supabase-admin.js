@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 
 let adminClient = null;
 
@@ -11,16 +12,31 @@ export function getAdminSupabase() {
   return adminClient;
 }
 
-export function getUserSupabase(req) {
+export function getUserSupabase(req, res) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null;
 
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) return null;
-
-  const token = auth.slice(7);
-  return createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return Object.entries(req.cookies || {}).map(([name, value]) => ({ name, value }));
+      },
+      setAll(cookies) {
+        cookies.forEach(({ name, value, options }) => {
+          const parts = [`${name}=${encodeURIComponent(value)}`];
+          if (options?.path) parts.push(`Path=${options.path}`);
+          if (options?.maxAge != null) parts.push(`Max-Age=${options.maxAge}`);
+          if (options?.domain) parts.push(`Domain=${options.domain}`);
+          if (options?.sameSite) parts.push(`SameSite=${options.sameSite}`);
+          if (options?.httpOnly) parts.push("HttpOnly");
+          if (options?.secure) parts.push("Secure");
+          res.setHeader("Set-Cookie", [
+            ...(res.getHeader("Set-Cookie") || []),
+            parts.join("; "),
+          ]);
+        });
+      },
+    },
   });
 }

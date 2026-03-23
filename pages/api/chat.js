@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
+import { MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
 
 // Load site actions for portal guidance
 let SITE_ACTIONS = [];
@@ -39,7 +40,7 @@ async function getTokenAllowance(req, res, ip) {
   // TEMPORARY: unlimited for everyone until payment is set up
   return {
     allowed: true, userId: null, planId: "free",
-    features: { model: "claude-sonnet-4-6", max_tokens: 4096 },
+    features: { model: MODEL_SONNET, max_tokens: 4096 },
     unlimited: true, remaining: -1, ip,
   };
   // Try JWT auth first
@@ -86,7 +87,7 @@ async function getTokenAllowance(req, res, ip) {
             .eq("user_id", user.id);
           return {
             allowed: true, userId: user.id, planId: "free",
-            features: { model: "claude-sonnet-4-6", max_tokens: 1024 },
+            features: { model: MODEL_SONNET, max_tokens: 1024 },
             unlimited: false, remaining: Math.max(0, 50000 - sub.daily_tokens_used), ip,
           };
         }
@@ -135,7 +136,7 @@ async function getTokenAllowance(req, res, ip) {
     }
     return {
       allowed: true, userId: null, planId: "free",
-      features: { model: "claude-sonnet-4-6", max_tokens: 1024 },
+      features: { model: MODEL_SONNET, max_tokens: 1024 },
       unlimited: false, remaining, ip,
     };
   } catch (e) {
@@ -145,7 +146,7 @@ async function getTokenAllowance(req, res, ip) {
   // Fallback: allow with defaults (no DB available)
   return {
     allowed: true, userId: null, planId: "free",
-    features: { model: "claude-sonnet-4-6", max_tokens: 1024 },
+    features: { model: MODEL_SONNET, max_tokens: 1024 },
     unlimited: false, remaining: 50000, ip,
   };
 }
@@ -672,7 +673,7 @@ async function routeIntent(userMessage, conversationSummary) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL_HAIKU,
         max_tokens: 150,
         system: ROUTER_SYSTEM_PROMPT,
         messages: [{ role: "user", content: input }],
@@ -726,7 +727,7 @@ async function summarizeConversation(messages) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL_HAIKU,
         max_tokens: 200,
         system: "סכם את השיחה ב-2-3 משפטים. ציין: עובדות מפתח על המשתמש, מה נדון, הנושא הנוכחי, החלטות שנתקבלו. עברית בלבד.",
         messages: [{ role: "user", content: conversationText }],
@@ -1292,7 +1293,7 @@ export default async function handler(req, res) {
     return { role: m.role, content: m.content };
   });
 
-  const selectedModel = allowance.features.model || "claude-sonnet-4-6";
+  const selectedModel = allowance.features.model || MODEL_SONNET;
   const maxTokens = attachment ? Math.max(2048, allowance.features.max_tokens || 1024) : (allowance.features.max_tokens || 1024);
 
   try {
@@ -1351,7 +1352,7 @@ export default async function handler(req, res) {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: MODEL_HAIKU,
             max_tokens: 256,
             system: "חלץ עובדות חשובות על המשתמש מהשיחה (עד 5). החזר JSON array: [{\"key\":\"מפתח קצר\",\"value\":\"ערך\"}]. אם אין עובדות חדשות — החזר []. החזר רק JSON, בלי הסברים.",
             messages: [{ role: "user", content: messages.slice(-6).map(m => `${m.role}: ${m.content}`).join("\n") }],
@@ -1377,7 +1378,7 @@ export default async function handler(req, res) {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: MODEL_HAIKU,
             max_tokens: 30,
             system: "תן כותרת קצרה (3-5 מילים בעברית) לשיחה הבאה. החזר רק את הכותרת, בלי גרשיים.",
             messages: [{ role: "user", content: messages.slice(0, 4).map(m => `${m.role}: ${m.content}`).join("\n") }],

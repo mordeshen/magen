@@ -3,6 +3,7 @@
 // כל משתמש מזוהה לפי מספר טלפון, היסטוריה נשמרת ב-Supabase
 
 import { getAdminSupabase } from "./lib/supabase-admin";
+import { MODEL_SONNET } from "./lib/models";
 
 export const config = {
   api: { bodyParser: true },
@@ -58,7 +59,7 @@ async function callClaude(history, userMessage) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20241022",
+      model: MODEL_SONNET,
       max_tokens: 1000,
       system: SYSTEM_PROMPT,
       messages: [...history, { role: "user", content: userMessage }],

@@ -1,5 +1,6 @@
 // GET /api/subscription — מנוי + יתרה + features
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
+import { MODEL_SONNET } from "./lib/models";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
@@ -73,7 +74,7 @@ export default async function handler(req, res) {
     subscription_end: sub.subscription_end,
     expired,
     features: {
-      model: expired ? "claude-sonnet-4-6" : plan.model,
+      model: expired ? MODEL_SONNET : plan.model,
       max_tokens: expired ? 1024 : plan.max_tokens,
       ...(plan.features || {}),
     },

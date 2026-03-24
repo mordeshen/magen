@@ -87,6 +87,15 @@ export function buildUnderstandingInput(userMessage, context) {
     parts.push("");
   }
 
+  // Medical injuries (existing)
+  if (context.medicalInjuries && context.medicalInjuries.length > 0) {
+    parts.push(`[פגיעות מתועדות — לא לשאול על מה שכבר ידוע]`);
+    context.medicalInjuries.forEach(inj => {
+      parts.push(`• ${inj.hebrew_label || inj.body_zone} — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}${inj.details ? `: ${inj.details}` : ""}`);
+    });
+    parts.push("");
+  }
+
   // Recent conversation (last 3 messages)
   if (context.recentMessages && context.recentMessages.length > 0) {
     parts.push(`[שיחה אחרונה]`);

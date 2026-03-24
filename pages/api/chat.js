@@ -1214,11 +1214,24 @@ export default async function handler(req, res) {
   if (USE_INVERTED && !attachment) {
     try {
       const supabase = getAdminSupabase();
+
+      // Fetch medical injuries if user is authenticated and feature is active
+      let medicalInjuries = [];
+      if (activeFeatures.has("medical_context") && allowance.userId) {
+        try {
+          const { data } = await supabase.from("injuries")
+            .select("body_zone, hebrew_label, severity, status, details, disability_percent")
+            .eq("user_id", allowance.userId).limit(20);
+          medicalInjuries = data || [];
+        } catch {}
+      }
+
       const context = {
         recentMessages: messages.slice(-6),
         clientHat: hatExplicit ? clientHat : null,
         profile: userProfile || null,
         memory: memory || [],
+        medicalInjuries,
         conversationId: body.sessionId || null,
       };
 

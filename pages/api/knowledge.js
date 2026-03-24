@@ -102,7 +102,7 @@ export default async function handler(req, res) {
 
     const { data, error } = await sb
       .from("veteran_knowledge")
-      .insert({ user_id: user.id, category, title: cleanTitle, content: cleanContent })
+      .insert({ user_id: user.id, category, title: cleanTitle, content: cleanContent, approved: true })
       .select()
       .single();
     if (error) return res.status(500).json({ error: "שגיאת שרת" });

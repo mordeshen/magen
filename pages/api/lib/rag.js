@@ -26,6 +26,89 @@ function loadEvents() {
 }
 
 /**
+ * Search rights from Supabase `rights_knowledge` table.
+ * Tries the `search_rights_keyword` RPC first; falls back to ilike queries.
+ * Returns results in the same shape as the local searchRightsKeyword.
+ */
+async function searchRightsSupabase(supabase, queries, categories) {
+  if (!supabase || !queries?.length) return null;
+
+  try {
+    // --- Attempt 1: RPC function ---
+    const searchTerm = queries.join(" ");
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      "search_rights_keyword",
+      {
+        search_term: searchTerm,
+        ...(categories?.length ? { filter_categories: categories } : {}),
+      }
+    );
+
+    if (!rpcError && rpcData?.length) {
+      console.log(`[RAG] rights source: Supabase RPC (${rpcData.length} results)`);
+      return rpcData.slice(0, 5).map((r) => ({
+        id: r.id,
+        category: r.category,
+        title: r.title,
+        summary: r.summary,
+        details: r.details,
+        tip: r.tip ?? null,
+        link: r.link ?? null,
+        urgency: r.urgency ?? "medium",
+        updatedAt: r.updated_at ?? r.updatedAt ?? null,
+        _score: r.rank ?? r.score ?? 1,
+        _source: "supabase_rpc",
+      }));
+    }
+
+    // --- Attempt 2: ilike fallback ---
+    const terms = queries
+      .flatMap((q) => q.split(/\s+/))
+      .filter((t) => t.length >= 2);
+
+    if (!terms.length) return null;
+
+    // Build an OR filter: title/summary/details ilike any term
+    const ilikeFilters = terms.flatMap((t) => [
+      `title.ilike.%${t}%`,
+      `summary.ilike.%${t}%`,
+      `details.ilike.%${t}%`,
+    ]);
+
+    let query = supabase
+      .from("rights_knowledge")
+      .select("id, category, title, summary, details, tip, link, urgency, updated_at")
+      .or(ilikeFilters.join(","));
+
+    if (categories?.length) {
+      query = query.in("category", categories);
+    }
+
+    const { data, error } = await query.limit(5);
+
+    if (error || !data?.length) return null;
+
+    console.log(`[RAG] rights source: Supabase ilike (${data.length} results)`);
+    return data.map((r) => ({
+      id: r.id,
+      category: r.category,
+      title: r.title,
+      summary: r.summary,
+      details: r.details,
+      tip: r.tip ?? null,
+      link: r.link ?? null,
+      urgency: r.urgency ?? "medium",
+      updatedAt: r.updated_at ?? null,
+      _score: 1,
+      _source: "supabase_ilike",
+    }));
+  } catch (err) {
+    console.warn("[RAG] Supabase rights search failed, will use local JSON:", err?.message);
+    return null;
+  }
+}
+
+/**
  * Search rights by keyword matching (no embeddings needed)
  * Matches against title, summary, details, and category
  */
@@ -124,6 +207,32 @@ async function searchFormulas(supabase, categories) {
 }
 
 /**
+ * Search portal formulas from Supabase, filtered by category.
+ * Separate from searchFormulas to allow independent use.
+ */
+async function searchPortalFormulas(supabase, categories) {
+  if (!supabase || !categories?.length) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from("portal_formulas")
+      .select("id, category, title, formula, description, variables, link")
+      .in("category", categories)
+      .limit(5);
+
+    if (error) {
+      console.warn("[RAG] portal_formulas query failed:", error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.warn("[RAG] searchPortalFormulas error:", err?.message);
+    return [];
+  }
+}
+
+/**
  * Main RAG function — fetches all relevant knowledge based on brief
  */
 export async function fetchRAG(brief, supabase) {
@@ -131,9 +240,9 @@ export async function fetchRAG(brief, supabase) {
   const categories = brief.categories || [];
 
   // Run all searches in parallel
-  const [rights, events, veteran, formulas] = await Promise.all([
-    // Rights from local JSON (keyword search)
-    Promise.resolve(searchRightsKeyword(queries, categories)),
+  const [supabaseRights, events, veteran, formulas, portalFormulas] = await Promise.all([
+    // Try Supabase rights_knowledge first
+    searchRightsSupabase(supabase, queries, categories),
 
     // Events (if events hat or relevant)
     Promise.resolve(
@@ -145,9 +254,31 @@ export async function fetchRAG(brief, supabase) {
     // Veteran knowledge from Supabase
     searchVeteranKnowledge(supabase, queries),
 
-    // Portal formulas from Supabase
+    // Portal formulas from Supabase (legacy)
     brief.include_formula ? searchFormulas(supabase, categories) : Promise.resolve([]),
+
+    // Portal formulas (new dedicated function)
+    brief.include_formula ? searchPortalFormulas(supabase, categories) : Promise.resolve([]),
   ]);
 
-  return { rights, events, veteran, formulas };
+  // Fall back to local JSON if Supabase returned nothing
+  let rights;
+  if (supabaseRights?.length) {
+    rights = supabaseRights;
+  } else {
+    rights = searchRightsKeyword(queries, categories);
+    if (rights.length) {
+      console.log(`[RAG] rights source: local JSON (${rights.length} results)`);
+    }
+  }
+
+  // Merge portal formulas from both sources, deduplicate by id
+  const allFormulas = [...(formulas || [])];
+  for (const pf of portalFormulas || []) {
+    if (!allFormulas.some((f) => f.id === pf.id)) {
+      allFormulas.push(pf);
+    }
+  }
+
+  return { rights, events, veteran, formulas: allFormulas };
 }

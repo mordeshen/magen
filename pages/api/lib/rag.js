@@ -9,6 +9,73 @@ import { join } from "path";
 let _rights = null;
 let _events = null;
 
+/**
+ * Generate embedding via OpenAI (for semantic search)
+ * Returns null if OPENAI_API_KEY not set
+ */
+async function getQueryEmbedding(text) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: text,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data?.[0]?.embedding || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Semantic search using embeddings (best quality)
+ */
+async function searchRightsSemantic(supabase, queries, categories) {
+  if (!supabase || !queries?.length) return null;
+
+  const searchText = queries.join(" ");
+  const embedding = await getQueryEmbedding(searchText);
+  if (!embedding) return null;
+
+  try {
+    const { data, error } = await supabase.rpc("search_rights", {
+      query_embedding: embedding,
+      match_count: 5,
+      filter_categories: categories?.length ? categories : null,
+    });
+
+    if (error || !data?.length) return null;
+
+    console.log(`[RAG] rights source: semantic search (${data.length} results, top similarity: ${data[0].similarity?.toFixed(3)})`);
+    return data.map((r) => ({
+      id: r.id,
+      category: r.category,
+      title: r.title,
+      summary: r.summary,
+      details: r.details,
+      practical_tip: r.practical_tip,
+      phone_number: r.phone_number,
+      formula_template: r.formula_template,
+      _score: r.similarity,
+      _source: "semantic",
+    }));
+  } catch (err) {
+    console.warn("[RAG] Semantic search failed:", err?.message);
+    return null;
+  }
+}
+
 function loadRights() {
   if (_rights) return _rights;
   try {
@@ -240,8 +307,11 @@ export async function fetchRAG(brief, supabase) {
   const categories = brief.categories || [];
 
   // Run all searches in parallel
-  const [supabaseRights, events, veteran, formulas, portalFormulas] = await Promise.all([
-    // Try Supabase rights_knowledge first
+  const [semanticRights, supabaseRights, events, veteran, formulas, portalFormulas] = await Promise.all([
+    // Try semantic search first (best quality, needs OPENAI_API_KEY)
+    searchRightsSemantic(supabase, queries, categories),
+
+    // Try Supabase keyword search as fallback
     searchRightsSupabase(supabase, queries, categories),
 
     // Events (if events hat or relevant)
@@ -261,9 +331,11 @@ export async function fetchRAG(brief, supabase) {
     brief.include_formula ? searchPortalFormulas(supabase, categories) : Promise.resolve([]),
   ]);
 
-  // Fall back to local JSON if Supabase returned nothing
+  // Cascade: semantic → Supabase keyword → local JSON
   let rights;
-  if (supabaseRights?.length) {
+  if (semanticRights?.length) {
+    rights = semanticRights;
+  } else if (supabaseRights?.length) {
     rights = supabaseRights;
   } else {
     rights = searchRightsKeyword(queries, categories);

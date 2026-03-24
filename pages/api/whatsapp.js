@@ -7,7 +7,7 @@
 // Layer 3 (async): Learn from interaction
 
 import { getAdminSupabase } from "./lib/supabase-admin";
-import { MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
+import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
 import { generateBrief } from "./lib/understanding";
 import { fetchRAG } from "./lib/rag";
 import { logBrief, processLearning } from "./lib/learning";
@@ -575,7 +575,7 @@ export default async function handler(req, res) {
         "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
-        model: MODEL_SONNET,
+        model: MODEL_OPUS,
         max_tokens: 600,
         system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: [

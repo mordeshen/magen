@@ -7,28 +7,73 @@
 // Layer 3 (async): Learn from interaction
 
 import { getAdminSupabase } from "./lib/supabase-admin";
-import { MODEL_SONNET } from "./lib/models";
-import { invertedChat } from "./lib/inverted-chat";
+import { MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
+import { generateBrief } from "./lib/understanding";
+import { fetchRAG } from "./lib/rag";
+import { logBrief, processLearning } from "./lib/learning";
 
 export const config = {
   api: { bodyParser: true },
 };
 
-// Legacy fallback prompt (used if inverted architecture fails)
-const LEGACY_SYSTEM_PROMPT = `אתה יועץ AI של פלטפורמת מגן — מערכת תמיכה לגמלאי צה"ל פצועים.
+// Primary prompt — Sonnet gives deep, quality response
+const PRIMARY_SYSTEM_PROMPT = `אתה יועץ AI של מגן — פורטל לפצועי צה"ל. אתה מדבר בוואטסאפ.
 
-תפקידך:
-- לעזור בשאלות על זכאות וקצבאות ממשרד הביטחון והמוסד לביטוח לאומי
-- להסביר תהליכים ביורוקרטיים בצורה פשוטה וברורה
-- להפנות לטפסים הנכונים
-- לתמוך רגשית במידת הצורך
+=== כובעים — בחר את המתאים אוטומטית ===
+- דן (זכויות): חוקים, ועדות, ערעורים, נוסחי פנייה
+- מיכל (ליווי): ניווט בירוקרטיה, טפסים, שלבים מעשיים
+- אורי (תמיכה): תמיכה רגשית, PTSD, חבר ותיק בגובה העיניים
+- רועי (ותיקים): טיפים מניסיון אמיתי של פצועים
+- שירה (אירועים): אירועים, סדנאות, טיולים
 
-חוקים:
-- ענה תמיד בעברית
-- היה חם, ישיר, ומכבד
-- אל תמציא מידע — אם אינך בטוח, אמור זאת והפנה לנציג אנושי
-- הודעות קצרות ל-WhatsApp: עד 3-4 משפטים בתשובה רגילה
-- אם המשתמש במצוקה — הפנה מיד לקו סיוע: *8944`;
+=== הנחות יסוד ===
+- כל פונה הוא פצוע צה"ל עם PTSD ברמה כלשהי — גם אם לא אומר
+- "הכל בסדר" = כנראה לא בסדר. "אני אסתדר" = אל תעזוב אותו
+- זהה masking: תשובות קצרות, ציניות, הקטנה = דפוסי הגנה
+- מהרגש → פרקטיקה. קודם הכר ברגש, אחר כך פתרון
+
+=== חוקים ===
+- עברית ישראלית טבעית, כמו חבר — לא כמו טופס
+- תשובות: 3-6 משפטים (זה וואטסאפ!)
+- לעולם לא "כמה אחוזים?" — תמיד "איפה אתה עומד מול משרד הביטחון?"
+- לעולם לא "בהצלחה" יבש — תמיד "אני כאן, תחזור"
+- תמיד תן שלבים מעשיים עם מספרי טלפון ומה להגיד
+- סיים עם שאלה שמניעה לפעולה
+- במצוקה — הפנה מיד ל-*8944 (נפש אחת, 24/7)
+- קו פצועים: *6500 | פורטל: shikum.mod.gov.il
+
+=== פורמט ===
+פתח עם שם הכובע בשורה ראשונה, אח"כ קו מפריד, אח"כ התשובה:
+דן (זכויות)
+─────────────
+תוכן התשובה...`;
+
+// Follow-up prompt — Haiku checks if Sonnet missed something
+const FOLLOWUP_SYSTEM_PROMPT = `אתה בודק שיחות של מגן — פורטל AI לפצועי צה"ל.
+קיבלת הודעת משתמש ותשובה ראשונית שכבר נשלחה.
+
+בדוק אם התשובה הראשונית פספסה משהו חשוב:
+1. זכויות שלא הוזכרו שהמשתמש כנראה לא יודע עליהן
+2. מידע מעשי חסר (מספר טלפון, נוסח פנייה, שלב בתהליך)
+3. סימני מצוקה שלא טופלו (masking, בידוד, חוסר תקווה)
+4. טיפ מעשי מניסיון ותיקים שרלוונטי
+
+החזר JSON בלבד:
+{
+  "needs_followup": true/false,
+  "followup_message": "ההודעה הנוספת" | null
+}
+
+כללים:
+- אם התשובה טובה ומספקת — needs_followup: false
+- follow-up חייב להיות קצר (2-3 משפטים), טבעי, כאילו "אה, רגע — שכחתי להגיד..."
+- לא לחזור על מה שכבר נאמר
+- אם זיהית מצוקה: "*8944 — נפש אחת, 24/7, אנונימי"
+- אם יש זכות שלא הוזכרה: "אגב, ידעת שמגיע לך גם..."
+- אם יש טיפ: "טיפ מניסיון: ..."`;
+
+// Legacy fallback
+const LEGACY_SYSTEM_PROMPT = PRIMARY_SYSTEM_PROMPT;
 
 const MAX_HISTORY = 20;
 const OTP_EXPIRY_MINUTES = 10;
@@ -470,63 +515,148 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, layer: "auth" });
     }
 
-    // ── Layer 1+: Normal chat flow ──────────────────────────────
+    // ── Parallel architecture: Sonnet first, Haiku follow-up ──
 
-    // 1. Fetch conversation history
-    const history = await getHistory(supabase, from);
+    // 1. Fetch history + pairing context in parallel
+    const [history, pairing] = await Promise.all([
+      getHistory(supabase, from),
+      getPairing(supabase, from),
+    ]);
 
     // 2. Save user message
     await saveMessage(supabase, from, "user", message);
 
-    // 3. Build context — check for pairing to enrich with profile/memory
-    const pairing = await getPairing(supabase, from);
+    // 3. Build context
     let profile = null;
     let memory = [];
-
     if (pairing) {
       const userCtx = await getUserContext(supabase, pairing.user_id);
       profile = userCtx.profile;
       memory = userCtx.memory;
     }
 
-    // 4. Try inverted architecture
+    // 4. Build system prompt with RAG context
+    let systemPrompt = PRIMARY_SYSTEM_PROMPT;
+
+    // Add profile context
+    if (profile) {
+      systemPrompt += `\n\n[פרופיל משתמש]`;
+      if (profile.name) systemPrompt += `\nשם: ${profile.name}`;
+      if (profile.city) systemPrompt += `\nעיר: ${profile.city}`;
+      if (profile.claim_status) systemPrompt += `\nסטטוס: ${profile.claim_status}`;
+      if (profile.disability_percent) systemPrompt += `\nאחוזי נכות: ${profile.disability_percent}%`;
+    }
+
+    // Add memory
+    if (memory.length > 0) {
+      systemPrompt += `\n\n[זיכרון מסשנים קודמים]`;
+      memory.forEach(m => { systemPrompt += `\n• ${m.key}: ${m.value}`; });
+    }
+
+    // Fetch RAG knowledge (quick keyword search — no embedding delay)
+    const ragBrief = { rag_queries: [message], categories: [], hat: null, intent: null, include_formula: false };
+    const ragResults = await fetchRAG(ragBrief, supabase);
+
+    if (ragResults.rights?.length > 0) {
+      systemPrompt += `\n\n[זכויות רלוונטיות]`;
+      ragResults.rights.slice(0, 3).forEach(r => {
+        systemPrompt += `\n• ${r.title}: ${r.summary || r.details}`;
+        if (r.practical_tip) systemPrompt += ` (טיפ: ${r.practical_tip})`;
+      });
+    }
+
+    // 5. Sonnet — deep, quality primary response
+    const primaryRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
+      },
+      body: JSON.stringify({
+        model: MODEL_SONNET,
+        max_tokens: 600,
+        system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+        messages: [
+          ...history.slice(-4).map(m => ({ role: m.role, content: m.content })),
+          { role: "user", content: message },
+        ],
+      }),
+    });
+
     let reply;
-    let brief = null;
-
-    const context = {
-      recentMessages: history.slice(-6),
-      clientHat: null,
-      profile,
-      memory,
-      conversationId: from,
-    };
-
-    const result = await invertedChat(message, context, supabase);
-
-    if (result) {
-      reply = formatWhatsAppReply(result.reply, result.brief);
-      brief = result.brief;
-      console.log(`[whatsapp] Layer ${result.layer} | Hat: ${result.brief.hat} | Complexity: ${result.brief.complexity} | Paired: ${!!pairing}`);
+    if (primaryRes.ok) {
+      const data = await primaryRes.json();
+      reply = data.content?.[0]?.text || "מצטער, נסה שוב.";
     } else {
-      console.warn("[whatsapp] Inverted architecture failed, using legacy");
+      console.error("[whatsapp] Sonnet error:", primaryRes.status);
       reply = await callClaudeLegacy(history, message);
     }
 
-    // 5. If not paired, occasionally suggest pairing (append to reply)
+    // 6. If not paired, occasionally suggest pairing
     if (!pairing) {
       const shouldSuggest = await shouldSuggestPairing(supabase, from);
       if (shouldSuggest) {
-        reply += "\n\n─────────────\nאגב, אם יש לך חשבון באתר מגן, שלח לי את המייל שנרשמת איתו ואני אחבר את החשבון שלך כדי שאוכל לעזור לך בצורה אישית יותר.";
+        reply += "\n\n─────────────\nאגב, אם יש לך חשבון באתר מגן, שלח לי את המייל שנרשמת איתו ואחבר את החשבון שלך כדי שאוכל לעזור בצורה אישית יותר.";
       }
     }
 
-    // 6. Save AI response
+    // 7. Save + send primary response immediately
     await saveMessage(supabase, from, "assistant", reply);
-
-    // 7. Send back via Twilio
     await sendWhatsApp(from, reply);
 
-    return res.status(200).json({ ok: true, layer: result?.layer, paired: !!pairing });
+    // 8. Respond to Twilio immediately — don't block
+    res.status(200).json({ ok: true, paired: !!pairing });
+
+    // 9. Background: Haiku checks if follow-up needed (fire and forget)
+    (async () => {
+      try {
+        const followupRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": process.env.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: MODEL_HAIKU,
+            max_tokens: 300,
+            system: FOLLOWUP_SYSTEM_PROMPT,
+            messages: [{
+              role: "user",
+              content: `[ידע זכויות זמין]\n${ragResults.rights?.map(r => `• ${r.title}: ${r.details}`).join("\n") || "אין"}\n\n[הודעת משתמש]\n${message}\n\n[תשובה שנשלחה]\n${reply}`,
+            }],
+          }),
+        });
+
+        if (!followupRes.ok) return;
+
+        const fData = await followupRes.json();
+        const fText = fData.content?.[0]?.text || "";
+        const jsonMatch = fText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return;
+
+        const followup = JSON.parse(jsonMatch[0]);
+
+        if (followup.needs_followup && followup.followup_message) {
+          console.log(`[whatsapp] Follow-up triggered: ${followup.followup_message.slice(0, 50)}...`);
+          await saveMessage(supabase, from, "assistant", followup.followup_message);
+          await sendWhatsApp(from, followup.followup_message);
+        }
+      } catch (e) {
+        console.error("[whatsapp] Follow-up error:", e.message);
+      }
+
+      // Learning layer (async)
+      processLearning(supabase, {
+        brief: { hat: "auto", intent: "auto", complexity: "auto" },
+        responseText: reply,
+        userMessage: message,
+      }).catch(() => {});
+    })();
+
+    return; // Already responded
   } catch (err) {
     console.error("WhatsApp webhook error:", err);
     return res.status(500).json({ error: "internal error" });

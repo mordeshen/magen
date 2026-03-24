@@ -76,9 +76,21 @@ const FOLLOWUP_SYSTEM_PROMPT = `אתה בודק שיחות של מגן — פו�
 const LEGACY_SYSTEM_PROMPT = PRIMARY_SYSTEM_PROMPT;
 
 const MAX_HISTORY = 20;
-const OTP_EXPIRY_MINUTES = 10;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const OTP_REGEX = /^\d{6}$/;
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://magen.app";
+
+// Welcome message for first-time users
+const WELCOME_MESSAGE = `שלום! אני מגן — העוזר האישי שלך לכל מה שקשור לזכויות פצועי צה"ל.
+
+יש לי חמישה כובעים, ואני אבחר את המתאים אוטומטית:
+
+🏛️ *דן* — מומחה זכויות. חוקים, ועדות, ערעורים, נוסחי פנייה מוכנים
+📋 *מיכל* — מלווה בירוקרטיה. שלב אחרי שלב, עם מספרי טלפון ומה להגיד
+💬 *אורי* — חבר ותיק שעבר את זה. תמיכה בגובה העיניים, בלי שיפוטיות
+🎖️ *רועי* — חכמת ותיקים. טיפים מניסיון אמיתי של מי שכבר עבר את הדרך
+🎭 *שירה* — אירועים ופעילויות. סדנאות, טיולים, תרבות — מתאימה לך אישית
+
+פשוט כתוב מה עובר עליך או מה אתה צריך — אני כאן.
+הכל פרטי לחלוטין. 🔒`;
 
 // Hat display names for WhatsApp
 const HAT_LABELS = {
@@ -239,162 +251,16 @@ async function unpair(supabase, phone) {
 }
 
 /**
- * Generate a random 6-digit OTP code.
+ * Generate a signed pair token for link-based auth.
+ * Token = base64url(JSON) + "." + HMAC signature
  */
-function generateOTP() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-/**
- * Store OTP in whatsapp_otp table.
- * Upserts by phone so only one active OTP per phone at a time.
- */
-async function storeOTP(supabase, phone, email, code) {
-  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
-
-  const { error } = await supabase
-    .from("whatsapp_otp")
-    .upsert(
-      { phone, email, code, expires_at: expiresAt, attempts: 0 },
-      { onConflict: "phone" }
-    );
-
-  if (error) console.error("[whatsapp] storeOTP error:", error);
-  return !error;
-}
-
-/**
- * Verify OTP code. Returns { valid: true, email } or { valid: false, reason }.
- */
-async function verifyOTP(supabase, phone, code) {
-  const { data, error } = await supabase
-    .from("whatsapp_otp")
-    .select("code, email, expires_at, attempts")
-    .eq("phone", phone)
-    .maybeSingle();
-
-  if (error || !data) {
-    return { valid: false, reason: "no_otp" };
-  }
-
-  // Check expiry
-  if (new Date(data.expires_at) < new Date()) {
-    await supabase.from("whatsapp_otp").delete().eq("phone", phone);
-    return { valid: false, reason: "expired" };
-  }
-
-  // Check attempts (max 5)
-  if (data.attempts >= 5) {
-    await supabase.from("whatsapp_otp").delete().eq("phone", phone);
-    return { valid: false, reason: "too_many_attempts" };
-  }
-
-  // Increment attempts
-  await supabase
-    .from("whatsapp_otp")
-    .update({ attempts: data.attempts + 1 })
-    .eq("phone", phone);
-
-  if (data.code !== code) {
-    return { valid: false, reason: "wrong_code" };
-  }
-
-  // Valid — clean up OTP record
-  await supabase.from("whatsapp_otp").delete().eq("phone", phone);
-  return { valid: true, email: data.email };
-}
-
-/**
- * Create pairing between phone and user account.
- */
-async function createPairing(supabase, phone, userId, email) {
-  const { error } = await supabase
-    .from("whatsapp_pairings")
-    .insert({ phone, user_id: userId, email });
-
-  if (error) console.error("[whatsapp] createPairing error:", error);
-  return !error;
-}
-
-/**
- * Look up a user by email in Supabase Auth.
- * Returns user object or null.
- */
-async function findUserByEmail(supabase, email) {
-  // Use the admin API to list users filtered by email
-  const { data, error } = await supabase.auth.admin.listUsers({
-    filter: email,
-    perPage: 1,
-  });
-
-  if (error) {
-    console.error("[whatsapp] findUserByEmail error:", error);
-    return null;
-  }
-
-  // listUsers returns { users: [...] }
-  const users = data?.users || [];
-  // Find exact match (filter is a substring match)
-  return users.find((u) => u.email === email) || null;
-}
-
-/**
- * Send OTP code to user's email via Resend API.
- * Returns true if sent, false if no email service available.
- */
-async function sendOTPEmail(email, code) {
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    console.warn("[whatsapp] No RESEND_API_KEY — cannot send OTP email");
-    return false;
-  }
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "מגן <noreply@resend.dev>",
-        to: [email],
-        subject: "קוד אימות לחיבור וואטסאפ — מגן",
-        html: `
-          <div dir="rtl" style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 2rem;">
-            <h2 style="color: #1c1917;">חיבור וואטסאפ לחשבון מגן</h2>
-            <p>הקוד שלך לחיבור וואטסאפ:</p>
-            <div style="font-size: 2rem; font-weight: bold; letter-spacing: 0.3em; background: #f5f5f4; padding: 1rem; text-align: center; border-radius: 8px; margin: 1rem 0;">
-              ${code}
-            </div>
-            <p style="color: #57534e; font-size: 0.875rem;">הקוד תקף ל-${OTP_EXPIRY_MINUTES} דקות. אם לא ביקשת חיבור וואטסאפ, התעלם מהודעה זו.</p>
-          </div>
-        `,
-      }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("[whatsapp] Resend error:", res.status, text);
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.error("[whatsapp] sendOTPEmail error:", err);
-    return false;
-  }
-}
-
-/**
- * Mask email for display: "us**@gm***.com"
- */
-function maskEmail(email) {
-  const [local, domain] = email.split("@");
-  const maskedLocal = local.slice(0, 2) + "**";
-  const domainParts = domain.split(".");
-  const maskedDomain = domainParts[0].slice(0, 2) + "***." + domainParts.slice(1).join(".");
-  return `${maskedLocal}@${maskedDomain}`;
+function generatePairToken(phone) {
+  const crypto = require("crypto");
+  const secret = process.env.PAIR_TOKEN_SECRET || "magen-pair-secret-2026";
+  const payload = JSON.stringify({ phone, exp: Date.now() + 10 * 60 * 1000 }); // 10 min
+  const b64 = Buffer.from(payload).toString("base64url");
+  const sig = crypto.createHmac("sha256", secret).update(b64).digest("base64url");
+  return b64 + "." + sig;
 }
 
 // ─── Auth Flow Handler ──────────────────────────────────────────
@@ -411,81 +277,38 @@ async function handleAuthFlow(supabase, phone, message) {
     const pairing = await getPairing(supabase, phone);
     if (pairing) {
       await unpair(supabase, phone);
-      return "החשבון נותק בהצלחה. אני עדיין כאן לעזור, אבל בלי הפרופיל האישי שלך. אפשר לחבר מחדש בכל עת על ידי שליחת כתובת המייל.";
+      return "החשבון נותק בהצלחה. אני עדיין כאן לעזור, אבל בלי הפרופיל האישי שלך.\n\nאפשר לחבר מחדש בכל עת — פשוט כתוב \"חבר חשבון\".";
     }
-    return "אין חשבון מחובר כרגע. כדי לחבר חשבון, שלח את כתובת המייל שנרשמת איתה באתר מגן.";
+    return null; // Not paired, not an auth message
   }
 
-  // ── Already paired — no auth handling needed ──
-  const pairing = await getPairing(supabase, phone);
-  if (pairing) return null;
-
-  // ── User sent an email address ──
-  if (EMAIL_REGEX.test(trimmed)) {
-    const email = trimmed.toLowerCase();
-
-    // Verify email exists in auth system
-    const user = await findUserByEmail(supabase, email);
-    if (!user) {
-      return "לא מצאתי חשבון עם כתובת המייל הזו באתר מגן. בדוק שהכתובת נכונה, או הירשם באתר magen.app ונסה שוב.";
+  // ── Pair request ──
+  if (trimmed === "חבר חשבון" || trimmed === "התחבר" || trimmed === "חיבור חשבון") {
+    const pairing = await getPairing(supabase, phone);
+    if (pairing) {
+      return "החשבון שלך כבר מחובר! אני מכיר אותך ורואה את הפרופיל שלך. 😊\n\nאם תרצה להתנתק, שלח \"התנתק\".";
     }
 
-    // Generate OTP and store
-    const code = generateOTP();
-    const stored = await storeOTP(supabase, phone, email, code);
-    if (!stored) {
-      return "אירעה שגיאה. נסה שוב בעוד רגע.";
-    }
-
-    // Try to send OTP via email
-    const emailSent = await sendOTPEmail(email, code);
-    const masked = maskEmail(email);
-
-    if (emailSent) {
-      return `מצאתי את החשבון שלך. שלחתי קוד אימות בן 6 ספרות לכתובת ${masked}.\n\nבדוק את המייל ושלח לי את הקוד כאן.\nהקוד תקף ל-${OTP_EXPIRY_MINUTES} דקות.`;
-    } else {
-      // Fallback: no email service — tell user to check website
-      // In a real scenario you'd want to ensure email delivery,
-      // but for MVP we inform the user
-      return `מצאתי את החשבון שלך (${masked}), אבל לא הצלחתי לשלוח מייל כרגע.\n\nנסה שוב בעוד כמה דקות, או פנה אלינו דרך האתר.`;
-    }
+    // Generate link
+    const token = generatePairToken(phone);
+    const pairUrl = `${SITE_URL}/pair?token=${token}`;
+    return `לחץ על הקישור כדי לחבר את החשבון שלך:\n\n${pairUrl}\n\nהקישור תקף ל-10 דקות. אחרי החיבור אוכל לעזור לך בצורה אישית יותר — עם הפרופיל, הזיכרון, וכל מה שדיברנו עליו באתר.`;
   }
 
-  // ── User sent a 6-digit code ──
-  if (OTP_REGEX.test(trimmed)) {
-    const result = await verifyOTP(supabase, phone, trimmed);
-
-    if (result.valid) {
-      // Look up the user again to get their ID
-      const user = await findUserByEmail(supabase, result.email);
-      if (user) {
-        const paired = await createPairing(supabase, phone, user.id, result.email);
-        if (paired) {
-          return `החשבון חובר בהצלחה! מעכשיו אני מכיר את הפרופיל שלך ואוכל לעזור בצורה אישית יותר.\n\nכדי להתנתק בעתיד, שלח "התנתק".`;
-        }
-      }
-      return "אירעה שגיאה בחיבור החשבון. נסה שוב.";
-    }
-
-    // Invalid OTP — give specific feedback
-    switch (result.reason) {
-      case "expired":
-        return "הקוד פג תוקף. שלח שוב את כתובת המייל כדי לקבל קוד חדש.";
-      case "too_many_attempts":
-        return "יותר מדי ניסיונות. שלח שוב את כתובת המייל כדי לקבל קוד חדש.";
-      case "wrong_code":
-        return "הקוד שגוי. נסה שוב, או שלח את כתובת המייל מחדש לקבלת קוד חדש.";
-      case "no_otp":
-        // 6-digit number but no pending OTP — not an auth message
-        // Fall through to normal chat
-        return null;
-      default:
-        return null;
-    }
-  }
-
-  // ── Not an auth message — return null (handled by normal chat) ──
+  // ── Not an auth message ──
   return null;
+}
+
+/**
+ * Check if this is the user's first message ever → send welcome
+ */
+async function isFirstMessage(supabase, phone) {
+  const { count, error } = await supabase
+    .from("whatsapp_conversations")
+    .select("*", { count: "exact", head: true })
+    .eq("phone", phone);
+
+  return !error && (count === null || count === 0);
 }
 
 // ─── Main Handler ───────────────────────────────────────────────
@@ -505,17 +328,25 @@ export default async function handler(req, res) {
 
     const supabase = getAdminSupabase();
 
-    // ── Layer 0: Auth flow ──────────────────────────────────────
+    // ── Layer 0: First-time welcome ─────────────────────────────
+    const firstTime = await isFirstMessage(supabase, from);
+    if (firstTime) {
+      await saveMessage(supabase, from, "user", message);
+      await saveMessage(supabase, from, "assistant", WELCOME_MESSAGE);
+      await sendWhatsApp(from, WELCOME_MESSAGE);
+      // Don't return — continue to answer their actual message too
+    }
+
+    // ── Layer 0.5: Auth flow ────────────────────────────────────
     const authReply = await handleAuthFlow(supabase, from, message);
     if (authReply) {
-      // Auth flow handled the message — save and respond
-      await saveMessage(supabase, from, "user", message);
+      if (!firstTime) await saveMessage(supabase, from, "user", message);
       await saveMessage(supabase, from, "assistant", authReply);
       await sendWhatsApp(from, authReply);
       return res.status(200).json({ ok: true, layer: "auth" });
     }
 
-    // ── Parallel architecture: Sonnet first, Haiku follow-up ──
+    // ── Parallel architecture: Opus first, Haiku follow-up ──
 
     // 1. Fetch history + pairing context in parallel
     const [history, pairing] = await Promise.all([
@@ -523,8 +354,8 @@ export default async function handler(req, res) {
       getPairing(supabase, from),
     ]);
 
-    // 2. Save user message
-    await saveMessage(supabase, from, "user", message);
+    // 2. Save user message (if not already saved by welcome flow)
+    if (!firstTime) await saveMessage(supabase, from, "user", message);
 
     // 3. Build context
     let profile = null;
@@ -598,7 +429,7 @@ export default async function handler(req, res) {
     if (!pairing) {
       const shouldSuggest = await shouldSuggestPairing(supabase, from);
       if (shouldSuggest) {
-        reply += "\n\n─────────────\nאגב, אם יש לך חשבון באתר מגן, שלח לי את המייל שנרשמת איתו ואחבר את החשבון שלך כדי שאוכל לעזור בצורה אישית יותר.";
+        reply += "\n\n─────────────\nאגב, אם יש לך חשבון באתר מגן, כתוב \"חבר חשבון\" ואשלח לך קישור לחיבור — ככה אוכל לעזור בצורה אישית יותר.";
       }
     }
 

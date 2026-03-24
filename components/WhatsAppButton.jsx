@@ -15,6 +15,13 @@ export default function WhatsAppButton() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Allow external triggers (sidebar icon)
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener("open-whatsapp-modal", handler);
+    return () => window.removeEventListener("open-whatsapp-modal", handler);
+  }, []);
+
   const handleOpen = useCallback(() => setOpen(true), []);
   const handleClose = useCallback(() => setOpen(false), []);
 

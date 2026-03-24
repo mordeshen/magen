@@ -2381,7 +2381,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   ];
 
   // SVG favicon (shield)
-  const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="var(--accent-primary)"/><stop offset="100%" stop-color="var(--copper-600)"/></linearGradient></defs><path d="M32 4 L56 14 L56 30 C56 44 46 54 32 60 C18 54 8 44 8 30 L8 14 Z" fill="url(#g)"/><path d="M32 8 L52 16 L52 30 C52 42 44 51 32 56 C20 51 12 42 12 30 L12 16 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/></svg>`)}`;
+  const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#d97706"/><stop offset="100%" stop-color="#c2410c"/></linearGradient></defs><path d="M32 4 L56 14 L56 30 C56 44 46 54 32 60 C18 54 8 44 8 30 L8 14 Z" fill="url(#g)"/><path d="M32 8 L52 16 L52 30 C52 42 44 51 32 56 C20 51 12 42 12 30 L12 16 Z" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/></svg>`)}`;
 
   return (
     <>

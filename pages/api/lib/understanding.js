@@ -127,11 +127,12 @@ export async function generateBrief(userMessage, context) {
         "content-type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
         model: MODEL_SONNET,
         max_tokens: 400,
-        system: UNDERSTANDING_SYSTEM_PROMPT,
+        system: [{ type: "text", text: UNDERSTANDING_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: input }],
       }),
       signal: controller.signal,

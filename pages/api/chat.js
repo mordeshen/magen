@@ -8,6 +8,10 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
 import { MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
+import { invertedChat } from "./lib/inverted-chat";
+
+// Feature flag: set INVERTED_ARCH=1 in Railway to enable
+const USE_INVERTED = process.env.INVERTED_ARCH === "1";
 
 // Load site actions for portal guidance
 let SITE_ACTIONS = [];
@@ -1204,6 +1208,103 @@ export default async function handler(req, res) {
   const lastUserText = lastUserMsg
     ? (typeof lastUserMsg.content === "string" ? lastUserMsg.content : lastMessageText || "")
     : "";
+
+  // === INVERTED ARCHITECTURE PATH ===
+  // When enabled, uses 3-layer system: Understanding (Sonnet) → Execution (Haiku) → Learning
+  if (USE_INVERTED && !attachment) {
+    try {
+      const supabase = getAdminSupabase();
+      const context = {
+        recentMessages: messages.slice(-6),
+        clientHat: hatExplicit ? clientHat : null,
+        profile: userProfile || null,
+        memory: memory || [],
+        conversationId: body.sessionId || null,
+      };
+
+      const result = await invertedChat(lastUserText, context, supabase);
+
+      if (result) {
+        console.log(`[chat] INVERTED Layer ${result.layer} | Hat: ${result.brief.hat} | Complexity: ${result.brief.complexity}`);
+
+        // Token tracking (estimate ~300 tokens for understanding + execution)
+        const estimatedTokens = result.layer === 1 ? 1500 : 800;
+        let tokenInfo = { used: estimatedTokens, remaining: allowance.remaining, plan: allowance.planId };
+        try {
+          const admin = getAdminSupabase();
+          if (allowance.userId) {
+            const { data: deductResult } = await admin.rpc("deduct_tokens", {
+              p_user_id: allowance.userId, p_amount: estimatedTokens, p_is_daily: allowance.planId === "free",
+            });
+            if (deductResult) tokenInfo.remaining = deductResult.remaining;
+          } else {
+            const today = new Date().toISOString().split("T")[0];
+            const { data: ipResult } = await admin.rpc("increment_ip_usage", {
+              p_ip: ip, p_date: today, p_amount: estimatedTokens,
+            });
+            if (ipResult) tokenInfo.remaining = ipResult.remaining;
+          }
+        } catch (e) { console.error("Token tracking error:", e); }
+
+        // Memory extraction + title generation (parallel, non-blocking)
+        let extractedMemory = [];
+        let sessionTitle = null;
+
+        const [memResult, titleResult] = await Promise.all([
+          body.extractMemory && messages.length >= 4
+            ? fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+                body: JSON.stringify({
+                  model: MODEL_HAIKU, max_tokens: 256,
+                  system: "חלץ עובדות חשובות על המשתמש מהשיחה (עד 5). החזר JSON array: [{\"key\":\"מפתח קצר\",\"value\":\"ערך\"}]. אם אין עובדות חדשות — החזר []. החזר רק JSON, בלי הסברים.",
+                  messages: [{ role: "user", content: messages.slice(-6).map(m => `${m.role}: ${typeof m.content === "string" ? m.content : "[מורכב]"}`).join("\n") }],
+                }),
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            : Promise.resolve(null),
+          body.generateTitle && messages.length >= 2
+            ? fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+                body: JSON.stringify({
+                  model: MODEL_HAIKU, max_tokens: 30,
+                  system: "תן כותרת קצרה (3-5 מילים בעברית) לשיחה הבאה. החזר רק את הכותרת, בלי גרשיים.",
+                  messages: [{ role: "user", content: messages.slice(0, 4).map(m => `${m.role}: ${typeof m.content === "string" ? m.content : "[מורכב]"}`).join("\n") }],
+                }),
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+
+        if (memResult) {
+          try { extractedMemory = JSON.parse(memResult.content?.[0]?.text || "[]"); } catch {}
+        }
+        if (titleResult) {
+          sessionTitle = titleResult.content?.[0]?.text?.trim() || null;
+        }
+
+        const estimatedCost = FEATURE_CONFIG
+          .filter(f => activeFeatures.has(f.id))
+          .reduce((sum, f) => sum + f.estimated_tokens, 0);
+
+        return res.json({
+          reply: result.reply,
+          extractedMemory,
+          sessionTitle,
+          tokenInfo,
+          activeFeatures: [...activeFeatures],
+          estimatedCost,
+          _inverted: true,
+          _layer: result.layer,
+          _hat: result.brief.hat,
+        });
+      }
+    } catch (e) {
+      console.error("[chat] Inverted architecture error, falling back to legacy:", e.message);
+    }
+    // If inverted fails, fall through to legacy path below
+  }
+
+  // === LEGACY PATH (original architecture) ===
 
   // --- Step 1: Summarize conversation if needed ---
   const { summary: conversationSummary, messages: optimizedMessages } = await summarizeConversation(messages);

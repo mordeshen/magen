@@ -63,11 +63,12 @@ export async function processLearning(supabase, { brief, responseText, userMessa
         "content-type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
         model: MODEL_HAIKU,
         max_tokens: 300,
-        system: LEARNING_SYSTEM_PROMPT,
+        system: [{ type: "text", text: LEARNING_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: input }],
       }),
     });

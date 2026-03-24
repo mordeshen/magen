@@ -110,11 +110,12 @@ export async function invertedChat(userMessage, context, supabase) {
         "content-type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
         model: MODEL_SONNET,
         max_tokens: 1000,
-        system: directPrompt + contextBlock,
+        system: [{ type: "text", text: directPrompt + contextBlock, cache_control: { type: "ephemeral" } }],
         messages: [
           ...(context.recentMessages || []).slice(-3),
           { role: "user", content: userMessage },

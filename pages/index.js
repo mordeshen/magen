@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import Head from "next/head";
 import { useUser } from "../lib/UserContext";
 import MagenMedicalSummary from "../components/MagenMedicalSummary";
+import WhatsAppButton from "../components/WhatsAppButton";
 
 // ─── Utilities ────────────────────────────────────────────
 
@@ -4125,6 +4126,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           .hat-row-mini { bottom:12px; left:12px; padding:6px 10px; }
         }
       `}</style>
+      <WhatsAppButton />
     </>
   );
 }

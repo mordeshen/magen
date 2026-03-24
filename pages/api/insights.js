@@ -18,6 +18,15 @@ export default async function handler(req, res) {
     const supabase = getAdminSupabase();
 
     // Run all queries in parallel
+    // Date boundaries for topic trends
+    const now = new Date();
+    const d7 = new Date(now);
+    d7.setDate(d7.getDate() - 7);
+    const d30 = new Date(now);
+    d30.setDate(d30.getDate() - 30);
+    const date7 = d7.toISOString().slice(0, 10);
+    const date30 = d30.toISOString().slice(0, 10);
+
     const [
       patternsRes,
       graphRes,
@@ -25,6 +34,8 @@ export default async function handler(req, res) {
       briefsCountRes,
       layerDistRes,
       learnedRes,
+      topicTrends7Res,
+      topicTrends30Res,
     ] = await Promise.all([
       // Top conversation patterns by usage_count
       supabase
@@ -63,6 +74,18 @@ export default async function handler(req, res) {
         .select("id, intent, trigger_keywords, brief_template, success_count, last_used")
         .order("last_used", { ascending: false })
         .limit(10),
+
+      // Topic trends — last 7 days
+      supabase
+        .from("question_topic_stats")
+        .select("intent, hat, category, complexity, emotional_state, question_count, period_start")
+        .gte("period_start", date7),
+
+      // Topic trends — last 30 days
+      supabase
+        .from("question_topic_stats")
+        .select("intent, hat, category, complexity, emotional_state, question_count, period_start")
+        .gte("period_start", date30),
     ]);
 
     // Compute stats from brief_log data
@@ -97,6 +120,33 @@ export default async function handler(req, res) {
       ? (complexitySum / complexityN).toFixed(2)
       : "N/A";
 
+    // Aggregate topic trends into summaries
+    function summarizeTopics(rows) {
+      const byIntent = {};
+      const byHat = {};
+      const byCategory = {};
+      const byComplexity = {};
+      const byEmotion = {};
+      let total = 0;
+
+      for (const r of rows || []) {
+        const c = r.question_count || 0;
+        total += c;
+        byIntent[r.intent] = (byIntent[r.intent] || 0) + c;
+        byHat[r.hat] = (byHat[r.hat] || 0) + c;
+        byCategory[r.category] = (byCategory[r.category] || 0) + c;
+        byComplexity[r.complexity] = (byComplexity[r.complexity] || 0) + c;
+        byEmotion[r.emotional_state] = (byEmotion[r.emotional_state] || 0) + c;
+      }
+
+      return { total, byIntent, byHat, byCategory, byComplexity, byEmotion };
+    }
+
+    const topicTrends = {
+      last_7_days: summarizeTopics(topicTrends7Res.data),
+      last_30_days: summarizeTopics(topicTrends30Res.data),
+    };
+
     return res.status(200).json({
       patterns: patternsRes.data || [],
       rights_graph: graphRes.data || [],
@@ -109,6 +159,7 @@ export default async function handler(req, res) {
         avg_complexity: avgComplexity,
       },
       learned_responses: learnedRes.data || [],
+      topic_trends: topicTrends,
     });
   } catch (err) {
     console.error("[insights] error:", err.message);

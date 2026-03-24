@@ -3,6 +3,7 @@
 // =============================================================
 
 import { MODEL_HAIKU } from "./models";
+import crypto from "crypto";
 
 const LEARNING_SYSTEM_PROMPT = `אתה מנתח שיחות של מגן — פורטל AI לפצועי צה"ל.
 אחרי כל שיחה, תבדוק:
@@ -28,10 +29,16 @@ export async function logBrief(supabase, { conversationId, brief, responseText, 
   if (!supabase) return;
 
   try {
+    // Privacy: hash phone-based conversation IDs (WhatsApp, etc.)
+    let safeId = conversationId;
+    if (safeId && /whatsapp:\+|^\+\d/.test(safeId)) {
+      safeId = crypto.createHash("sha256").update(safeId).digest("hex").slice(0, 16);
+    }
+
     await supabase.from("brief_log").insert({
-      conversation_id: conversationId,
+      conversation_id: safeId,
       brief,
-      response_text: responseText,
+      response_text: null, // stripped — may contain echoed PII
       resolved_at_layer: resolvedAtLayer,
     });
   } catch (e) {

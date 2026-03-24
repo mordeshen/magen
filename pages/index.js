@@ -147,7 +147,7 @@ function RightCard({ r, open, onToggle }) {
   return (
     <div className={`card ${open?"open":""}`} onClick={onToggle}>
       <div className="card-row">
-        <span className="badge cat-badge">{r.category}</span>
+        <span className="badge cat-badge" data-cat={r.category}>{r.category}</span>
         <span className="badge urg-badge" style={{ color: u.color, background: u.bg }}>{u.label}</span>
       </div>
       <h3 className="card-h">{r.title}</h3>
@@ -195,7 +195,7 @@ function EventCard({ ev }) {
     <div className="ev-card">
       <div className="ev-top">
         <OrgBadge organizer={ev.organizer || "אחר"} />
-        <span className="badge cat-badge">{ev.category}</span>
+        <span className="badge cat-badge" data-cat={ev.category}>{ev.category}</span>
         {ev.free && <span className="badge free-badge">חינם</span>}
         {soon && <span className="badge soon-badge">{soon}</span>}
       </div>
@@ -538,7 +538,7 @@ function ProfileView({ rights, onNavigateToRight }) {
           <div className="stack">
             {inProgress.map(r => (
               <div key={r.id} className="profile-right-item prog clickable" onClick={() => onNavigateToRight(r.id)}>
-                <span className="badge cat-badge">{r.category}</span>
+                <span className="badge cat-badge" data-cat={r.category}>{r.category}</span>
                 <span>{r.title}</span>
                 <span className="profile-right-arrow">←</span>
               </div>
@@ -553,7 +553,7 @@ function ProfileView({ rights, onNavigateToRight }) {
           <div className="stack">
             {completed.map(r => (
               <div key={r.id} className="profile-right-item done clickable" onClick={() => onNavigateToRight(r.id)}>
-                <span className="badge cat-badge">{r.category}</span>
+                <span className="badge cat-badge" data-cat={r.category}>{r.category}</span>
                 <span>{r.title}</span>
                 <span className="profile-check">✓</span>
               </div>
@@ -569,7 +569,7 @@ function ProfileView({ rights, onNavigateToRight }) {
           <div className="stack">
             {notStarted.slice(0, 5).map(r => (
               <div key={r.id} className="profile-right-item clickable" onClick={() => onNavigateToRight(r.id)}>
-                <span className="badge cat-badge">{r.category}</span>
+                <span className="badge cat-badge" data-cat={r.category}>{r.category}</span>
                 <span>{r.title}</span>
                 <span className="profile-right-arrow">←</span>
               </div>
@@ -783,7 +783,7 @@ function KnowledgeView() {
             {items.map(item => (
               <div key={item.id} className="knowledge-card">
                 <div className="knowledge-top">
-                  <span className="badge cat-badge">{item.category}</span>
+                  <span className="badge cat-badge" data-cat={item.category}>{item.category}</span>
                   <span className="knowledge-date">{new Date(item.created_at).toLocaleDateString("he-IL")}</span>
                 </div>
                 <h3 className="knowledge-title">{item.title}</h3>
@@ -1697,7 +1697,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       <div className={`chat-wrap ${isPsycho ? "chat-wrap-full" : ""}`}>
         <div className="chat-hdr">
           <div className="chat-hdr-top">
-            <div className="chat-ava">{curHat.icon}</div>
+            <div className="chat-ava">{curHat.emoji}</div>
             <div className="chat-hdr-info">
               <div className="chat-name">{curHat.name}</div>
               <div className="chat-sub-row">
@@ -1783,7 +1783,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         <div className="chat-msgs" ref={msgsContainerRef}>
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.role}`}>
-              {m.role === "assistant" && <div className="msg-ava">{curHat.icon}</div>}
+              {m.role === "assistant" && <div className="msg-ava">{curHat.emoji}</div>}
               <div className="bubble">
                 {m.attachment && m.role === "user" && (
                   <div className="msg-attachment">
@@ -1801,13 +1801,13 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           {/* Typing animation message */}
           {typingText !== null && (
             <div className="msg assistant">
-              <div className="msg-ava">{curHat.icon}</div>
+              <div className="msg-ava">{curHat.emoji}</div>
               <div className="bubble">{typingText}<span className="typing-cursor">|</span></div>
             </div>
           )}
           {loading && typingText === null && (
             <div className="msg assistant">
-              <div className="msg-ava">{curHat.icon}</div>
+              <div className="msg-ava">{curHat.emoji}</div>
               <div className="bubble typing"><span/><span/><span/></div>
             </div>
           )}
@@ -1955,11 +1955,11 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
   // No case — creation wizard
   if (!legalCase) {
     const INJURY_OPTIONS = [
-      { id: "orthopedic", label: "אורתופדית", icon: "A" },
-      { id: "neurological", label: "נוירולוגית", icon: "N" },
-      { id: "ptsd", label: "פוסט-טראומה", icon: "P" },
-      { id: "hearing", label: "שמיעה/טינטון", icon: "S" },
-      { id: "internal", label: "פנימית", icon: "F" },
+      { id: "orthopedic", label: "אורתופדית", icon: "🦴" },
+      { id: "neurological", label: "נוירולוגית", icon: "🧠" },
+      { id: "ptsd", label: "פוסט-טראומה", icon: "💜" },
+      { id: "hearing", label: "שמיעה/טינטון", icon: "👂" },
+      { id: "internal", label: "פנימית", icon: "🫁" },
       { id: "other", label: "אחר", icon: "+" },
     ];
 
@@ -2370,14 +2370,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   }
 
   const NAV = [
-    { id:"chat",    icon:"\u25C7", label:"שיחה" },
-    { id:"case",    icon:"\u2696", label:"התיק שלי" },
-    { id:"medical", icon:"\u271A", label:"תקציר רפואי" },
-    { id:"rights",  icon:"\u25AB", label:"זכויות" },
-    { id:"tips",    icon:"\u2736", label:"צעדים ראשונים" },
-    { id:"events",  icon:"\u25CB", label:"אירועים", badge: upcomingCount||null },
-    { id:"knowledge", icon:"\u2726", label:"חכמת ותיקים" },
-    { id:"updates", icon:"\u25CE", label:"עדכונים", badge: updates.length||null },
+    { id:"chat",    icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', label:"שיחה" },
+    { id:"case",    icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>', label:"התיק שלי" },
+    { id:"medical", icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.572l-7.5 7.428l-7.5-7.428a5 5 0 1 1 7.5-6.566a5 5 0 1 1 7.5 6.572z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></svg>', label:"תקציר רפואי" },
+    { id:"rights",  icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>', label:"זכויות" },
+    { id:"tips",    icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>', label:"צעדים ראשונים" },
+    { id:"events",  icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>', label:"אירועים", badge: upcomingCount||null },
+    { id:"knowledge", icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>', label:"חכמת ותיקים" },
+    { id:"updates", icon:'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>', label:"עדכונים", badge: updates.length||null },
   ];
 
   // SVG favicon (shield)
@@ -2419,7 +2419,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           <nav className="mobile-nav">
             {NAV.map(n => (
               <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={() => { setView(n.id); setMenuOpen(false); }}>
-                <span className="nav-icon">{n.icon}</span>
+                <span className="nav-icon" dangerouslySetInnerHTML={{ __html: n.icon }}/>
                 <span className="nav-lbl">{n.label}</span>
                 {n.badge ? <span className="nav-badge">{n.badge}</span> : null}
               </button>
@@ -2457,7 +2457,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           <nav>
             {NAV.map(n => (
               <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={()=>setView(n.id)} data-tooltip={n.label}>
-                <span className="nav-icon">{n.icon}</span>
+                <span className="nav-icon" dangerouslySetInnerHTML={{ __html: n.icon }}/>
                 {n.badge ? <span className="nav-badge-dot"/> : null}
               </button>
             ))}
@@ -2733,7 +2733,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .nav-btn:hover { background:rgba(244,162,78,.08); color:var(--stone-300); }
         .nav-btn.active { background:rgba(244,162,78,.12); color:var(--accent-primary); }
-        .nav-icon { font-size:17px; opacity:.7; }
+        .nav-icon { font-size:17px; opacity:.85; }
         .nav-btn.active .nav-icon { opacity:1; }
         .nav-lbl { display:none; }
 
@@ -3065,6 +3065,13 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* ── Badges ── */
         .badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:3px; white-space:nowrap; letter-spacing:0.04em; }
         .cat-badge { background:var(--surface-deep); color:var(--text-secondary); border:1px solid var(--border-subtle); }
+        .cat-badge[data-cat="כספי"] { background: rgba(217,119,6,.12); color: #d97706; border-color: transparent; }
+        .cat-badge[data-cat="בריאות"] { background: rgba(22,163,74,.12); color: #16a34a; border-color: transparent; }
+        .cat-badge[data-cat="משפטי"] { background: rgba(37,99,235,.12); color: #2563eb; border-color: transparent; }
+        .cat-badge[data-cat="לימודים"] { background: rgba(139,92,246,.12); color: #8b5cf6; border-color: transparent; }
+        .cat-badge[data-cat="תעסוקה"] { background: rgba(194,65,12,.12); color: #c2410c; border-color: transparent; }
+        .cat-badge[data-cat="מיסים"] { background: rgba(202,138,4,.12); color: #ca8a04; border-color: transparent; }
+        .cat-badge[data-cat="פנאי"] { background: rgba(6,182,212,.12); color: #06b6d4; border-color: transparent; }
         .urg-badge { }
         .free-badge { background:rgba(63,185,122,.12); color:var(--status-success); }
         .soon-badge { background:rgba(244,162,78,.12); color:var(--accent-primary); animation:pulse 2.5s ease-in-out infinite; }
@@ -3084,7 +3091,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .card.open { border-color:var(--border-accent); background:var(--surface-hover); }
         .card-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
         .card-h { font-size:16.5px; font-weight:700; margin-bottom:6px; line-height:1.4; color:var(--stone-50); letter-spacing:-0.02em; }
-        .card-sub { font-size:13.5px; color:var(--text-secondary); line-height:1.7; }
+        .card-sub { font-size:13.5px; color:var(--stone-300); line-height:1.7; }
         .card-body { margin-top:16px; padding-top:16px; border-top:1px solid var(--border-default); font-size:14px; color:var(--text-primary); line-height:1.8; }
         .tip-box {
           margin-top:14px; background:rgba(244,162,78,.06); border:1px solid rgba(244,162,78,.15);
@@ -3136,7 +3143,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* ── Empty ── */
         .empty { color:var(--text-secondary); padding:48px; text-align:center; font-size:14.5px; line-height:1.6; }
         .empty-state { text-align:center; padding:80px 20px; color:var(--text-secondary); }
-        .empty-icon { font-size:48px; opacity:.2; margin-bottom:16px; }
+        .empty-icon { font-size:48px; opacity:.4; color: var(--copper-400); margin-bottom:16px; }
 
         /* ── Knowledge ── */
         .knowledge-explainer {

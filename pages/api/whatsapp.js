@@ -468,6 +468,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, layer: "auth" });
     }
 
+    // ── Immediate acknowledgment for heavy requests ──
+    if (mediaItems.length > 0) {
+      await sendWhatsApp(from, "קיבלתי! עובר על המסמך, עוד רגע חוזר אליך...");
+    } else if (message.length > 200) {
+      await sendWhatsApp(from, "קיבלתי, עובד על זה...");
+    }
+
     // ── Parallel architecture: Opus first, Haiku follow-up ──
 
     // 1. Fetch history + pairing context in parallel
@@ -577,10 +584,36 @@ export default async function handler(req, res) {
       }
     }
 
-    // 7. Split by <<<SPLIT>>> and send as separate messages
-    const parts = reply.split("<<<SPLIT>>>").map(p => p.trim()).filter(Boolean);
+    // 7. Split into WhatsApp-safe messages
+    // First split by explicit <<<SPLIT>>> markers
+    let parts = reply.split("<<<SPLIT>>>").map(p => p.trim()).filter(Boolean);
 
+    // Then split any part that's still too long (>1400 chars) at sentence boundaries
+    const safeParts = [];
     for (const part of parts) {
+      if (part.length <= 1400) {
+        safeParts.push(part);
+      } else {
+        // Split at sentence endings (. ! ? or newline after 800+ chars)
+        let remaining = part;
+        while (remaining.length > 1400) {
+          // Find last sentence break before 1400
+          let cutAt = -1;
+          for (let i = Math.min(1400, remaining.length - 1); i >= 800; i--) {
+            if (remaining[i] === '\n' || (remaining[i] === ' ' && /[.!?:]/.test(remaining[i - 1]))) {
+              cutAt = i;
+              break;
+            }
+          }
+          if (cutAt === -1) cutAt = 1400; // forced cut
+          safeParts.push(remaining.slice(0, cutAt).trim());
+          remaining = remaining.slice(cutAt).trim();
+        }
+        if (remaining) safeParts.push(remaining);
+      }
+    }
+
+    for (const part of safeParts) {
       await saveMessage(supabase, from, "assistant", part);
       await sendWhatsApp(from, part);
     }

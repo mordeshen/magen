@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useUser } from "../lib/UserContext";
 import MagenMedicalSummary from "../components/MagenMedicalSummary";
 import WhatsAppButton from "../components/WhatsAppButton";
+import PortalAgent from "../components/PortalAgent";
 
 // ─── Utilities ────────────────────────────────────────────
 
@@ -299,7 +300,8 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
             <div className="sb-popup-links">
               <button className="sb-popup-link" onClick={toggleProfilePanel}>הגדרות פרופיל</button>
               <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">האזור האישי שלי</a>
-              <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">אגף השיקום</a>
+              <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-portal-agent")); }}>הגשת פנייה לאגף השיקום</button>
+              <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">אתר אגף השיקום</a>
               <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
             {onUpgrade && <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); onUpgrade(); }}>שדרג מסלול</button>}
@@ -2436,6 +2438,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [showPricingGlobal, setShowPricingGlobal] = useState(false);
+  const [showPortalAgent, setShowPortalAgent] = useState(false);
+
+  // Listen for portal agent open event (from sidebar popup)
+  useEffect(() => {
+    const handler = () => setShowPortalAgent(true);
+    window.addEventListener("open-portal-agent", handler);
+    return () => window.removeEventListener("open-portal-agent", handler);
+  }, []);
   const [openId,    setOpenId]    = useState(null);
   const [rCat,      setRCat]      = useState("הכל");
   const [rSearch,   setRSearch]   = useState("");
@@ -2902,6 +2912,19 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .sb-popup-link:hover { background:rgba(244,162,78,.06); color:var(--stone-300); }
         .sb-upgrade-btn { color:var(--copper-500); font-weight:600; }
         .sb-upgrade-btn:hover { background:rgba(217,119,6,.1); color:var(--copper-400); }
+
+        .portal-overlay {
+          position:fixed; inset:0; z-index:9999;
+          background:rgba(12,10,9,0.85);
+          display:flex; align-items:center; justify-content:center;
+          padding:clamp(1rem,4vw,2rem);
+        }
+        .portal-container {
+          width:100%; max-width:680px; max-height:90vh;
+          overflow-y:auto; border-radius:8px;
+          background:var(--bg-elevated,#292524);
+          border:1px solid var(--border-default,#44403c);
+        }
         .sb-popup-detail { font-size:12px; color:var(--text-secondary); margin-top:2px; }
         .sb-popup-status { font-size:12.5px; color:var(--text-secondary); padding:6px 0; border-bottom:1px solid var(--border-default); margin-bottom:4px; }
         .sb-popup-stats { display:flex; gap:8px; margin:10px 0 6px; }
@@ -4369,6 +4392,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
       `}</style>
       <WhatsAppButton />
       {showPricingGlobal && <PricingModal onClose={() => setShowPricingGlobal(false)} onSuccess={() => setShowPricingGlobal(false)} />}
+      {showPortalAgent && <div className="portal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowPortalAgent(false); }}>
+        <div className="portal-container">
+          <PortalAgent onClose={() => setShowPortalAgent(false)} onSaveReference={(ref) => console.log("Reference saved:", ref)} />
+        </div>
+      </div>}
     </>
   );
 }

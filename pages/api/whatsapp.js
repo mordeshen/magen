@@ -231,7 +231,7 @@ async function getPairing(supabase, phone) {
  * Fetch user profile and memory for a paired user.
  */
 async function getUserContext(supabase, userId) {
-  const [profileRes, memoryRes] = await Promise.all([
+  const [profileRes, memoryRes, legalRes, injuriesRes] = await Promise.all([
     supabase
       .from("profiles")
       .select("*")
@@ -241,11 +241,23 @@ async function getUserContext(supabase, userId) {
       .from("user_memory")
       .select("key, value")
       .eq("user_id", userId),
+    supabase
+      .from("legal_cases")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("injuries")
+      .select("body_zone, hebrew_label, severity, status, details, disability_percent")
+      .eq("user_id", userId)
+      .limit(20),
   ]);
 
   return {
     profile: profileRes.data || null,
     memory: memoryRes.data || [],
+    legalCase: legalRes.data || null,
+    injuries: injuriesRes.data || [],
   };
 }
 
@@ -372,10 +384,14 @@ export default async function handler(req, res) {
     // 3. Build context
     let profile = null;
     let memory = [];
+    let legalCase = null;
+    let injuries = [];
     if (pairing) {
       const userCtx = await getUserContext(supabase, pairing.user_id);
       profile = userCtx.profile;
       memory = userCtx.memory;
+      legalCase = userCtx.legalCase;
+      injuries = userCtx.injuries;
     }
 
     // 4. Build system prompt with RAG context
@@ -383,11 +399,29 @@ export default async function handler(req, res) {
 
     // Add profile context
     if (profile) {
-      systemPrompt += `\n\n[פרופיל משתמש]`;
+      systemPrompt += `\n\n[פרופיל משתמש — לא לשאול על מה שכבר ידוע]`;
       if (profile.name) systemPrompt += `\nשם: ${profile.name}`;
       if (profile.city) systemPrompt += `\nעיר: ${profile.city}`;
       if (profile.claim_status) systemPrompt += `\nסטטוס: ${profile.claim_status}`;
       if (profile.disability_percent) systemPrompt += `\nאחוזי נכות: ${profile.disability_percent}%`;
+    }
+
+    // Add legal case
+    if (legalCase) {
+      systemPrompt += `\n\n[תיק משפטי — אתה מכיר את התיק שלו]`;
+      systemPrompt += `\nשלב: ${legalCase.stage}`;
+      if (legalCase.injury_types?.length) systemPrompt += `\nסוגי פגיעה: ${legalCase.injury_types.join(", ")}`;
+      if (legalCase.disability_percent) systemPrompt += `\nאחוזי נכות: ${legalCase.disability_percent}%`;
+      if (legalCase.committee_date) systemPrompt += `\nתאריך ועדה: ${legalCase.committee_date}`;
+      if (legalCase.representative_name) systemPrompt += `\nמייצג: ${legalCase.representative_name}`;
+    }
+
+    // Add injuries
+    if (injuries.length > 0) {
+      systemPrompt += `\n\n[פגיעות מתועדות]`;
+      injuries.forEach(inj => {
+        systemPrompt += `\n• ${inj.hebrew_label || inj.body_zone} — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}`;
+      });
     }
 
     // Add memory

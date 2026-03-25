@@ -180,12 +180,35 @@ export default async function handler(req, res) {
   // Credit user based on plan
   const { plan_id, user_id } = pending;
 
+  // Ensure user_subscriptions row exists (user may not have chatted yet)
+  const { data: existingSub } = await admin
+    .from("user_subscriptions")
+    .select("user_id")
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  if (!existingSub) {
+    await admin.from("user_subscriptions").insert({
+      user_id, plan_id: "free", daily_tokens_used: 0,
+      daily_reset_date: new Date().toISOString().split("T")[0],
+    });
+    console.log("[webhook] auto-created user_subscriptions for:", user_id);
+  }
+
   if (plan_id === "one_time") {
+    // Get current balance to add tokens (not replace)
+    const { data: currentSub } = await admin
+      .from("user_subscriptions")
+      .select("token_balance")
+      .eq("user_id", user_id)
+      .single();
+    const currentBalance = currentSub?.token_balance || 0;
+
     await admin
       .from("user_subscriptions")
       .update({
         plan_id: "one_time",
-        token_balance: 200000,
+        token_balance: currentBalance + 200000,
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", user_id);

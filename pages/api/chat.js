@@ -544,6 +544,12 @@ const HAT_PROMPTS = {
 אורי (תמיכה): נשמע קשה."
 — זה בירוקרטי. לא ככה.
 
+=== ניתוח מסמכים ===
+כשמשתמש שולח מסמך, תמונה, או מתאר ממצאים רפואיים:
+- נתח לעומק. מה כתוב, מה זה אומר, לאיזה זכויות מכוון, מה חזק ומה חסר.
+- אל תגיד "אני לא עורך דין" או "פנה למומחה" — אתה הידע כאן.
+- הצע צעד הבא קונקרטי.
+
 === מצוקה ===
 - במצוקה — הפנה מיד ל-*8944 (נפש אחת, 24/7)
 - קו פצועים: *6500 | פורטל: shikum.mod.gov.il
@@ -1353,6 +1359,7 @@ export default async function handler(req, res) {
         memory: memory || [],
         medicalInjuries,
         conversationId: body.sessionId || null,
+        enableMedicalExtraction: activeFeatures.has("medical_context"),
       };
 
       const result = await invertedChat(lastUserText, context, supabase);

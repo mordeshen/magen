@@ -1142,7 +1142,7 @@ function TokenBadge({ subscription, onClick }) {
 
 // ─── PricingModal ────────────────────────────────────────────
 
-function PricingModal({ onClose, onSuccess }) {
+function PricingModal({ onClose, onSuccess, currentPlanId }) {
   const [plans, setPlans] = useState([]);
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [needsPhone, setNeedsPhone] = useState(false);
@@ -1288,7 +1288,7 @@ function PricingModal({ onClose, onSuccess }) {
                     {p.period_days ? <span className="plan-period">/חודש</span> : null}
                   </div>
                   <div className="plan-desc">{PLAN_DESCS[p.id] || ""}</div>
-                  {p.id === "free" ? (
+                  {p.id === (currentPlanId || "free") ? (
                     <button className="plan-btn plan-btn-current" disabled>המסלול הנוכחי</button>
                   ) : (
                     <button
@@ -1968,7 +1968,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
       <p className="chat-disclaimer">המידע הוא לצרכי אינפורמציה בלבד ואינו מחליף ייעוץ מקצועי מוסמך.</p>
 
-      {showPricing && <PricingModal onClose={() => setShowPricing(false)} onSuccess={() => { setShowPricing(false); setPaymentSuccess(true); loadSubscription(); }} />}
+      {showPricing && <PricingModal currentPlanId={subscription?.plan_id} onClose={() => setShowPricing(false)} onSuccess={() => { setShowPricing(false); setPaymentSuccess(true); loadSubscription(); }} />}
       {paymentSuccess && (
         <div className="payment-success-overlay" onClick={() => setPaymentSuccess(false)}>
           <div className="payment-success-card" onClick={e => e.stopPropagation()}>

@@ -75,7 +75,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "payment not configured" });
   }
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/+$/, "");
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://magen.app").replace(/\/+$/, "");
 
   try {
     const makeRes = await fetch(makeUrl, {

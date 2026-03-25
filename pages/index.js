@@ -215,7 +215,7 @@ function EventCard({ ev }) {
 
 // ─── SidebarProfile ───────────────────────────────────────
 
-function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) {
+function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, onUpgrade }) {
   const { user, profile, userRights, loading, signInWithGoogle, signOut, toggleProfilePanel } = useUser();
   const [popupOpen, setPopupOpen] = useState(false);
   const popupRef = useRef(null);
@@ -302,6 +302,7 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms }) 
               <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">אגף השיקום</a>
               <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
+            {onUpgrade && <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); onUpgrade(); }}>שדרג מסלול</button>}
             <button className="signout-link" onClick={signOut}>התנתק</button>
           </div>
         )}
@@ -2541,7 +2542,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         {/* ── Fixed avatar (top-left corner, desktop only) ── */}
         <div className="fixed-avatar-wrap">
-          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} onProfile={() => setView("profile")} />
+          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} onProfile={() => setView("profile")} onUpgrade={() => setShowPricing(true)} />
         </div>
 
         {/* ── Sidebar (desktop) — mini icon-only ── */}
@@ -2895,6 +2896,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           cursor:pointer; text-align:right; transition:all .15s ease;
         }
         .sb-popup-link:hover { background:rgba(244,162,78,.06); color:var(--stone-300); }
+        .sb-upgrade-btn { color:var(--copper-500); font-weight:600; }
+        .sb-upgrade-btn:hover { background:rgba(217,119,6,.1); color:var(--copper-400); }
         .sb-popup-detail { font-size:12px; color:var(--text-secondary); margin-top:2px; }
         .sb-popup-status { font-size:12.5px; color:var(--text-secondary); padding:6px 0; border-bottom:1px solid var(--border-default); margin-bottom:4px; }
         .sb-popup-stats { display:flex; gap:8px; margin:10px 0 6px; }

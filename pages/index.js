@@ -2013,7 +2013,7 @@ function StageUpdateToast({ stageId, onDismiss }) {
 
 // ─── LegalCaseView ──────────────────────────────────────────
 
-function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDan }) {
+function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDan, setView, setChatHat }) {
   const { user, legalCase, caseReminders, saveLegalCase, dismissReminder, signInWithGoogle } = useUser();
   const [wizardStep, setWizardStep] = useState(0);
   const [wizardData, setWizardData] = useState({ injury_types: [], stage: "NOT_STARTED", committee_date: "", representative_name: "", representative_phone: "", representative_org: "" });
@@ -2221,6 +2221,17 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
         <p>ליווי אישי בתהליך המשפטי</p>
       </div>
 
+      {/* Proactive next step */}
+      <div className="next-step-card">
+        <div className="next-step-label">השלב הבא שלך</div>
+        <div className="next-step-content">
+          <div className="next-step-text">{currentStage?.nextAction || "ספר לי על המצב שלך בצ'אט ואני אמליץ"}</div>
+          <button className="next-step-btn" onClick={() => { setChatHat("magen"); setView("chat"); }}>
+            בוא נתקדם ביחד
+          </button>
+        </div>
+      </div>
+
       {/* Timeline */}
       <div className="stage-timeline">
         {legalStages.map((s, i) => (
@@ -2259,6 +2270,12 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
           <div className="countdown-text">ימים אחרי הוועדה</div>
         </div>
       )}
+
+      {/* Medical summary — embedded mini view */}
+      <div className="case-medical-embed">
+        <div className="case-section-label">תקציר רפואי</div>
+        <MedicalSummaryView />
+      </div>
 
       {/* Prep Checklist */}
       {currentPrepPhase && (
@@ -2312,7 +2329,7 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
           {caseReminders.map(r => (
             <div key={r.id} className="reminder-card">
               <div className="reminder-header">
-                <span className="reminder-type">{r.type === "committee_prep" ? "\u25CF" : r.type === "deadline" ? "\u25B2" : r.type === "tip" ? "\u2736" : r.type === "encouragement" ? "\u2192" : "\u2713"}</span>
+                <span className="reminder-type">{r.type === "committee_prep" ? "\u{1F4CB}" : r.type === "deadline" ? "\u23F0" : r.type === "tip" ? "\u{1F4A1}" : r.type === "encouragement" ? "\u{1F4AA}" : "\u{1F4CC}"}</span>
                 <strong>{r.title}</strong>
                 <button className="reminder-dismiss" onClick={() => dismissReminder(r.id)}>✕</button>
               </div>
@@ -2706,6 +2723,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
             committeePrepData={committeePrepData}
             injuryProfiles={injuryProfiles}
             onAskDan={(prompt) => { pendingChatPromptRef.current = prompt; setView("chat"); }}
+            setView={setView}
+            setChatHat={setChatHat}
           />}
 
           {view==="chat" && <>
@@ -4113,6 +4132,59 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           cursor:pointer; padding:2px 6px;
         }
         .reminder-card p { font-size:13px; color:var(--text-secondary); margin:0; }
+
+        /* Next Step Card */
+        .next-step-card {
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-default);
+          border-inline-start: 3px solid var(--copper-500);
+          border-radius: 8px;
+          padding: 20px 24px;
+          margin-bottom: 24px;
+        }
+        .next-step-label {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: var(--copper-500);
+          margin-bottom: 8px;
+        }
+        .next-step-text {
+          font-size: 15px;
+          color: var(--text-primary);
+          line-height: 1.7;
+          margin-bottom: 12px;
+        }
+        .next-step-btn {
+          background: var(--copper-500);
+          color: var(--text-inverse);
+          font-weight: 700;
+          font-size: 14px;
+          padding: 8px 20px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-family: 'Heebo', sans-serif;
+          transition: background 0.15s ease;
+        }
+        .next-step-btn:hover { background: var(--copper-600); }
+
+        /* Medical Embed in Case */
+        .case-medical-embed {
+          margin: 24px 0;
+          border: 1px solid var(--border-default);
+          border-radius: 8px;
+          overflow: hidden;
+          max-height: 400px;
+          overflow-y: auto;
+        }
+        .case-section-label {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: var(--copper-500);
+          padding: 16px 20px 8px;
+        }
 
         /* Case Edit Button */
         .case-edit-btn {

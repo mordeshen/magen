@@ -68,12 +68,27 @@ export default async function handler(req, res) {
 
     const { phone } = result.data;
 
-    // Authenticate user via cookie
-    const userSupa = getUserSupabase(req, res);
-    if (!userSupa) return res.status(500).json({ error: "auth not configured" });
+    // Authenticate user via cookie or Bearer token
+    let user = null;
 
-    const { data: { user }, error: authErr } = await userSupa.auth.getUser();
-    if (authErr || !user) return res.status(401).json({ error: "not authenticated" });
+    // Try Bearer token first (from pair page)
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      const admin = getAdminSupabase();
+      const { data: { user: tokenUser }, error } = await admin.auth.getUser(authHeader.split(" ")[1]);
+      if (!error && tokenUser) user = tokenUser;
+    }
+
+    // Fallback to cookie-based auth
+    if (!user) {
+      const userSupa = getUserSupabase(req, res);
+      if (userSupa) {
+        const { data: { user: cookieUser }, error } = await userSupa.auth.getUser();
+        if (!error && cookieUser) user = cookieUser;
+      }
+    }
+
+    if (!user) return res.status(401).json({ error: "not authenticated" });
 
     const admin = getAdminSupabase();
 

@@ -38,10 +38,18 @@ export default function PairPage() {
   async function doPairing() {
     setStatus("pairing");
     try {
+      // Get fresh session token for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/pair", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ token }),
+        credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) {
@@ -157,6 +165,16 @@ export default function PairPage() {
       <div className="pair-card">
         <h2 className="pair-title">התחברות לחשבון מגן</h2>
         <p className="pair-text">כדי לחבר את הוואטסאפ לחשבון, צריך קודם להתחבר.</p>
+        <button className="pair-btn pair-google" onClick={async () => {
+          if (!isSupabaseConfigured) return;
+          await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: { redirectTo: `${window.location.origin}/pair?token=${token}` },
+          });
+        }}>
+          התחבר עם Google
+        </button>
+        <div className="pair-divider"><span>או</span></div>
         <form onSubmit={handleMagicLink} className="pair-form">
           <label htmlFor="email" className="pair-label">כתובת מייל</label>
           <input
@@ -169,7 +187,7 @@ export default function PairPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button type="submit" className="pair-btn" disabled={sending}>
+          <button type="submit" className="pair-btn pair-email" disabled={sending}>
             {sending ? "שולח..." : "שליחת לינק התחברות"}
           </button>
         </form>
@@ -304,6 +322,36 @@ export default function PairPage() {
         .pair-btn:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        .pair-google {
+          background: #fff;
+          color: #1c1917;
+          margin-bottom: 0;
+        }
+        .pair-google:hover:not(:disabled) {
+          background: #f5f5f4;
+        }
+
+        .pair-email {
+          margin-top: 0.75rem;
+        }
+
+        .pair-divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin: 1rem 0;
+        }
+        .pair-divider::before, .pair-divider::after {
+          content: "";
+          flex: 1;
+          height: 1px;
+          background: var(--border-default, #44403c);
+        }
+        .pair-divider span {
+          font-size: 0.8rem;
+          color: var(--text-secondary, #a8a29e);
         }
 
         .icon-circle {

@@ -52,12 +52,40 @@ function sanitize(str) {
 }
 
 export default async function handler(req, res) {
-  // GET — public (approved knowledge only)
+  // GET — public (approved knowledge + featured articles)
   if (req.method === "GET") {
     const sb = getAnonSupabase();
     if (!sb) return res.status(500).json({ error: "לא מוגדר" });
 
-    const { category } = req.query;
+    const { category, featured, mine } = req.query;
+
+    // Return featured knowledge_articles summaries
+    if (featured === "1") {
+      const { data, error } = await sb
+        .from("knowledge_articles")
+        .select("id, slug, title_he, summary, category, keywords")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) return res.json([]);
+      return res.json(data || []);
+    }
+
+    // Return user's own submissions (all statuses) — requires auth cookie
+    if (mine === "1") {
+      const userSb = getUserSupabase(req, res);
+      if (!userSb) return res.json([]);
+      const { data: { user } } = await userSb.auth.getUser();
+      if (!user) return res.json([]);
+      const { data, error } = await userSb
+        .from("veteran_knowledge")
+        .select("id, category, title, content, upvotes, approved, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) return res.json([]);
+      return res.json(data || []);
+    }
+
     let query = sb
       .from("veteran_knowledge")
       .select("id, category, title, content, upvotes, created_at")

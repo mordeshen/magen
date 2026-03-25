@@ -666,6 +666,8 @@ const KNOWLEDGE_CATS = ["הכל", "ועדות רפואיות", "בירוקרטי
 function KnowledgeView() {
   const { user } = useUser();
   const [items, setItems] = useState([]);
+  const [myItems, setMyItems] = useState([]);
+  const [featured, setFeatured] = useState([]);
   const [kCat, setKCat] = useState("הכל");
   const [loadingK, setLoadingK] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -674,6 +676,23 @@ function KnowledgeView() {
   const [formContent, setFormContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [voted, setVoted] = useState({});
+
+  // Load featured articles once on mount
+  useEffect(() => {
+    fetch("/api/knowledge?featured=1")
+      .then(r => r.json())
+      .then(d => setFeatured(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
+  // Load user's own submissions when user changes
+  useEffect(() => {
+    if (!user) { setMyItems([]); return; }
+    fetch("/api/knowledge?mine=1")
+      .then(r => r.json())
+      .then(d => setMyItems(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     fetchKnowledge();
@@ -702,7 +721,12 @@ function KnowledgeView() {
       setFormTitle("");
       setFormContent("");
       setShowForm(false);
-      alert("תודה! הניסיון שלך יועבר ליועץ AI לאחר אישור.");
+      // Refresh both community tips and user's own submissions
+      fetchKnowledge();
+      fetch("/api/knowledge?mine=1")
+        .then(r => r.json())
+        .then(d => setMyItems(Array.isArray(d) ? d : []))
+        .catch(() => {});
     } catch {}
     setSubmitting(false);
   }
@@ -724,6 +748,12 @@ function KnowledgeView() {
     } catch {}
   }
 
+  // Map knowledge_articles categories to display-friendly Hebrew labels
+  const ARTICLE_CAT_LABELS = { rights: "זכויות", medical: "רפואי", general: "כללי", bureaucracy: "בירוקרטיה", mental_health: "טיפול נפשי", employment: "תעסוקה", housing: "דיור", education: "לימודים" };
+
+  // Pending items from user that aren't in the approved list
+  const pendingMyItems = myItems.filter(mi => !mi.approved && !items.some(it => it.id === mi.id));
+
   return (
     <>
       <div className="pg-hdr">
@@ -737,6 +767,31 @@ function KnowledgeView() {
           <strong>איך זה עובד?</strong> אתם משתפים טיפים מהניסיון שלכם, ואחרי אישור — היועץ AI משתמש בהם כדי לעזור לפצועים חדשים. ככה הידע שלכם ממשיך לעזור.
         </div>
       </div>
+
+      {/* Featured knowledge articles from curated analysis */}
+      {featured.length > 0 && (
+        <div style={{marginBottom:24}}>
+          <p className="section-tag" style={{marginBottom:12}}>ידע מקצועי מאומת</p>
+          <div className="stack">
+            {featured.map(art => (
+              <div key={art.id || art.slug} className="knowledge-card" style={{borderInlineStart:"3px solid var(--olive-600)"}}>
+                <div className="knowledge-top">
+                  <span className="badge cat-badge" style={{background:"rgba(90,111,74,.15)",color:"var(--olive-400)"}}>{ARTICLE_CAT_LABELS[art.category] || art.category}</span>
+                </div>
+                <h3 className="knowledge-title">{art.title_he}</h3>
+                <p className="knowledge-content">{art.summary}</p>
+                {art.keywords && art.keywords.length > 0 && (
+                  <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:4}}>
+                    {art.keywords.slice(0, 5).map(kw => (
+                      <span key={kw} style={{fontSize:11,padding:"2px 8px",borderRadius:3,background:"rgba(168,162,158,.1)",color:"var(--text-secondary)"}}>{kw}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {user ? (
         <div style={{marginBottom:20}}>
@@ -764,6 +819,25 @@ function KnowledgeView() {
         </div>
       )}
 
+      {/* User's own pending submissions */}
+      {pendingMyItems.length > 0 && (
+        <div style={{marginBottom:20}}>
+          <p style={{color:"var(--text-secondary)",fontSize:13,marginBottom:8}}>השיתופים שלך:</p>
+          <div className="stack">
+            {pendingMyItems.map(item => (
+              <div key={item.id} className="knowledge-card" style={{borderInlineStart:"3px solid var(--status-warning)",opacity:0.85}}>
+                <div className="knowledge-top">
+                  <span className="badge cat-badge" data-cat={item.category}>{item.category}</span>
+                  <span className="badge" style={{background:"rgba(217,119,6,.15)",color:"var(--status-warning)",fontSize:"0.65rem",padding:"2px 8px",borderRadius:3}}>בבדיקה</span>
+                </div>
+                <h3 className="knowledge-title">{item.title}</h3>
+                <p className="knowledge-content">{item.content}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="filters" style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginTop:16}}>
         <div className="chips">
           {KNOWLEDGE_CATS.map(c => (
@@ -774,11 +848,19 @@ function KnowledgeView() {
 
       {loadingK ? (
         <div className="empty">טוען...</div>
+      ) : items.length === 0 && featured.length === 0 ? (
+        <div className="empty" style={{textAlign:"center",padding:"40px 20px"}}>
+          <div style={{fontSize:32,marginBottom:12,opacity:0.7}}>&#x270D;</div>
+          <div style={{fontSize:16,fontWeight:600,color:"var(--stone-200)",marginBottom:8}}>היה הראשון לשתף!</div>
+          <div style={{fontSize:14,color:"var(--text-secondary)",lineHeight:1.7,maxWidth:360,margin:"0 auto"}}>
+            הניסיון שלך יכול לעזור לפצוע אחר. טיפ קטן על ועדה, זכות שגילית באיחור, או דרך לעקוף בירוקרטיה — הכל שווה זהב.
+          </div>
+        </div>
       ) : items.length === 0 ? (
-        <div className="empty">אין טיפים בקטגוריה זו עדיין{user ? " — היה הראשון לשתף!" : ""}</div>
+        <div className="empty" style={{marginTop:16}}>אין טיפים מהקהילה בקטגוריה זו עדיין{user ? " — היה הראשון לשתף!" : ""}</div>
       ) : (
         <>
-          <p style={{color:"var(--text-secondary)",fontSize:13,marginTop:12,marginBottom:8}}>טיפים שהיועץ AI כבר למד ({items.length}):</p>
+          <p style={{color:"var(--text-secondary)",fontSize:13,marginTop:12,marginBottom:8}}>טיפים מהקהילה ({items.length}):</p>
           <div className="stack">
             {items.map(item => (
               <div key={item.id} className="knowledge-card">

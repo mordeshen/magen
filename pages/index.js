@@ -1011,18 +1011,17 @@ function WelcomeScreen({ onSelect }) {
         </div>
         <div className="wcf-arrow">{"\u2190"}</div>
       </button>
-      {/* Secondary hat options */}
-      <div className="welcome-divider">
-        <span className="welcome-divider-text">או בחר יועץ מתמחה</span>
-      </div>
-      <div className="welcome-grid">
-        {secondaryHats.map((h, i) => (
-          <button key={h.id} className={`welcome-card welcome-card-secondary wc-${h.id}`} style={{ animationDelay: `${(i + 1) * 0.08}s` }} onClick={() => onSelect(h.id)}>
-            <div className="wc-icon-wrap">{h.emoji}</div>
-            <div className="wc-name">{h.name}</div>
-            <div className="wc-role">{h.desc}</div>
-          </button>
-        ))}
+      {/* Specialist options — compact row */}
+      <div className="welcome-specialists">
+        <span className="specialists-label">מחפש מומחה?</span>
+        <div className="specialists-row">
+          {secondaryHats.map((h) => (
+            <button key={h.id} className="specialist-chip" onClick={() => onSelect(h.id)} title={h.desc}>
+              <span className="specialist-emoji">{h.emoji}</span>
+              <span className="specialist-name">{h.name}</span>
+            </button>
+          ))}
+        </div>
       </div>
       <FloatingTip />
     </div>
@@ -3327,23 +3326,31 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .welcome-card-featured:hover .wcf-arrow { opacity:1; transform:translateX(-4px); }
 
-        /* Divider */
-        .welcome-divider {
-          display:flex; align-items:center; gap:16px; margin:28px 0 20px; max-width:560px; width:100%;
+        /* Specialist compact row */
+        .welcome-specialists {
+          display:flex; flex-direction:column; align-items:center; gap:10px;
+          margin-top:28px; max-width:560px; width:100%;
         }
-        .welcome-divider::before, .welcome-divider::after {
-          content:""; flex:1; height:1px; background:var(--border-subtle);
-        }
-        .welcome-divider-text {
-          font-size:12px; color:var(--text-secondary); white-space:nowrap; font-weight:500;
+        .specialists-label {
+          font-size:12px; color:var(--text-secondary); font-weight:500;
           letter-spacing:0.03em;
         }
-
-        /* Secondary cards grid */
-        .welcome-grid {
-          display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;
-          max-width:560px; width:100%;
+        .specialists-row {
+          display:flex; gap:8px; flex-wrap:wrap; justify-content:center;
         }
+        .specialist-chip {
+          display:flex; align-items:center; gap:6px;
+          background:var(--surface-card); border:1px solid var(--border-default);
+          border-radius:20px; padding:6px 14px; cursor:pointer;
+          font-family:Heebo,sans-serif; font-size:13px; color:var(--text-secondary);
+          transition:all 0.15s ease;
+        }
+        .specialist-chip:hover {
+          border-color:var(--copper-500); color:var(--text-primary);
+          background:rgba(217,119,6,.06);
+        }
+        .specialist-emoji { font-size:15px; }
+        .specialist-name { font-weight:500; }
         .welcome-card {
           background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
           padding:18px 14px; cursor:pointer; text-align:center;

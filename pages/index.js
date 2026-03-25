@@ -1815,11 +1815,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
               <div className="chat-name">{curHat.name}</div>
               <div className="chat-sub-row">
                 <span className="chat-sub">{curHat.desc}</span>
-                <button className="token-expand" onClick={() => setShowFeaturePanel(!showFeaturePanel)}>
-                  <span className="token-expand-sum">{(estimatedCost/1000).toFixed(1)}K</span>
-                  <span className="token-expand-unit">טוקנים/הודעה</span>
-                  <span className={`token-expand-caret ${showFeaturePanel ? "open" : ""}`} />
-                </button>
+                {/* Token panel removed — clean UX */}
               </div>
             </div>
             {/* TokenBadge hidden — users don't need to see token counts */}
@@ -1830,33 +1826,8 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
               </button>
             )}
           </div>
-          {showFeaturePanel && (
-            <div className="feature-ledger">
-              {featureConfig.map(f => {
-                const allowed = f.plans.includes(userPlan);
-                const isOn = f.always_on || (enabledFeatures[f.id] && allowed);
-                return (
-                  <div key={f.id} className={`ledger-row ${!allowed ? "ledger-locked" : ""} ${isOn ? "ledger-on" : ""}`}>
-                    <span className="ledger-indicator" />
-                    <span className="ledger-name">{f.label}</span>
-                    <span className="ledger-cost">{(f.estimated_tokens/1000).toFixed(1)}K</span>
-                    {f.always_on ? (
-                      <span className="ledger-status ledger-fixed">ON</span>
-                    ) : !allowed ? (
-                      <button className="ledger-status ledger-upgrade" onClick={() => { setShowFeaturePanel(false); setShowPricing(true); }}>שדרג</button>
-                    ) : (
-                      <label className="feature-switch-sm">
-                        <input type="checkbox" checked={isOn} onChange={() => setEnabledFeatures(prev => ({ ...prev, [f.id]: !prev[f.id] }))} />
-                        <span className="feature-slider-sm" />
-                      </label>
-                    )}
-                  </div>
-                );
-              })}
-              <div className="ledger-total">
-                <span className="ledger-total-label">סה״כ</span>
-                <span className="ledger-total-value">{(estimatedCost/1000).toFixed(1)}K</span>
-              </div>
+          {false && (
+            <div className="feature-ledger">{/* Feature panel disabled — clean UX */}
             </div>
           )}
         </div>

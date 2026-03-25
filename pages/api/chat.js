@@ -195,7 +195,7 @@ function isRateLimited(ip) {
 }
 
 // --- Allowed values ---
-const VALID_HATS = new Set(["lawyer", "social", "psycho", "events", "veteran"]);
+const VALID_HATS = new Set(["magen", "lawyer", "social", "psycho", "events", "veteran"]);
 const VALID_ROLES = new Set(["user", "assistant"]);
 const ALLOWED_ATTACHMENT_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
@@ -496,6 +496,68 @@ async function fetchVeteranKnowledge() {
 
 const HAT_PROMPTS = {
 
+  magen: `אתה מגן — יועץ אישי לפצועי צה"ל.
+
+=== מי אתה ===
+אתה לא חמישה אנשים שונים. אתה אחד — חבר חכם שיודע הכל:
+- זכויות וחוקים (מה מגיע, ועדות, ערעורים, נוסחי פנייה)
+- ניווט בירוקרטיה (שלב אחרי שלב, מספרי טלפון, מה להגיד)
+- תמיכה רגשית (חבר ותיק שעבר את זה, בגובה העיניים)
+- חכמת ותיקים (טיפים מניסיון אמיתי)
+- אירועים ופעילויות (מה קורה, מה מתאים)
+
+אתה עוטף את המשתמש — לא מעביר אותו בין אנשים. הוא מדבר איתך, ואתה מטפל בהכל.
+כמו חבר טוב שגם מבין בזכויות, גם יודע את הבירוקרטיה, גם שם לב שאתה עייף.
+
+=== הנחות יסוד ===
+- כל פונה הוא פצוע צה"ל עם PTSD ברמה כלשהי — גם אם לא אומר
+- "הכל בסדר" = כנראה לא בסדר. "אני אסתדר" = אל תעזוב אותו
+- זהה masking: תשובות קצרות, ציניות, הקטנה = דפוסי הגנה
+- מהרגש → פרקטיקה. קודם הכר ברגש, אחר כך פתרון
+
+=== סגנון ===
+- עברית ישראלית טבעית, כמו חבר — לא כמו טופס
+- ישיר, חם, לא פורמלי. לא מתנשא, לא רכרוכי.
+- "אחי", "נשמע", "תקשיב" — טבעי, לא מאולץ
+- לעולם לא "כמה אחוזים?" — תמיד "איפה אתה עומד מול משרד הביטחון?"
+- לעולם לא "בהצלחה" יבש — תמיד "אני כאן, תחזור"
+- תמיד תן שלבים מעשיים עם מספרי טלפון ומה להגיד
+- סיים עם שאלה שמניעה לפעולה
+
+=== פורמט ===
+פשוט כתוב. בלי שמות כובעים, בלי תוויות, בלי קווים מפרידים.
+תשובה אחת רציפה שעוטפת את כל מה שהמשתמש צריך — זכויות, פרקטיקה, רגש — בזרימה טבעית.
+אורך: 3-8 שורות. אם צריך נוסח פנייה — עד 12 שורות.
+
+דוגמה טובה:
+"אחי, ראיתי את ההפניה. יש פה כמה דברים חשובים:
+
+מגיע לך ייצוג חינם לוועדה — תתקשר לארגון נכי צה"ל 03-XXXXXXX ותגיד: 'אני צריך ייצוג לוועדה רפואית, מספר תיק ___'.
+
+מניסיון של חבר'ה שעברו את זה — אל תלך בלי הכנה. שב עם המייצג לפחות שעה לפני.
+
+ואגב, שמתי לב שזו תקופה לא פשוטה. אם צריך לדבר — אני כאן, בלי שעון."
+
+דוגמה רעה:
+"דן (זכויות): מגיע לך ייצוג.
+מיכל (ליווי): ככה מתקשרים.
+אורי (תמיכה): נשמע קשה."
+— זה בירוקרטי. לא ככה.
+
+=== מצוקה ===
+- במצוקה — הפנה מיד ל-*8944 (נפש אחת, 24/7)
+- קו פצועים: *6500 | פורטל: shikum.mod.gov.il
+
+=== זיהוי מעבר שלב ===
+כשהמשתמש מספר שעבר לשלב חדש בתהליך (למשל: "הגשתי תביעה", "קבעו לי ועדה", "קיבלתי החלטה"), הוסף בסוף התשובה שלך (בשורה נפרדת) תגית מעבר שלב בפורמט:
+[STAGE_UPDATE:STAGE_ID]
+כאשר STAGE_ID הוא אחד מ: NOT_STARTED, GATHERING_DOCUMENTS, CLAIM_FILED, COMMITTEE_SCHEDULED, COMMITTEE_PREPARATION, COMMITTEE_COMPLETED, DECISION_RECEIVED, APPEAL_CONSIDERATION, APPEAL_FILED, RIGHTS_FULFILLMENT.
+הוסף תגית זו רק כשיש אינדיקציה ברורה למעבר שלב.
+
+=== שמירת מספר פנייה ===
+כשהמשתמש מדווח שהגיש פנייה ונותן מספר פנייה — הוסף בסוף התשובה שלך (בשורה נפרדת):
+[SUBMISSION_REF:מספר_הפנייה]`,
+
   lawyer: `אתה דן — AI של מגן שמתמחה בזכויות נכי צה"ל מול משרד הביטחון.
 אתה לא עו"ד אמיתי, אבל יש לך ידע מקצועי מעמיק בתחום הזכויות, הוועדות הרפואיות, ההליכים המשפטיים ומול אגף השיקום.
 
@@ -653,7 +715,7 @@ const HAT_PROMPTS = {
 const ROUTER_SYSTEM_PROMPT = `סווג את הודעת המשתמש. החזר JSON בלבד.
 
 Intents: rights_query, emotional_support, portal_action, events_query, general_info, greeting
-Hats: lawyer, social, psycho, events, veteran
+Hats: magen, lawyer, social, psycho, events, veteran
 Categories (rights): כספי, בריאות, משפטי, לימודים, תעסוקה, מיסים, פנאי
 Depth: minimal (greeting/simple), standard (normal question), detailed (complex legal/medical)
 
@@ -766,11 +828,13 @@ function buildSystemPrompt(hat, routerResult, {
   rights, events, userCity, userProfile, memory, medicalInjuries,
   legalCase, userRightsStatus, vetKnowledge, activeFeatures,
 }) {
-  const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.lawyer;
+  const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.magen;
   const systemParts = [hatPrompt];
 
-  // Always include core approach — minimal version for router, full only for detailed
-  if (hat !== "events") {
+  // Magen gets full context always; others follow router depth
+  if (hat === "magen") {
+    systemParts.push(CORE_APPROACH);
+  } else if (hat !== "events") {
     if (routerResult && routerResult.depth === "detailed") {
       systemParts.push(CORE_APPROACH);
     } else {
@@ -778,8 +842,18 @@ function buildSystemPrompt(hat, routerResult, {
     }
   }
 
-  // Portal guide — only when needed
-  if (hat !== "events" && routerResult && routerResult.needs_portal_guide) {
+  // Portal guide — magen always gets it; others only when needed
+  if (hat === "magen") {
+    systemParts.push(MOD_PORTAL_GUIDE);
+    if (SITE_ACTIONS.length > 0) {
+      let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
+      actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
+      actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
+        `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
+      ).join("\n\n");
+      systemParts.push(actionsCtx);
+    }
+  } else if (hat !== "events" && routerResult && routerResult.needs_portal_guide) {
     systemParts.push(MOD_PORTAL_GUIDE);
     // Inject site actions for the lawyer hat
     if (hat === "lawyer" && SITE_ACTIONS.length > 0) {
@@ -792,8 +866,37 @@ function buildSystemPrompt(hat, routerResult, {
     }
   }
 
-  // Rights context — filtered by categories from router
-  if (hat === "events" && events && events.length > 0) {
+  // Rights & events context
+  // Magen gets BOTH rights and events; others get one or the other
+  if (hat === "magen") {
+    // Rights — all, filtered by router if available
+    if (rights && rights.length > 0) {
+      let filteredRights = rights;
+      if (routerResult && routerResult.categories && routerResult.categories.length > 0) {
+        const catSet = new Set(routerResult.categories);
+        const filtered = rights.filter(r => catSet.has(r.category));
+        if (filtered.length > 0) filteredRights = filtered;
+      }
+      const rightsCtx = filteredRights
+        .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
+        .join("\n");
+      systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+    }
+    // Events — upcoming
+    if (events && events.length > 0) {
+      const today = new Date().toISOString().split("T")[0];
+      const upcoming = events.filter(e => e.date >= today);
+      const relevant = userCity
+        ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
+        : upcoming;
+      const eventsCtx = relevant
+        .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
+        .join("\n");
+      if (eventsCtx) {
+        systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
+      }
+    }
+  } else if (hat === "events" && events && events.length > 0) {
     const today = new Date().toISOString().split("T")[0];
     const upcoming = events.filter(e => e.date >= today);
     const relevant = userCity
@@ -820,15 +923,15 @@ function buildSystemPrompt(hat, routerResult, {
     systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
   }
 
-  // Medical extraction instructions — only when needed
+  // Medical extraction instructions — magen always, others when router says needed
   if (activeFeatures.has("medical_extract") && hat !== "events" &&
-      routerResult && routerResult.needs_medical_context) {
+      (hat === "magen" || (routerResult && routerResult.needs_medical_context))) {
     systemParts.push(MEDICAL_EXTRACT_INSTRUCTIONS);
   }
 
-  // Medical context from DB — only when needed
+  // Medical context from DB — magen always, others when router says needed
   if (activeFeatures.has("medical_context") && medicalInjuries && medicalInjuries.length > 0 &&
-      routerResult && routerResult.needs_medical_context) {
+      (hat === "magen" || (routerResult && routerResult.needs_medical_context))) {
     let medCtx = "\n--- תקציר רפואי של המשתמש ---\n";
     medCtx += medicalInjuries.map(inj =>
       `• ${inj.hebrew_label} (${inj.body_zone}) — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}${inj.details ? `: ${inj.details}` : ""}`
@@ -837,9 +940,9 @@ function buildSystemPrompt(hat, routerResult, {
     systemParts.push(medCtx);
   }
 
-  // Legal case context — only when needed
+  // Legal case context — magen always, others when router says needed
   if (activeFeatures.has("legal_context") && legalCase && hat !== "events" &&
-      routerResult && routerResult.needs_legal_context) {
+      (hat === "magen" || (routerResult && routerResult.needs_legal_context))) {
     const STAGE_LABELS = {
       NOT_STARTED: "טרם התחיל", GATHERING_DOCUMENTS: "איסוף מסמכים",
       CLAIM_FILED: "תביעה הוגשה", COMMITTEE_SCHEDULED: "ועדה נקבעה",
@@ -951,12 +1054,12 @@ function buildFullSystemPrompt(hat, {
   rights, events, userCity, userProfile, memory, medicalInjuries,
   legalCase, userRightsStatus, vetKnowledge, activeFeatures,
 }) {
-  const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.lawyer;
+  const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.magen;
   let systemParts = [hatPrompt];
   if (hat !== "events") {
     systemParts.push(CORE_APPROACH);
     systemParts.push(MOD_PORTAL_GUIDE);
-    if (hat === "lawyer" && SITE_ACTIONS.length > 0) {
+    if ((hat === "lawyer" || hat === "magen") && SITE_ACTIONS.length > 0) {
       let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
       actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
       actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
@@ -966,8 +1069,24 @@ function buildFullSystemPrompt(hat, {
     }
   }
 
-  // Rights / events context
-  if (hat === "events" && events && events.length > 0) {
+  // Rights / events context — magen gets both
+  if (hat === "magen") {
+    const rightsCtx = (rights || [])
+      .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
+      .join("\n");
+    if (rightsCtx) systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+    if (events && events.length > 0) {
+      const today = new Date().toISOString().split("T")[0];
+      const upcoming = events.filter(e => e.date >= today);
+      const relevant = userCity
+        ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
+        : upcoming;
+      const eventsCtx = relevant
+        .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
+        .join("\n");
+      if (eventsCtx) systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
+    }
+  } else if (hat === "events" && events && events.length > 0) {
     const today = new Date().toISOString().split("T")[0];
     const upcoming = events.filter(e => e.date >= today);
     const relevant = userCity

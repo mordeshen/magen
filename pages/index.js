@@ -929,6 +929,7 @@ function TermsView() {
 // ─── Chat ──────────────────────────────────────────────────
 
 const HATS = [
+  { id:"magen",   icon:"מ", emoji:"\uD83D\uDEE1", label:"מגן",  name:"מגן", desc:"היועץ האישי שלך — הכל במקום אחד" },
   { id:"lawyer",  icon:"ד", emoji:"\u2696", label:"דן",  name:"דן", desc:"ייעוץ בזכויות ומשפט" },
   { id:"social",  icon:"מ", emoji:"\uD83E\uDD1D", label:"מיכל", name:"מיכל", desc:"ניווט בירוקרטיה ושירותים" },
   { id:"psycho",  icon:"א", emoji:"\uD83D\uDC99", label:"אורי", name:"אורי", desc:"שיחה אישית ותמיכה" },
@@ -937,6 +938,7 @@ const HATS = [
 ];
 
 const HAT_GREETINGS = {
+  magen:   "היי, אני מגן\n\nספר לי מה עובר עליך ואני אטפל בהכל — זכויות, בירוקרטיה, תמיכה, הכל במקום אחד.",
   lawyer:  "היי, אני דן\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
   social:  "היי, אני מיכל\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
   psycho:  "היי, אני אורי\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
@@ -945,6 +947,7 @@ const HAT_GREETINGS = {
 };
 
 const HAT_DETAILS = {
+  magen:   "יועץ אישי שמכיר את המערכת מבפנים. זכויות, ליווי, תמיכה — בלי להעביר אותך בין אנשים.",
   lawyer:  "מכיר את כל הזכויות מול משרד הביטחון. יעזור לך להבין מה מגיע לך, איך מגישים ומה עושים אם דחו.",
   social:  "מכירה את כל הבירוקרטיה מבפנים. תלווה אותך בין הגורמים ותעזור שלא תפספס כלום.",
   psycho:  "פה בשבילך, בלי שיפוט. אפשר לדבר על מה שעובר עליך, על קשיים ביומיום, או סתם לשחרר.",
@@ -991,18 +994,33 @@ function FloatingTip() {
 }
 
 function WelcomeScreen({ onSelect }) {
+  const magenHat = HATS[0]; // magen is always first
+  const secondaryHats = HATS.slice(1);
   return (
     <div className="welcome-screen">
       <div className="welcome-header">
-        <div className="welcome-title">מי ילווה אותך?</div>
+        <div className="welcome-title">איך אפשר לעזור?</div>
+      </div>
+      {/* Featured magen card */}
+      <button className="welcome-card-featured" style={{ animationDelay: "0s" }} onClick={() => onSelect(magenHat.id)}>
+        <div className="wcf-icon-wrap">{magenHat.emoji}</div>
+        <div className="wcf-content">
+          <div className="wcf-name">{magenHat.name}</div>
+          <div className="wcf-role">{magenHat.desc}</div>
+          <div className="wcf-desc">{HAT_DETAILS[magenHat.id]}</div>
+        </div>
+        <div className="wcf-arrow">{"\u2190"}</div>
+      </button>
+      {/* Secondary hat options */}
+      <div className="welcome-divider">
+        <span className="welcome-divider-text">או בחר יועץ מתמחה</span>
       </div>
       <div className="welcome-grid">
-        {HATS.map((h, i) => (
-          <button key={h.id} className={`welcome-card wc-${h.id}`} style={{ animationDelay: `${i * 0.08}s` }} onClick={() => onSelect(h.id)}>
+        {secondaryHats.map((h, i) => (
+          <button key={h.id} className={`welcome-card welcome-card-secondary wc-${h.id}`} style={{ animationDelay: `${(i + 1) * 0.08}s` }} onClick={() => onSelect(h.id)}>
             <div className="wc-icon-wrap">{h.emoji}</div>
             <div className="wc-name">{h.name}</div>
             <div className="wc-role">{h.desc}</div>
-            <div className="wc-desc">{HAT_DETAILS[h.id]}</div>
           </button>
         ))}
       </div>
@@ -1613,8 +1631,8 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
             setLoginHint(true);
             setTimeout(() => setLoginHint(false), 6000);
           }
-          // Auto-save session for logged-in users
-          if (user && updated.length >= 3) {
+          // Auto-save session (localStorage for anonymous, Supabase for logged-in)
+          if (updated.length >= 3) {
             const sessData = {
               id: sessionId || undefined,
               hat: sendHat,
@@ -1684,7 +1702,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         {onBack && !(isPsycho && msgs.length > 1) && <button className="back-welcome-btn" onClick={onBack} title="חזרה לבחירת יועץ">←</button>}
         {!(isPsycho && msgs.length > 1) && <span className="hat-label">דבר עם:</span>}
         {HATS.map(h => (
-          <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""}`} onClick={() => switchHat(h.id)} title={h.desc}>
+          <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""} ${h.id==="magen"?"hat-magen":""}`} onClick={() => switchHat(h.id)} title={h.desc}>
             <span className="hat-icon">{h.emoji}</span>
             <span className="hat-name">{h.label}</span>
           </button>
@@ -1765,7 +1783,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         )}
 
         {/* History drawer */}
-        {showHistory && user && (
+        {showHistory && (
           <div className="chat-history">
             <div className="history-header">
               <span>שיחות קודמות</span>
@@ -2619,7 +2637,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
                 <div className="pg-hdr">
                   <p style={{color:"var(--stone-400)",fontSize:13}}>שיחה פרטית ומאובטחת</p>
                 </div>
-                <Chat rights={rights} events={events} pendingChatPromptRef={pendingChatPromptRef} initialHat={chatHat || "lawyer"} onBack={() => setChatHat(null)} onStageUpdate={(stageId) => {
+                <Chat rights={rights} events={events} pendingChatPromptRef={pendingChatPromptRef} initialHat={chatHat || "magen"} onBack={() => setChatHat(null)} onStageUpdate={(stageId) => {
                   setStageToast(stageId);
                 }}/>
               </>
@@ -3279,29 +3297,74 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .welcome-subtitle {
           font-size:16px; color:var(--text-secondary); margin-bottom:36px;
         }
+
+        /* Featured magen card */
+        .welcome-card-featured {
+          display:flex; align-items:center; gap:20px;
+          background:var(--surface-card); border:2px solid var(--accent-primary);
+          border-radius:8px; padding:28px 24px; cursor:pointer;
+          font-family:Heebo,sans-serif; text-align:right; width:100%; max-width:560px;
+          animation:welcomeCardIn var(--duration-slow) var(--ease-out-expo) both;
+          transition:all 0.4s ease; position:relative;
+        }
+        .welcome-card-featured:hover {
+          border-color:var(--accent-hover); transform:translateY(-2px);
+          background:rgba(244,162,78,.04);
+        }
+        .welcome-card-featured:active { transform:scale(0.99); }
+        .wcf-icon-wrap {
+          width:56px; height:56px; border-radius:50%; display:flex; flex-shrink:0;
+          align-items:center; justify-content:center; font-size:28px;
+          background:rgba(244,162,78,.12); border:2px solid rgba(244,162,78,.25);
+        }
+        .wcf-content { flex:1; min-width:0; }
+        .wcf-name { font-size:22px; font-weight:800; color:var(--accent-primary); margin-bottom:4px; letter-spacing:-0.02em; }
+        .wcf-role { font-size:14px; color:var(--text-primary); margin-bottom:6px; font-weight:600; }
+        .wcf-desc { font-size:13px; color:var(--text-secondary); line-height:1.6; }
+        .wcf-arrow {
+          font-size:20px; color:var(--accent-primary); flex-shrink:0; opacity:0.6;
+          transition:opacity 0.2s ease, transform 0.2s ease;
+        }
+        .welcome-card-featured:hover .wcf-arrow { opacity:1; transform:translateX(-4px); }
+
+        /* Divider */
+        .welcome-divider {
+          display:flex; align-items:center; gap:16px; margin:28px 0 20px; max-width:560px; width:100%;
+        }
+        .welcome-divider::before, .welcome-divider::after {
+          content:""; flex:1; height:1px; background:var(--border-subtle);
+        }
+        .welcome-divider-text {
+          font-size:12px; color:var(--text-secondary); white-space:nowrap; font-weight:500;
+          letter-spacing:0.03em;
+        }
+
+        /* Secondary cards grid */
         .welcome-grid {
-          display:grid; grid-template-columns:repeat(2, 1fr); gap:14px;
+          display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;
           max-width:560px; width:100%;
         }
         .welcome-card {
           background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
-          padding:22px 18px; cursor:pointer; text-align:center;
+          padding:18px 14px; cursor:pointer; text-align:center;
           font-family:Heebo,sans-serif;
           animation:welcomeCardIn var(--duration-slow) var(--ease-out-expo) both;
           transition:all 0.4s ease;
+        }
+        .welcome-card-secondary {
+          padding:16px 12px;
         }
         .welcome-card:hover {
           border-color:rgba(244,162,78,.35); transform:translateY(-2px);
         }
         .welcome-card:active { transform:scale(0.98); }
-        .welcome-card:last-child { grid-column:1 / -1; max-width:270px; justify-self:center; }
         .wc-icon-wrap {
-          width:48px; height:48px; border-radius:50%; display:inline-flex;
-          align-items:center; justify-content:center; font-size:22px;
-          background:rgba(244,162,78,.08); margin-bottom:10px;
+          width:40px; height:40px; border-radius:50%; display:inline-flex;
+          align-items:center; justify-content:center; font-size:18px;
+          background:rgba(244,162,78,.08); margin-bottom:8px;
         }
-        .wc-name { font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:2px; }
-        .wc-role { font-size:12px; color:var(--accent-primary); margin-bottom:8px; }
+        .wc-name { font-size:15px; font-weight:700; color:var(--text-primary); margin-bottom:2px; }
+        .wc-role { font-size:11px; color:var(--accent-primary); margin-bottom:0; }
         .wc-desc { font-size:12.5px; color:var(--text-secondary); line-height:1.6; }
 
         @keyframes welcomeCardIn {
@@ -3309,7 +3372,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           to   { opacity:1; transform:translateY(0); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .welcome-card { animation:none; opacity:1; }
+          .welcome-card, .welcome-card-featured { animation:none; opacity:1; }
         }
 
         /* Floating tip */
@@ -3332,8 +3395,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .back-welcome-btn:hover { border-color:var(--accent-primary); color:var(--stone-50); }
 
         @media (max-width:700px) {
-          .welcome-grid { grid-template-columns:1fr; }
-          .welcome-card:first-child, .welcome-card:last-child { grid-column:auto; max-width:none; }
+          .welcome-grid { grid-template-columns:repeat(2, 1fr); }
+          .welcome-card:last-child:nth-child(odd) { grid-column:1 / -1; max-width:220px; justify-self:center; }
+        }
+        @media (max-width:400px) {
+          .welcome-grid { grid-template-columns:1fr 1fr; gap:8px; }
+          .welcome-card-featured { padding:20px 16px; gap:14px; }
+          .wcf-icon-wrap { width:44px; height:44px; font-size:22px; }
+          .wcf-name { font-size:18px; }
         }
 
         /* Hat selector */
@@ -3365,6 +3434,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .city-btn:hover { border-color:rgba(52,211,153,.4); color:var(--stone-300); background:rgba(52,211,153,.05); }
         .city-btn.active { background:rgba(52,211,153,.12); border-color:var(--status-success-light); color:var(--status-success-light); font-weight:700; }
+
+        /* Magen hat accent — primary copper */
+        .hat-btn.hat-magen { border-color:rgba(244,162,78,.3); }
+        .hat-btn.hat-magen .hat-name { font-weight:700; }
+        .hat-btn.active.hat-magen { border-color:var(--accent-primary); background:rgba(244,162,78,.12); color:var(--accent-primary); border-width:2px; }
 
         /* Events hat accent */
         .hat-btn.active.hat-events { border-color:var(--status-success-light); background:rgba(52,211,153,.08); color:var(--status-success-light); }

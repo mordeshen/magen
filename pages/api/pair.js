@@ -97,7 +97,7 @@ export default async function handler(req, res) {
 
     // Already paired to different user — reject
     if (existing) {
-      return res.status(409).json({ error: "phone already paired to another account" });
+      return res.status(409).json({ error: "phone already paired to another account", code: "ALREADY_PAIRED" });
     }
 
     // Insert new pairing

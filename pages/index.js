@@ -1240,6 +1240,15 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
   const isPsycho = hat === "psycho";
 
+  // Handle payment=success redirect — reload subscription even if PricingModal is not mounted
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("payment=success")) {
+      window.history.replaceState(null, "", window.location.pathname);
+      loadSubscription();
+      setPaymentSuccess(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load feature pricing config
   useEffect(() => {
     fetch("/api/feature-pricing").then(r => r.json()).then(config => {

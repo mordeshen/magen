@@ -1,8 +1,7 @@
 // POST /api/checkout — יוצר pending_purchase, קורא ל-Make.com webhook שיוצר Grow payment link
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
 
-const PLAN_PRICES = { one_time: 500, monthly: 2900, premium: 5000 }; // אגורות
-const PLAN_NAMES = { one_time: "חד-פעמי", monthly: "חודשי", premium: "פרימיום" };
+// Plan prices fetched from Supabase subscription_plans table
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -27,13 +26,13 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "unauthorized" });
   }
 
-  const { plan_id } = req.body || {};
-  if (!plan_id || !PLAN_PRICES[plan_id]) {
-    console.log("[checkout] invalid plan:", plan_id);
+  const { plan_id: planId } = req.body || {};
+  if (!planId) {
+    console.log("[checkout] missing plan_id");
     return res.status(400).json({ error: "invalid plan" });
   }
 
-  console.log("[checkout] user:", user.email, "plan:", plan_id);
+  console.log("[checkout] user:", user.email, "plan:", planId);
 
   let admin;
   try {
@@ -43,7 +42,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "server_config_error" });
   }
 
-  const amount = PLAN_PRICES[plan_id]; // אגורות
+  // Fetch price from DB instead of hardcoded values
+  const { data: plan } = await admin.from("subscription_plans").select("price, name").eq("id", planId).single();
+  if (!plan) return res.status(400).json({ error: "invalid_plan" });
+  const amount = plan.price; // already in agorot
   const amountNIS = amount / 100;      // שקלים — Grow מקבל בשקלים
 
   // Create pending purchase
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
     .insert({
       user_id: user.id,
       email: user.email,
-      plan_id,
+      plan_id: planId,
       amount,
     })
     .select()
@@ -87,7 +89,7 @@ export default async function handler(req, res) {
         phone: user.user_metadata?.phone || user.phone || "0500000000",
         email: user.email,
         amount: amountNIS,
-        title: `מגן — מסלול ${PLAN_NAMES[plan_id]}`,
+        title: `מגן — מסלול ${plan.name}`,
         paymentId: pending.id,
         successUrl: `${siteUrl}/?payment=success`,
         failureUrl: `${siteUrl}/?payment=failed`,

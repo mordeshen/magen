@@ -109,7 +109,7 @@ async function sendFailureAlert({ reason, paymentId, email, plan_id, amount, tra
         currency: "ILS",
         client: {
           name: "מרדכי — התראת מערכת",
-          emails: ["mordechay.shenvald@gmail.com"],
+          emails: [process.env.ADMIN_EMAIL || "mordechay.shenvald@gmail.com"],
         },
         income: [{
           description: `[נדרשת פעולה] חשבונית לא נוצרה — ${reason}`,

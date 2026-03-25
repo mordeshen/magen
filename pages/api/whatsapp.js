@@ -103,29 +103,80 @@ const FOLLOWUP_SYSTEM_PROMPT = `אתה בודק שיחות של מגן — פו�
 const LEGACY_SYSTEM_PROMPT = PRIMARY_SYSTEM_PROMPT;
 
 /**
- * Build a multimodal message for Claude from Twilio media
- * Twilio provides media as authenticated URLs
+ * Download media from Twilio (requires Basic Auth) and convert to base64
  */
-function buildMediaMessage(text, mediaItems) {
+async function downloadTwilioMedia(url, mediaType) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"),
+      },
+    });
+
+    if (!res.ok) {
+      console.error("[whatsapp] media download failed:", res.status);
+      return null;
+    }
+
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+
+    // Limit: 20MB for images, 32MB for PDFs
+    if (base64.length > 32 * 1024 * 1024) {
+      console.warn("[whatsapp] media too large, skipping");
+      return null;
+    }
+
+    return { base64, mediaType };
+  } catch (e) {
+    console.error("[whatsapp] media download error:", e.message);
+    return null;
+  }
+}
+
+/**
+ * Build a multimodal message for Claude from Twilio media
+ * Downloads media with Twilio auth, sends as base64
+ */
+async function buildMediaMessage(text, mediaItems) {
   const content = [];
 
   for (const media of mediaItems) {
+    const downloaded = await downloadTwilioMedia(media.url, media.type);
+    if (!downloaded) continue;
+
     if (media.type.startsWith("image/")) {
       content.push({
         type: "image",
-        source: { type: "url", url: media.url },
+        source: {
+          type: "base64",
+          media_type: media.type,
+          data: downloaded.base64,
+        },
       });
     } else if (media.type === "application/pdf") {
       content.push({
         type: "document",
-        source: { type: "url", url: media.url },
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: downloaded.base64,
+        },
       });
     }
   }
 
+  // If no media was successfully downloaded, fall back to text only
+  if (content.length === 0) {
+    return text || "לא הצלחתי לקרוא את הקובץ. נסה לשלוח כתמונה.";
+  }
+
   content.push({
     type: "text",
-    text: text || "מה אתה רואה במסמך הזה? נתח אותו ותגיד לי מה זה אומר מבחינת זכויות.",
+    text: text || "נתח את המסמך הזה. מה כתוב, מה זה אומר מבחינת זכויות, מה חסר, מה הצעד הבא.",
   });
 
   return content;
@@ -504,7 +555,7 @@ export default async function handler(req, res) {
         system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: [
           ...history.slice(-4).map(m => ({ role: m.role, content: m.content })),
-          { role: "user", content: mediaItems.length > 0 ? buildMediaMessage(message, mediaItems) : message },
+          { role: "user", content: mediaItems.length > 0 ? await buildMediaMessage(message, mediaItems) : message },
         ],
       }),
     });

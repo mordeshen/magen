@@ -1250,8 +1250,9 @@ export default async function handler(req, res) {
   const allowance = await getTokenAllowance(req, res, ip);
   if (!allowance.allowed) {
     return res.status(402).json({
-      reply: "נגמרו הטוקנים שלך. שדרג את המסלול כדי להמשיך.",
+      reply: "הגעת למגבלת השימוש היומית. מתאפס מחר, או אפשר לשדרג להמשיך עכשיו.",
       tokenInfo: { used: 0, remaining: 0, plan: allowance.planId },
+      showUpgrade: true,
     });
   }
 

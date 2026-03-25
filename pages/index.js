@@ -1628,6 +1628,11 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       // Update token balance from response
       if (d.tokenInfo) refreshTokenBalance(d.tokenInfo);
 
+      // Show soft upgrade nudge when tokens are very low or exhausted
+      if (d.showUpgrade || (d.tokenInfo && !d.tokenInfo.unlimited && d.tokenInfo.remaining >= 0 && d.tokenInfo.remaining < 5000)) {
+        reply += "\n\n---\n💡 נגמר השימוש היומי? אפשר לשדרג כדי להמשיך בלי הגבלה.";
+      }
+
       // Stage detection — parse [STAGE_UPDATE:X] from reply
       const stageMatch = reply.match(/\[STAGE_UPDATE:([A-Z_]+)\]/);
       if (stageMatch && onStageUpdate) {
@@ -1817,7 +1822,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
                 </button>
               </div>
             </div>
-            <TokenBadge subscription={subscription} onClick={() => setShowPricing(true)} />
+            {/* TokenBadge hidden — users don't need to see token counts */}
             <div className="chat-online">● מחובר</div>
             {user && (
               <button className="chat-history-btn" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">

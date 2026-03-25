@@ -2203,7 +2203,10 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
         <div className="next-step-label">השלב הבא שלך</div>
         <div className="next-step-content">
           <div className="next-step-text">{currentStage?.nextAction || "ספר לי על המצב שלך בצ'אט ואני אמליץ"}</div>
-          <button className="next-step-btn" onClick={() => { setChatHat("magen"); setView("chat"); }}>
+          <button className="next-step-btn" onClick={() => {
+            const prompt = `אני בשלב "${currentStage?.label || "תביעה הוגשה"}". ${currentStage?.nextAction || ""}. עזור לי להתקדם לשלב הבא.`;
+            onAskDan(prompt);
+          }}>
             בוא נתקדם ביחד
           </button>
         </div>
@@ -2432,6 +2435,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   const pendingChatPromptRef = useRef(null);
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [showPricingGlobal, setShowPricingGlobal] = useState(false);
   const [openId,    setOpenId]    = useState(null);
   const [rCat,      setRCat]      = useState("הכל");
   const [rSearch,   setRSearch]   = useState("");
@@ -2542,7 +2546,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         {/* ── Fixed avatar (top-left corner, desktop only) ── */}
         <div className="fixed-avatar-wrap">
-          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} onProfile={() => setView("profile")} onUpgrade={() => setShowPricing(true)} />
+          <SidebarProfile mini rights={rights} onShowUnstarted={showUnstartedRights} onFeedback={() => setFeedbackOpen(true)} onTerms={() => setView("terms")} onProfile={() => setView("profile")} onUpgrade={() => setShowPricingGlobal(true)} />
         </div>
 
         {/* ── Sidebar (desktop) — mini icon-only ── */}
@@ -4364,6 +4368,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
       `}</style>
       <WhatsAppButton />
+      {showPricingGlobal && <PricingModal onClose={() => setShowPricingGlobal(false)} onSuccess={() => setShowPricingGlobal(false)} />}
     </>
   );
 }

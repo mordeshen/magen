@@ -6,7 +6,12 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 function parseToken(tokenStr) {
   try {
-    const json = atob(tokenStr);
+    // Token format: base64url(JSON).signature
+    const dotIdx = tokenStr.indexOf(".");
+    const b64 = dotIdx > 0 ? tokenStr.slice(0, dotIdx) : tokenStr;
+    // base64url → base64 → decode
+    const base64 = b64.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(base64);
     const data = JSON.parse(json);
     if (!data.phone || !data.exp) return null;
     if (Date.now() > data.exp) return { expired: true };

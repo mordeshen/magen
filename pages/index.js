@@ -665,12 +665,16 @@ function FeedbackModal({ open, onClose }) {
 
 const KNOWLEDGE_CATS = ["הכל", "ועדות רפואיות", "בירוקרטיה", "טיפול נפשי", "תעסוקה", "דיור", "לימודים", "כללי"];
 
-function KnowledgeView() {
+const FEATURED_CAT_LABELS = { rights: "זכויות", general: "כללי", health: "בריאות", vehicle: "רכב", housing: "דיור", faq: "שאלות נפוצות" };
+
+function KnowledgeView({ onAskAbout }) {
   const { user } = useUser();
   const [items, setItems] = useState([]);
   const [myItems, setMyItems] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [kCat, setKCat] = useState("הכל");
+  const [featuredCat, setFeaturedCat] = useState("הכל");
+  const [expandedId, setExpandedId] = useState(null);
   const [loadingK, setLoadingK] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formCat, setFormCat] = useState("כללי");
@@ -771,17 +775,34 @@ function KnowledgeView() {
       </div>
 
       {/* Featured knowledge articles from curated analysis */}
-      {featured.length > 0 && (
+      {featured.length > 0 && (() => {
+        const featuredCats = ["הכל", ...Array.from(new Set(featured.map(a => a.category).filter(Boolean)))];
+        const filteredFeatured = featuredCat === "הכל" ? featured : featured.filter(a => a.category === featuredCat);
+        return (
         <div style={{marginBottom:24}}>
           <p className="section-tag" style={{marginBottom:12}}>ידע מקצועי מאומת</p>
+          <div className="chips" style={{marginBottom:14}}>
+            {featuredCats.map(c => (
+              <button key={c} className={`chip ${featuredCat===c?"on":""}`} onClick={() => setFeaturedCat(c)}>
+                {c === "הכל" ? "הכל" : (FEATURED_CAT_LABELS[c] || c)}
+              </button>
+            ))}
+          </div>
           <div className="stack">
-            {featured.map(art => (
-              <div key={art.id || art.slug} className="knowledge-card" style={{borderInlineStart:"3px solid var(--olive-600)"}}>
+            {filteredFeatured.map(art => {
+              const artId = art.id || art.slug;
+              const isExpanded = expandedId === artId;
+              return (
+              <div key={artId} className={`knowledge-card featured-expandable ${isExpanded ? "expanded" : ""}`} style={{borderInlineStart:"3px solid var(--olive-600)", cursor:"pointer"}} onClick={() => setExpandedId(isExpanded ? null : artId)}>
                 <div className="knowledge-top">
                   <span className="badge cat-badge" style={{background:"rgba(90,111,74,.15)",color:"var(--olive-400)"}}>{ARTICLE_CAT_LABELS[art.category] || art.category}</span>
+                  <span className="featured-chevron">{isExpanded ? "\u25B2" : "\u25BC"}</span>
                 </div>
                 <h3 className="knowledge-title">{art.title_he}</h3>
                 <p className="knowledge-content">{art.summary}</p>
+                {isExpanded && art.content && (
+                  <div className="featured-expanded-content">{art.content}</div>
+                )}
                 {art.keywords && art.keywords.length > 0 && (
                   <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:4}}>
                     {art.keywords.slice(0, 5).map(kw => (
@@ -789,11 +810,18 @@ function KnowledgeView() {
                     ))}
                   </div>
                 )}
+                {onAskAbout && (
+                  <button className="featured-ask-btn" onClick={(e) => { e.stopPropagation(); onAskAbout(art.title_he); }}>
+                    {"שאל על זה \u2192"}
+                  </button>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {user ? (
         <div style={{marginBottom:20}}>
@@ -2671,7 +2699,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           </>}
 
           {/* KNOWLEDGE */}
-          {view==="knowledge" && <KnowledgeView />}
+          {view==="knowledge" && <KnowledgeView onAskAbout={(topic) => { setChatHat("magen"); pendingChatPromptRef.current = topic; setView("chat"); }} />}
 
           {/* UPDATES */}
           {view==="updates" && <>
@@ -3328,6 +3356,24 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .knowledge-vote-btn:hover:not(:disabled) { border-color:var(--accent-primary); color:var(--accent-primary); }
         .knowledge-vote-btn.voted { background:rgba(244,162,78,.12); border-color:var(--accent-primary); color:var(--accent-primary); font-weight:700; }
         .knowledge-vote-btn:disabled { cursor:default; opacity:.6; }
+
+        /* Featured expandable cards */
+        .featured-expandable { position:relative; }
+        .featured-chevron {
+          font-size:11px; color:var(--text-secondary); transition:color var(--duration-fast) var(--ease-out-quad);
+        }
+        .featured-expandable:hover .featured-chevron { color:var(--accent-primary); }
+        .featured-expanded-content {
+          margin-top:12px; padding-top:12px; border-top:1px solid var(--border-subtle);
+          font-size:14px; color:var(--stone-300); line-height:1.8; white-space:pre-wrap;
+        }
+        .featured-ask-btn {
+          margin-top:12px; padding:6px 14px; border-radius:8px;
+          border:1px solid rgba(244,162,78,.2); background:rgba(244,162,78,.06);
+          color:var(--accent-primary); font-family:'Heebo',sans-serif; font-size:12.5px;
+          font-weight:600; cursor:pointer; transition:all .2s ease;
+        }
+        .featured-ask-btn:hover { background:rgba(244,162,78,.12); }
 
         /* ── Tips ── */
         .tips-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }

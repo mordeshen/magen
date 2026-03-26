@@ -301,7 +301,6 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
               <button className="sb-popup-link" onClick={toggleProfilePanel}>הגדרות פרופיל</button>
               <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">האזור האישי שלי</a>
               <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-portal-agent")); }}>הגשת פנייה לאגף השיקום</button>
-              <a href="https://mod.gov.il/" target="_blank" rel="noopener noreferrer" className="sb-popup-link">אתר אגף השיקום</a>
               <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
             {onUpgrade && <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); onUpgrade(); }}>שדרג מסלול</button>}

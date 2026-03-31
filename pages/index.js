@@ -1350,6 +1350,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const [banner, setBanner]   = useState(true);
   const [userCity, setUserCity] = useState(null);
   const [attachment, setAttachment] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [typingText, setTypingText] = useState(null);
   const [placeholder, setPlaceholder] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -1498,6 +1499,37 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
     };
     reader.readAsDataURL(file);
     e.target.value = "";
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert("הקובץ גדול מדי (מקסימום 10MB)");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(",")[1];
+      const preview = file.type.startsWith("image/") ? reader.result : null;
+      setAttachment({ base64, media_type: file.type, file_name: file.name, preview });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
   }
 
   // Voice recording (Speech Recognition)
@@ -1908,7 +1940,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           </div>
         )}
 
-        <div className="chat-msgs" ref={msgsContainerRef}>
+        <div className={`chat-msgs${isDragging ? " chat-msgs-dragover" : ""}`} ref={msgsContainerRef} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.role}`}>
               {m.role === "assistant" && <div className="msg-ava">{curHat.emoji}</div>}
@@ -3692,7 +3724,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           display:flex; align-items:center; justify-content:center;
         }
         .history-delete:hover { color:var(--status-urgent); background:rgba(224,82,82,.08); }
-        .chat-msgs { flex:1; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:18px; }
+        .chat-msgs { flex:1; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:18px; transition:border-color .15s ease,background .15s ease; border:2px solid transparent; }
+        .chat-msgs-dragover { border-color:var(--copper-500); background:rgba(217,119,6,.04); }
         .msg { display:flex; gap:10px; align-items:flex-start; animation:msgIn .3s ease; }
         .msg.user { flex-direction:row-reverse; }
         @keyframes msgIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }

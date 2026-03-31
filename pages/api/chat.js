@@ -200,7 +200,8 @@ const VALID_ROLES = new Set(["user", "assistant"]);
 const ALLOWED_ATTACHMENT_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
 ]);
-const MAX_CONTENT_LENGTH = 50000; // increased — attachments encode as long base64
+const MAX_TEXT_LENGTH = 2000;      // text messages — prevents abuse
+const MAX_CONTENT_LENGTH = 50000;  // with attachment — base64 images are large
 const MAX_MESSAGES = 50;
 const MAX_ATTACHMENT_BASE64 = 10 * 1024 * 1024; // ~10MB base64
 
@@ -1314,8 +1315,11 @@ export default async function handler(req, res) {
     if (!m || !VALID_ROLES.has(m.role)) {
       return res.status(400).json({ reply: "הודעה לא תקינה." });
     }
-    if (typeof m.content === "string" && m.content.length > MAX_CONTENT_LENGTH) {
-      return res.status(400).json({ reply: "הודעה ארוכה מדי." });
+    if (typeof m.content === "string") {
+      const limit = attachment ? MAX_CONTENT_LENGTH : MAX_TEXT_LENGTH;
+      if (m.content.length > limit) {
+        return res.status(400).json({ reply: "הודעה ארוכה מדי." });
+      }
     }
   }
 

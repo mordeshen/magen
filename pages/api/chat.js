@@ -200,7 +200,7 @@ const VALID_ROLES = new Set(["user", "assistant"]);
 const ALLOWED_ATTACHMENT_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
 ]);
-const MAX_CONTENT_LENGTH = 1200;
+const MAX_CONTENT_LENGTH = 50000; // increased — attachments encode as long base64
 const MAX_MESSAGES = 50;
 const MAX_ATTACHMENT_BASE64 = 10 * 1024 * 1024; // ~10MB base64
 

@@ -1641,6 +1641,20 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         body: JSON.stringify(payload),
       });
 
+      // Handle 400 — message too long: restore input for editing
+      if (r.status === 400) {
+        const d = await r.json();
+        if (d.reply?.includes("ארוכה מדי")) {
+          setInput(text); // restore so user can edit
+          setAttachment(currentAttachment); // restore attachment
+          setMsgs(msgs); // remove the user message we just added
+          setMsgs(m => m.slice(0, -1));
+          setLoading(false);
+          setMsgs(m => [...m, { role: "assistant", content: "ההודעה ארוכה מדי — נסה לקצר קצת ושלח שוב. הטקסט נשמר כדי שתוכל לערוך." }]);
+          return;
+        }
+      }
+
       // Handle 402 — tokens exhausted
       if (r.status === 402) {
         const d = await r.json();

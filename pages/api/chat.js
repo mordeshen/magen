@@ -1318,7 +1318,7 @@ export default async function handler(req, res) {
     if (typeof m.content === "string") {
       const limit = attachment ? MAX_CONTENT_LENGTH : MAX_TEXT_LENGTH;
       if (m.content.length > limit) {
-        return res.status(400).json({ reply: "הודעה ארוכה מדי." });
+        return res.status(400).json({ reply: `הודעה ארוכה מדי (${m.content.length}/${limit} תווים). נסה לקצר.` });
       }
     }
   }

@@ -7,7 +7,7 @@
 // Layer 3 (async): Learn from interaction
 
 import { getAdminSupabase } from "./lib/supabase-admin";
-import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
+import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
 import { fetchRAG } from "./lib/rag";
 import { magenChat } from "./lib/magen-engine";
 
@@ -552,8 +552,8 @@ export default async function handler(req, res) {
         usedLayer = "legacy";
       }
     } else {
-      // Text messages → Magen Engine (v14b + RAG + Opus escalation)
-      try {
+      // Text messages → Magen Engine (v14b + RAG + Opus escalation) if enabled
+      if (MODEL_MAGEN) try {
         const result = await magenChat(message, magenContext, supabase);
         if (result) {
           reply = result.reply;

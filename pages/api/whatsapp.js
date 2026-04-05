@@ -552,8 +552,8 @@ export default async function handler(req, res) {
         usedLayer = "legacy";
       }
     } else {
-      // Text messages → Magen Engine (v14b + RAG + Opus escalation) if enabled
-      if (MODEL_MAGEN) try {
+      // Text messages → Magen Engine (disabled — v14b not ready yet)
+      if (false && MODEL_MAGEN) try {
         const result = await magenChat(message, magenContext, supabase);
         if (result) {
           reply = result.reply;

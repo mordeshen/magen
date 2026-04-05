@@ -1555,6 +1555,7 @@ export default async function handler(req, res) {
   const hat = clientHat; // Client's hat choice is always primary for now
 
   // --- Step 4: Build system prompt ---
+  console.log(`[chat] Context: userId=${allowance.userId || "null"}, profile=${!!userProfile}, memory=${memory?.length || 0}, legalCase=${!!legalCase}, features=[${[...activeFeatures].join(",")}]`);
   const contextData = {
     rights, events, userCity, userProfile, memory, medicalInjuries,
     legalCase, userRightsStatus, vetKnowledge, activeFeatures,

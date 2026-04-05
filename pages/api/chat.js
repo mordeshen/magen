@@ -1353,9 +1353,9 @@ export default async function handler(req, res) {
     ? (typeof lastUserMsg.content === "string" ? lastUserMsg.content : lastMessageText || "")
     : "";
 
-  // === MAGEN ENGINE PATH (disabled — v14b not ready for production yet) ===
-  // v14b (fine-tuned) + RAG + Opus escalation — minimal prompts, trained behavior
-  if (false && MODEL_MAGEN && !attachment) {
+  // === MAGEN ENGINE PATH ===
+  // Opus analyze → RAG → Opus respond — with personal context from Supabase
+  if (!attachment) {
     try {
       const supabase = getAdminSupabase();
 

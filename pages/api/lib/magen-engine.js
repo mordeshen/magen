@@ -46,36 +46,36 @@ complexity: simple|standard|complex|crisis
 "אני לא רואה טעם בכלום" → {"rag_queries":[],"emotional_state":"crisis","complexity":"crisis","escalate":"משבר נפשי"}
 "יש לי ועדה בעוד שבוע" → {"rag_queries":["הכנה לוועדה רפואית","ייצוג בוועדה"],"categories":["משפטי"],"complexity":"standard","memory_updates":[{"key":"ועדה קרובה","value":"בעוד שבוע"}]}`;
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL_MAGEN,
+      model: MODEL_OPUS,
+      max_tokens: 500,
+      system: system + "\n\nהחזר JSON בלבד, בלי הסברים, בלי markdown.",
       messages: [
-        { role: "system", content: system },
         ...(context.recentMessages || []).slice(-4).map(m => ({
           role: m.role,
           content: typeof m.content === "string" ? m.content : "[תוכן מורכב]",
         })),
         { role: "user", content: userMessage },
       ],
-      max_tokens: 500,
-      temperature: 0,
-      response_format: { type: "json_object" },
     }),
   });
 
   if (!r.ok) throw new Error(`Analyze error ${r.status}`);
 
   const d = await r.json();
-  const text = d.choices?.[0]?.message?.content || "{}";
+  const text = d.content?.[0]?.text || "{}";
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
 
   return {
-    brief: JSON.parse(text),
-    tokens: (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0),
+    brief: JSON.parse(jsonMatch ? jsonMatch[0] : "{}"),
+    tokens: (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0),
   };
 }
 
@@ -129,24 +129,24 @@ async function respond(userMessage, context, ragResults, brief) {
 
   const system = parts.join("\n");
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL_MAGEN,
+      model: MODEL_OPUS,
+      max_tokens: 1200,
+      system,
       messages: [
-        { role: "system", content: system },
         ...(context.recentMessages || []).slice(-6).map(m => ({
           role: m.role,
           content: typeof m.content === "string" ? m.content : "[תוכן מורכב]",
         })),
         { role: "user", content: userMessage },
       ],
-      max_tokens: 800,
-      temperature: 0.3,
     }),
   });
 
@@ -154,8 +154,8 @@ async function respond(userMessage, context, ragResults, brief) {
 
   const d = await r.json();
   return {
-    text: d.choices?.[0]?.message?.content || "",
-    tokens: (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0),
+    text: d.content?.[0]?.text || "",
+    tokens: (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0),
   };
 }
 

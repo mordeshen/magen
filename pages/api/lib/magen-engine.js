@@ -16,7 +16,7 @@
 import { MODEL_MAGEN, MODEL_OPUS } from "./models";
 import { fetchRAG } from "./rag";
 
-// ---- Step 1: v14b analyzes the message ----
+// ---- Step 1: v14b analyzes the message (with JSON mode forced) ----
 async function analyze(userMessage, context) {
   const personalContext = buildPersonalContext(context);
 
@@ -26,25 +26,17 @@ async function analyze(userMessage, context) {
 ${personalContext}
 --- משימה ---
 הבן מה המשתמש צריך. החזר JSON:
-{
-  "rag_queries": ["שאילתות חיפוש ממוקדות לבסיס הידע — מה צריך לחפש כדי לענות"],
-  "categories": ["כספי","בריאות","משפטי","לימודים","תעסוקה","מיסים","פנאי"],
-  "needs_events": false,
-  "emotional_state": "neutral|masking|distressed|crisis",
-  "complexity": "simple|standard|complex|crisis",
-  "escalate": null,
-  "memory_updates": [{"key":"מפתח","value":"ערך"}],
-  "stage_update": null,
-  "injury_detected": null
-}
+{"rag_queries":["שאילתות חיפוש ממוקדות לבסיס הידע"],"categories":[],"needs_events":false,"emotional_state":"neutral","complexity":"simple","escalate":null,"memory_updates":[],"stage_update":null,"injury_detected":null}
+
+categories: כספי,בריאות,משפטי,לימודים,תעסוקה,מיסים,פנאי
+emotional_state: neutral|masking|distressed|crisis
+complexity: simple|standard|complex|crisis
 
 דוגמאות:
-- "מה מגיע לי עם 40% נכות?" → rag_queries: ["זכויות נכה 40%", "תגמולים 40 אחוז", "הטבות מס נכות"], categories: ["כספי","מיסים"], memory_updates: [{"key":"אחוזי נכות","value":"40%"}]
-- "הכל בסדר, סתם על הארנונה" → rag_queries: ["הנחת ארנונה נכי צהל"], categories: ["מיסים"], emotional_state: "masking"
-- "אני לא רואה טעם בכלום" → rag_queries: [], emotional_state: "crisis", escalate: "סימני משבר נפשי, ייתכנו מחשבות אובדניות"
-- "יש לי ועדה בעוד שבוע" → rag_queries: ["הכנה לוועדה רפואית", "ייצוג בוועדה"], categories: ["משפטי"], memory_updates: [{"key":"ועדה קרובה","value":"בעוד שבוע"}]
-
-החזר רק JSON, בלי הסברים.`;
+"מה מגיע לי עם 40% נכות?" → {"rag_queries":["זכויות נכה 40%","תגמולים 40 אחוז","הטבות מס נכות"],"categories":["כספי","מיסים"],"emotional_state":"neutral","complexity":"standard","memory_updates":[{"key":"אחוזי נכות","value":"40%"}]}
+"הכל בסדר, סתם על הארנונה" → {"rag_queries":["הנחת ארנונה נכי צהל"],"categories":["מיסים"],"emotional_state":"masking","complexity":"simple"}
+"אני לא רואה טעם בכלום" → {"rag_queries":[],"emotional_state":"crisis","complexity":"crisis","escalate":"משבר נפשי"}
+"יש לי ועדה בעוד שבוע" → {"rag_queries":["הכנה לוועדה רפואית","ייצוג בוועדה"],"categories":["משפטי"],"complexity":"standard","memory_updates":[{"key":"ועדה קרובה","value":"בעוד שבוע"}]}`;
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -64,6 +56,7 @@ ${personalContext}
       ],
       max_tokens: 300,
       temperature: 0,
+      response_format: { type: "json_object" },
     }),
   });
 
@@ -71,11 +64,9 @@ ${personalContext}
 
   const d = await r.json();
   const text = d.choices?.[0]?.message?.content || "{}";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON in analysis");
 
   return {
-    brief: JSON.parse(jsonMatch[0]),
+    brief: JSON.parse(text),
     tokens: (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0),
   };
 }

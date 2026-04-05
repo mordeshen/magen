@@ -10,6 +10,7 @@ import { getAdminSupabase } from "./lib/supabase-admin";
 import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
 import { generateBrief } from "./lib/understanding";
 import { fetchRAG } from "./lib/rag";
+import { magenChat } from "./lib/magen-engine";
 import { logBrief, processLearning } from "./lib/learning";
 
 export const config = {
@@ -499,82 +500,131 @@ export default async function handler(req, res) {
       injuries = userCtx.injuries;
     }
 
-    // 4. Build system prompt with RAG context
-    let systemPrompt = PRIMARY_SYSTEM_PROMPT;
-
-    // Add profile context
-    if (profile) {
-      systemPrompt += `\n\n[פרופיל משתמש — לא לשאול על מה שכבר ידוע]`;
-      if (profile.name) systemPrompt += `\nשם: ${profile.name}`;
-      if (profile.city) systemPrompt += `\nעיר: ${profile.city}`;
-      if (profile.claim_status) systemPrompt += `\nסטטוס: ${profile.claim_status}`;
-      if (profile.disability_percent) systemPrompt += `\nאחוזי נכות: ${profile.disability_percent}%`;
-    }
-
-    // Add legal case
-    if (legalCase) {
-      systemPrompt += `\n\n[תיק משפטי — אתה מכיר את התיק שלו]`;
-      systemPrompt += `\nשלב: ${legalCase.stage}`;
-      if (legalCase.injury_types?.length) systemPrompt += `\nסוגי פגיעה: ${legalCase.injury_types.join(", ")}`;
-      if (legalCase.disability_percent) systemPrompt += `\nאחוזי נכות: ${legalCase.disability_percent}%`;
-      if (legalCase.committee_date) systemPrompt += `\nתאריך ועדה: ${legalCase.committee_date}`;
-      if (legalCase.representative_name) systemPrompt += `\nמייצג: ${legalCase.representative_name}`;
-    }
-
-    // Add injuries
-    if (injuries.length > 0) {
-      systemPrompt += `\n\n[פגיעות מתועדות]`;
-      injuries.forEach(inj => {
-        systemPrompt += `\n• ${inj.hebrew_label || inj.body_zone} — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}`;
-      });
-    }
-
-    // Add memory
-    if (memory.length > 0) {
-      systemPrompt += `\n\n[זיכרון מסשנים קודמים]`;
-      memory.forEach(m => { systemPrompt += `\n• ${m.key}: ${m.value}`; });
-    }
-
-    // Fetch RAG knowledge (quick keyword search — no embedding delay)
-    const ragBrief = { rag_queries: [message], categories: [], hat: null, intent: null, include_formula: false };
-    const ragResults = await fetchRAG(ragBrief, supabase);
-
-    if (ragResults.rights?.length > 0) {
-      systemPrompt += `\n\n[זכויות רלוונטיות]`;
-      ragResults.rights.slice(0, 3).forEach(r => {
-        systemPrompt += `\n• ${r.title}: ${r.summary || r.details}`;
-        if (r.practical_tip) systemPrompt += ` (טיפ: ${r.practical_tip})`;
-      });
-    }
-
-    // 5. Sonnet — deep, quality primary response
-    const primaryRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "prompt-caching-2024-07-31",
-      },
-      body: JSON.stringify({
-        model: MODEL_OPUS,
-        max_tokens: 600,
-        system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
-        messages: [
-          ...history.slice(-4).map(m => ({ role: m.role, content: m.content })),
-          { role: "user", content: mediaItems.length > 0 ? await buildMediaMessage(message, mediaItems) : message },
-        ],
-      }),
-    });
+    // 4. Build context for Magen Engine
+    const magenContext = {
+      userId: pairing?.user_id || null,
+      profile,
+      memory,
+      legalCase,
+      injuries,
+      recentMessages: history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+    };
 
     let reply;
-    if (primaryRes.ok) {
-      const data = await primaryRes.json();
-      reply = data.content?.[0]?.text || "מצטער, נסה שוב.";
+    let usedLayer = "unknown";
+
+    // 5. Route: Magen Engine for text, Opus for media
+    if (mediaItems.length > 0) {
+      // Media (images/PDFs) → Opus directly (v14b can't process images)
+      console.log("[whatsapp] Media detected → Opus path");
+      let systemPrompt = PRIMARY_SYSTEM_PROMPT;
+      if (profile) {
+        systemPrompt += `\n\n[פרופיל משתמש]`;
+        if (profile.name) systemPrompt += `\nשם: ${profile.name}`;
+        if (profile.city) systemPrompt += `\nעיר: ${profile.city}`;
+        if (profile.disability_percent) systemPrompt += `\nאחוזי נכות: ${profile.disability_percent}%`;
+      }
+      if (legalCase) {
+        systemPrompt += `\n\n[תיק משפטי]`;
+        systemPrompt += `\nשלב: ${legalCase.stage}`;
+        if (legalCase.committee_date) systemPrompt += `\nתאריך ועדה: ${legalCase.committee_date}`;
+      }
+      if (injuries.length > 0) {
+        systemPrompt += `\n\n[פגיעות]`;
+        injuries.forEach(inj => {
+          systemPrompt += `\n• ${inj.hebrew_label || inj.body_zone} — ${inj.severity}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}`;
+        });
+      }
+      if (memory.length > 0) {
+        systemPrompt += `\n\n[זיכרון]`;
+        memory.forEach(m => { systemPrompt += `\n• ${m.key}: ${m.value}`; });
+      }
+
+      const primaryRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta": "prompt-caching-2024-07-31",
+        },
+        body: JSON.stringify({
+          model: MODEL_OPUS,
+          max_tokens: 600,
+          system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+          messages: [
+            ...history.slice(-4).map(m => ({ role: m.role, content: m.content })),
+            { role: "user", content: await buildMediaMessage(message, mediaItems) },
+          ],
+        }),
+      });
+
+      if (primaryRes.ok) {
+        const data = await primaryRes.json();
+        reply = data.content?.[0]?.text || "מצטער, נסה שוב.";
+        usedLayer = "opus-media";
+      } else {
+        console.error("[whatsapp] Opus media error:", primaryRes.status);
+        reply = await callClaudeLegacy(history, message);
+        usedLayer = "legacy";
+      }
     } else {
-      console.error("[whatsapp] Sonnet error:", primaryRes.status);
-      reply = await callClaudeLegacy(history, message);
+      // Text messages → Magen Engine (v14b + RAG + Opus escalation)
+      try {
+        const result = await magenChat(message, magenContext, supabase);
+        if (result) {
+          reply = result.reply;
+          usedLayer = result.layer; // "magen" or "opus"
+          console.log(`[whatsapp] Magen engine responded (layer: ${result.layer}, tokens: ${result.tokens})`);
+        }
+      } catch (e) {
+        console.error("[whatsapp] Magen engine error:", e.message);
+      }
+
+      // Fallback to Opus if Magen Engine failed
+      if (!reply) {
+        console.log("[whatsapp] Magen engine failed → Opus fallback");
+        let systemPrompt = PRIMARY_SYSTEM_PROMPT;
+        const ragBrief = { rag_queries: [message], categories: [], hat: null, intent: null, include_formula: false };
+        const ragResults = await fetchRAG(ragBrief, supabase);
+        if (ragResults.rights?.length > 0) {
+          systemPrompt += `\n\n[זכויות רלוונטיות]`;
+          ragResults.rights.slice(0, 3).forEach(r => {
+            systemPrompt += `\n• ${r.title}: ${r.summary || r.details}`;
+          });
+        }
+
+        const primaryRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": process.env.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: MODEL_OPUS,
+            max_tokens: 600,
+            system: systemPrompt,
+            messages: [
+              ...history.slice(-4).map(m => ({ role: m.role, content: m.content })),
+              { role: "user", content: message },
+            ],
+          }),
+        });
+
+        if (primaryRes.ok) {
+          const data = await primaryRes.json();
+          reply = data.content?.[0]?.text || "מצטער, נסה שוב.";
+          usedLayer = "opus-fallback";
+        } else {
+          console.error("[whatsapp] Opus fallback error:", primaryRes.status);
+          reply = await callClaudeLegacy(history, message);
+          usedLayer = "legacy";
+        }
+      }
     }
+
+    console.log(`[whatsapp] Response sent (layer: ${usedLayer})`);
 
     // 6. If not paired, occasionally suggest pairing
     if (!pairing) {
@@ -637,7 +687,7 @@ export default async function handler(req, res) {
             system: FOLLOWUP_SYSTEM_PROMPT,
             messages: [{
               role: "user",
-              content: `[ידע זכויות זמין]\n${ragResults.rights?.map(r => `• ${r.title}: ${r.details}`).join("\n") || "אין"}\n\n[הודעת משתמש]\n${message}\n\n[תשובה שנשלחה]\n${reply}`,
+              content: `[הודעת משתמש]\n${message}\n\n[תשובה שנשלחה]\n${reply}`,
             }],
           }),
         });

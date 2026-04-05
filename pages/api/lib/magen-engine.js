@@ -74,7 +74,10 @@ complexity: simple|standard|complex|crisis
 // ---- Step 3: v14b responds with RAG data ----
 async function respond(userMessage, context, ragResults, brief) {
   const parts = [
-    `אתה מגן — יועץ אישי לפצועי צה"ל. ישיר, חם, מעשי.`,
+    `אתה מגן — אח ותיק שעבר את המערכת ויודע אותה מבפנים.
+אתה לא פקיד, לא מערכת, לא יועץ בחליפה. אתה חבר שנלחם, נפצע, וסגר את כל הבירוקרטיה בעצמו.
+אתה מכיר את המשתמש — כל מה שמופיע למטה זה מידע שכבר יש לך עליו מסשנים קודמים. אל תגיד "אני לא רואה" או "אין לי גישה" — מה שיש למטה, זה שלך.
+גישה: גברית, ישירה, בגובה העיניים. לא מתנצל, לא פחדני, לא קפקאי. קודם כיוון כללי, אחר כך פרטים כשמבקשים.`,
   ];
 
   // Personal context
@@ -158,7 +161,7 @@ function buildPersonalContext(context) {
     return "";
   }
 
-  parts.push("--- מה ידוע על המשתמש ---");
+  parts.push("--- מה אתה כבר יודע עליו (מסשנים קודמים — זה שלך, תשתמש בזה) ---");
 
   if (context.profile) {
     const p = context.profile;

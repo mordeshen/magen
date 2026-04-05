@@ -1373,6 +1373,9 @@ export default async function handler(req, res) {
         legalCase = legalRes.data;
         injuries = injuryRes.data || [];
         memory = memoryRes.data || [];
+        console.log(`[chat] Supabase data: profile=${!!profile}, legalCase=${!!legalCase}, injuries=${injuries.length}, memory=${memory.length}`);
+        if (profileRes.error) console.error("[chat] profile error:", profileRes.error);
+        if (legalRes.error) console.error("[chat] legalCase error:", legalRes.error);
       }
 
       const magenContext = {

@@ -7,8 +7,10 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
-import { MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
+import { MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
 import { invertedChat } from "./lib/inverted-chat";
+import { magenChat } from "./lib/magen-engine";
+import { logChatMetrics, detectCategory, modelShortName } from "../../lib/analytics";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
 const USE_INVERTED = process.env.INVERTED_ARCH === "1";
@@ -1263,6 +1265,9 @@ export default async function handler(req, res) {
     });
   }
 
+  // --- Analytics timing ---
+  const analyticsStart = Date.now();
+
   // --- Input validation ---
   const body = req.body;
   if (!body || typeof body !== "object") {
@@ -1339,7 +1344,73 @@ export default async function handler(req, res) {
     ? (typeof lastUserMsg.content === "string" ? lastUserMsg.content : lastMessageText || "")
     : "";
 
-  // === INVERTED ARCHITECTURE PATH ===
+  // === MAGEN ENGINE PATH ===
+  // v14b (fine-tuned) + RAG + Opus escalation — minimal prompts, trained behavior
+  if (MODEL_MAGEN && !attachment) {
+    try {
+      const supabase = getAdminSupabase();
+
+      // Build personal context
+      let profile = null, legalCase = null, injuries = [], memory = [];
+      if (allowance.userId) {
+        const [profileRes, legalRes, injuryRes, memoryRes] = await Promise.all([
+          supabase.from("user_profiles").select("*").eq("user_id", allowance.userId).maybeSingle(),
+          supabase.from("legal_cases").select("*").eq("user_id", allowance.userId).maybeSingle(),
+          supabase.from("injuries").select("body_zone, hebrew_label, severity, status, details, disability_percent").eq("user_id", allowance.userId).limit(20),
+          supabase.from("user_memory").select("key, value").eq("user_id", allowance.userId).limit(20),
+        ]);
+        profile = profileRes.data;
+        legalCase = legalRes.data;
+        injuries = injuryRes.data || [];
+        memory = memoryRes.data || [];
+      }
+
+      const magenContext = {
+        userId: allowance.userId,
+        profile,
+        legalCase,
+        injuries,
+        memory,
+        recentMessages: messages.slice(-6),
+      };
+
+      const result = await magenChat(lastUserText, magenContext, supabase);
+
+      if (result) {
+        // Track token usage
+        const tokensUsed = result.tokens || 0;
+        let tokenInfo = { used: tokensUsed, remaining: allowance.remaining, plan: allowance.planId };
+        try {
+          if (allowance.userId) {
+            const { data: deductResult } = await supabase.rpc("deduct_tokens", {
+              p_user_id: allowance.userId, p_amount: tokensUsed, p_is_daily: allowance.planId === "free",
+            });
+            if (deductResult) tokenInfo.remaining = deductResult.remaining;
+          } else {
+            const today = new Date().toISOString().split("T")[0];
+            const { data: ipResult } = await supabase.rpc("increment_ip_usage", {
+              p_ip: ip, p_date: today, p_amount: tokensUsed,
+            });
+            if (ipResult) tokenInfo.remaining = ipResult.remaining;
+          }
+        } catch (e) { console.error("Token tracking error:", e); }
+
+        console.log(`[chat] Magen engine responded (layer: ${result.layer}, tokens: ${tokensUsed})`);
+
+        return res.json({
+          reply: result.reply,
+          tokenInfo,
+          _engine: "magen",
+          _layer: result.layer,
+        });
+      }
+    } catch (e) {
+      console.error("[chat] Magen engine error, falling back:", e.message);
+    }
+    // If magen engine fails, fall through to legacy/inverted
+  }
+
+  // === INVERTED ARCHITECTURE PATH (legacy) ===
   // When enabled, uses 3-layer system: Understanding (Sonnet) → Execution (Haiku) → Learning
   if (USE_INVERTED && !attachment) {
     try {
@@ -1542,32 +1613,77 @@ export default async function handler(req, res) {
   const maxTokens = attachment ? Math.max(2048, allowance.features.max_tokens || 1024) : (allowance.features.max_tokens || 1024);
 
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        max_tokens: maxTokens,
-        system,
-        messages: apiMessages,
-      }),
-    });
+    let reply;
+    let tokensUsed;
 
-    if (!r.ok) {
-      const err = await r.text();
-      console.error("Claude API error:", r.status);
-      return res.status(500).json({ reply: "שגיאה בחיבור. נסה שוב." });
+    // --- Magen fine-tuned model path (OpenAI) ---
+    if (MODEL_MAGEN && !attachment) {
+      console.log(`[chat] Using Magen fine-tuned model: ${MODEL_MAGEN}`);
+
+      const openaiMessages = [
+        { role: "system", content: system },
+        ...apiMessages.map(m => ({
+          role: m.role,
+          content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+        })),
+      ];
+
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: MODEL_MAGEN,
+          messages: openaiMessages,
+          max_tokens: maxTokens,
+          temperature: 0.3,
+        }),
+      });
+
+      if (!r.ok) {
+        const err = await r.text();
+        console.error("OpenAI API error:", r.status, err);
+        // Fallback to Claude if OpenAI fails
+        console.log("[chat] Falling back to Claude...");
+      } else {
+        const d = await r.json();
+        reply = d.choices?.[0]?.message?.content || null;
+        tokensUsed = (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0);
+      }
     }
 
-    const d = await r.json();
-    const reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
+    // --- Claude path (default or fallback) ---
+    if (!reply) {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          max_tokens: maxTokens,
+          system,
+          messages: apiMessages,
+        }),
+      });
+
+      if (!r.ok) {
+        const err = await r.text();
+        console.error("Claude API error:", r.status);
+        return res.status(500).json({ reply: "שגיאה בחיבור. נסה שוב." });
+      }
+
+      const d = await r.json();
+      reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
+      tokensUsed = (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0);
+    }
 
     // Track token usage via RPC
-    const tokensUsed = (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0);
+    if (!tokensUsed) tokensUsed = 0;
     let tokenInfo = { used: tokensUsed, remaining: allowance.remaining, plan: allowance.planId };
     try {
       const admin = getAdminSupabase();
@@ -1640,6 +1756,21 @@ export default async function handler(req, res) {
     const estimatedCost = FEATURE_CONFIG
       .filter(f => activeFeatures.has(f.id))
       .reduce((sum, f) => sum + f.estimated_tokens, 0);
+
+    // --- Analytics logging (fire-and-forget) ---
+    const lastUserMsg = messages?.[messages.length - 1]?.content || "";
+    logChatMetrics({
+      sessionId: body.sessionId || crypto.randomUUID(),
+      inputTokens: d.usage?.input_tokens || 0,
+      outputTokens: d.usage?.output_tokens || 0,
+      model: modelShortName(selectedModel),
+      category: detectCategory(lastUserMsg),
+      usedRag: (rights && rights.length > 0) || false,
+      usedWebSearch: false,
+      persona: clientHat || "lawyer",
+      responseTimeMs: Date.now() - analyticsStart,
+      channel: "web",
+    }).catch(() => {}); // never block response
 
     res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost });
   } catch (err) {

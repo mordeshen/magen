@@ -44,8 +44,17 @@ const hourlyMap = new Map(); // ip -> timestamp[]
 // --- Token allowance check (subscription-based) ---
 async function getTokenAllowance(req, res, ip) {
   // TEMPORARY: unlimited for everyone until payment is set up
+  // But still extract userId for personal context
+  let earlyUserId = null;
+  try {
+    const userSb = getUserSupabase(req, res);
+    if (userSb) {
+      const { data: { user } } = await userSb.auth.getUser();
+      if (user) earlyUserId = user.id;
+    }
+  } catch {}
   return {
-    allowed: true, userId: null, planId: "free",
+    allowed: true, userId: earlyUserId, planId: "free",
     features: { model: MODEL_SONNET, max_tokens: 4096 },
     unlimited: true, remaining: -1, ip,
   };
@@ -1352,6 +1361,7 @@ export default async function handler(req, res) {
 
       // Build personal context
       let profile = null, legalCase = null, injuries = [], memory = [];
+      console.log(`[chat] Magen engine: userId=${allowance.userId || "null"}`);
       if (allowance.userId) {
         const [profileRes, legalRes, injuryRes, memoryRes] = await Promise.all([
           supabase.from("profiles").select("*").eq("id", allowance.userId).maybeSingle(),

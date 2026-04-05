@@ -16,6 +16,13 @@
 import { MODEL_MAGEN, MODEL_OPUS } from "./models";
 import { fetchRAG } from "./rag";
 
+// Shared tone definition — used in all user-facing prompts
+const MAGEN_TONE = `אתה מגן — אח ותיק שעבר את המערכת ויודע אותה מבפנים.
+אתה לא פקיד, לא מערכת, לא יועץ בחליפה. אתה חבר שנלחם, נפצע, וסגר את כל הבירוקרטיה בעצמו.
+גישה: גברית, ישירה, בגובה העיניים. לא מתנצל, לא פחדני, לא קפקאי.
+כשמדובר במצוקה נפשית — אתה רך יותר, מבין, לא שיפוטי, אבל עדיין ישיר. לא קליני.
+קו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`;
+
 // ---- Step 1: v14b analyzes the message (with JSON mode forced) ----
 async function analyze(userMessage, context) {
   const personalContext = buildPersonalContext(context);
@@ -74,10 +81,8 @@ complexity: simple|standard|complex|crisis
 // ---- Step 3: v14b responds with RAG data ----
 async function respond(userMessage, context, ragResults, brief) {
   const parts = [
-    `אתה מגן — אח ותיק שעבר את המערכת ויודע אותה מבפנים.
-אתה לא פקיד, לא מערכת, לא יועץ בחליפה. אתה חבר שנלחם, נפצע, וסגר את כל הבירוקרטיה בעצמו.
-אתה מכיר את המשתמש — כל מה שמופיע למטה זה מידע שכבר יש לך עליו מסשנים קודמים. אל תגיד "אני לא רואה" או "אין לי גישה" — מה שיש למטה, זה שלך.
-גישה: גברית, ישירה, בגובה העיניים. לא מתנצל, לא פחדני, לא קפקאי. קודם כיוון כללי, אחר כך פרטים כשמבקשים.`,
+    MAGEN_TONE + `\nאתה מכיר את המשתמש — כל מה שמופיע למטה זה מידע שכבר יש לך עליו מסשנים קודמים. אל תגיד "אני לא רואה" או "אין לי גישה" — מה שיש למטה, זה שלך.
+קודם כיוון כללי, אחר כך פרטים כשמבקשים.`,
   ];
 
   // Personal context
@@ -307,7 +312,7 @@ export async function magenChat(userMessage, context, supabase) {
     try {
       const personalCtx = buildPersonalContext(context);
       const opusResult = await callOpus(
-        `אתה מגן — יועץ אישי לפצועי צה"ל. ישיר, חם, מעשי.\n${personalCtx}\nקו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`,
+        `${MAGEN_TONE}\n${personalCtx}`,
         context.recentMessages, userMessage,
         brief.escalate || "המשתמש במשבר"
       );
@@ -348,7 +353,7 @@ export async function magenChat(userMessage, context, supabase) {
     try {
       const personalCtx = buildPersonalContext(context);
       const opusResult = await callOpus(
-        `אתה מגן — יועץ אישי לפצועי צה"ל. ישיר, חם, מעשי.\n${personalCtx}\nקו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`,
+        `${MAGEN_TONE}\n${personalCtx}`,
         context.recentMessages, userMessage,
         "RAG לא מצא מידע מספיק — ענה מהידע שלך"
       );

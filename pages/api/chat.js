@@ -1354,7 +1354,7 @@ export default async function handler(req, res) {
       let profile = null, legalCase = null, injuries = [], memory = [];
       if (allowance.userId) {
         const [profileRes, legalRes, injuryRes, memoryRes] = await Promise.all([
-          supabase.from("user_profiles").select("*").eq("user_id", allowance.userId).maybeSingle(),
+          supabase.from("profiles").select("*").eq("id", allowance.userId).maybeSingle(),
           supabase.from("legal_cases").select("*").eq("user_id", allowance.userId).maybeSingle(),
           supabase.from("injuries").select("body_zone, hebrew_label, severity, status, details, disability_percent").eq("user_id", allowance.userId).limit(20),
           supabase.from("user_memory").select("key, value").eq("user_id", allowance.userId).limit(20),

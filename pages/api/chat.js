@@ -1613,77 +1613,31 @@ export default async function handler(req, res) {
   const maxTokens = attachment ? Math.max(2048, allowance.features.max_tokens || 1024) : (allowance.features.max_tokens || 1024);
 
   try {
-    let reply;
-    let tokensUsed;
+    // --- Legacy Claude path (fallback when Magen Engine is off or fails) ---
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        max_tokens: maxTokens,
+        system,
+        messages: apiMessages,
+      }),
+    });
 
-    // --- Magen fine-tuned model path (OpenAI) ---
-    if (MODEL_MAGEN && !attachment) {
-      console.log(`[chat] Using Magen fine-tuned model: ${MODEL_MAGEN}`);
-
-      const openaiMessages = [
-        { role: "system", content: system },
-        ...apiMessages.map(m => ({
-          role: m.role,
-          content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-        })),
-      ];
-
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: MODEL_MAGEN,
-          messages: openaiMessages,
-          max_tokens: maxTokens,
-          temperature: 0.3,
-        }),
-      });
-
-      if (!r.ok) {
-        const err = await r.text();
-        console.error("OpenAI API error:", r.status, err);
-        // Fallback to Claude if OpenAI fails
-        console.log("[chat] Falling back to Claude...");
-      } else {
-        const d = await r.json();
-        reply = d.choices?.[0]?.message?.content || null;
-        tokensUsed = (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0);
-      }
+    if (!r.ok) {
+      const err = await r.text();
+      console.error("Claude API error:", r.status);
+      return res.status(500).json({ reply: "שגיאה בחיבור. נסה שוב." });
     }
 
-    // --- Claude path (default or fallback) ---
-    if (!reply) {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          max_tokens: maxTokens,
-          system,
-          messages: apiMessages,
-        }),
-      });
-
-      if (!r.ok) {
-        const err = await r.text();
-        console.error("Claude API error:", r.status);
-        return res.status(500).json({ reply: "שגיאה בחיבור. נסה שוב." });
-      }
-
-      const d = await r.json();
-      reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
-      tokensUsed = (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0);
-    }
-
-    // Track token usage via RPC
-    if (!tokensUsed) tokensUsed = 0;
+    const d = await r.json();
+    const reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
+    const tokensUsed = (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0);
     let tokenInfo = { used: tokensUsed, remaining: allowance.remaining, plan: allowance.planId };
     try {
       const admin = getAdminSupabase();

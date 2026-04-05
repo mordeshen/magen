@@ -54,7 +54,7 @@ complexity: simple|standard|complex|crisis
         })),
         { role: "user", content: userMessage },
       ],
-      max_tokens: 300,
+      max_tokens: 500,
       temperature: 0,
       response_format: { type: "json_object" },
     }),
@@ -231,6 +231,22 @@ async function callOpus(systemPrompt, recentMessages, userMessage, escalateReaso
   };
 }
 
+// ---- Log Opus response as training candidate for v15 ----
+async function logTrainingCandidate(supabase, userMessage, opusResponse, reason) {
+  if (!supabase) return;
+  try {
+    await supabase.from("training_candidates").insert({
+      user_message: userMessage,
+      assistant_response: opusResponse,
+      reason,
+      created_at: new Date().toISOString(),
+    });
+    console.log(`[magen] Training candidate saved (reason: ${reason})`);
+  } catch (err) {
+    console.error("[magen] Training candidate save error:", err?.message);
+  }
+}
+
 // ---- Update personal file in Supabase ----
 async function updatePersonalFile(supabase, userId, updates) {
   if (!supabase || !userId) return;
@@ -295,6 +311,8 @@ export async function magenChat(userMessage, context, supabase) {
 
       // Update personal file from analysis
       updatePersonalFile(supabase, context.userId, brief).catch(() => {});
+      // Save for v15 training
+      logTrainingCandidate(supabase, userMessage, opusResult.text, brief.escalate || "crisis").catch(() => {});
 
       return {
         reply: opusResult.text,
@@ -316,7 +334,33 @@ export async function magenChat(userMessage, context, supabase) {
   };
 
   const ragResults = await fetchRAG(ragQuery, supabase);
-  console.log(`[magen] RAG: ${ragResults.rights?.length || 0} rights, ${ragResults.events?.length || 0} events, ${ragResults.veteran?.length || 0} veteran`);
+  const topScore = ragResults.rights?.[0]?._score || 0;
+  console.log(`[magen] RAG: ${ragResults.rights?.length || 0} rights (top: ${topScore.toFixed(3)}), ${ragResults.events?.length || 0} events, ${ragResults.veteran?.length || 0} veteran`);
+
+  // === Step 2.5: Low RAG confidence + factual query → Opus ===
+  const hasQueries = (brief.rag_queries?.length || 0) > 0;
+  const ragWeak = !ragResults.rights?.length || topScore < 0.4;
+  if (hasQueries && ragWeak && brief.complexity !== "simple") {
+    console.log(`[magen] RAG too weak (score: ${topScore.toFixed(3)}) → Opus`);
+    try {
+      const personalCtx = buildPersonalContext(context);
+      const opusResult = await callOpus(
+        `אתה מגן — יועץ אישי לפצועי צה"ל. ישיר, חם, מעשי.\n${personalCtx}\nקו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`,
+        context.recentMessages, userMessage,
+        "RAG לא מצא מידע מספיק — ענה מהידע שלך"
+      );
+      updatePersonalFile(supabase, context.userId, brief).catch(() => {});
+      logTrainingCandidate(supabase, userMessage, opusResult.text, "weak-rag").catch(() => {});
+      return {
+        reply: opusResult.text,
+        tokens: analysis.tokens + opusResult.tokens,
+        layer: "opus",
+      };
+    } catch (err) {
+      console.error("[magen] Opus (weak RAG) failed:", err.message);
+      // Fall through to v14b anyway
+    }
+  }
 
   // === Step 3: v14b RESPONDS with RAG data ===
   let response;

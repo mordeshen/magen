@@ -1414,23 +1414,15 @@ export default async function handler(req, res) {
     try {
       const supabase = getAdminSupabase();
 
-      // Fetch medical injuries if user is authenticated and feature is active
-      let medicalInjuries = [];
-      if (activeFeatures.has("medical_context") && allowance.userId) {
-        try {
-          const { data } = await supabase.from("injuries")
-            .select("body_zone, hebrew_label, severity, status, details, disability_percent")
-            .eq("user_id", allowance.userId).limit(20);
-          medicalInjuries = data || [];
-        } catch {}
-      }
+      // Server-side user context — single source of truth
+      const invCtx = await fetchUserContext(supabase, allowance.userId);
 
       const context = {
         recentMessages: messages.slice(-6),
         clientHat: hatExplicit ? clientHat : null,
-        profile: userProfile || null,
-        memory: memory || [],
-        medicalInjuries,
+        profile: invCtx.profile || null,
+        memory: invCtx.memory || [],
+        medicalInjuries: invCtx.injuries,
         conversationId: body.sessionId || null,
         enableMedicalExtraction: activeFeatures.has("medical_context"),
       };
@@ -1523,18 +1515,9 @@ export default async function handler(req, res) {
   const { summary: conversationSummary, messages: optimizedMessages } = await summarizeConversation(messages);
 
   // --- Step 2: Route intent + fetch data in parallel ---
-  const [routerResult, vetKnowledge, medicalInjuries] = await Promise.all([
+  const [routerResult, vetKnowledge] = await Promise.all([
     routeIntent(lastUserText, conversationSummary),
     fetchVeteranKnowledge(),
-    (activeFeatures.has("medical_context") && allowance.userId) ? (async () => {
-      try {
-        const admin = getAdminSupabase();
-        const { data } = await admin.from("injuries")
-          .select("body_zone, hebrew_label, severity, status, details, disability_percent")
-          .eq("user_id", allowance.userId).limit(20);
-        return data || [];
-      } catch { return []; }
-    })() : Promise.resolve([]),
   ]);
 
   console.log("[chat] router:", JSON.stringify(routerResult));
@@ -1543,10 +1526,25 @@ export default async function handler(req, res) {
   const hat = clientHat; // Client's hat choice is always primary for now
 
   // --- Step 4: Build system prompt ---
-  console.log(`[chat] Context: userId=${allowance.userId || "null"}, profile=${!!userProfile}, memory=${memory?.length || 0}, legalCase=${!!legalCase}, features=[${[...activeFeatures].join(",")}]`);
+  // Server-side user context — single source of truth (overrides client-sent data)
+  const serverAdmin = getAdminSupabase();
+  const serverCtx = await fetchUserContext(serverAdmin, allowance.userId);
+  const serverProfile = serverCtx.profile ? {
+    name: serverCtx.profile.name,
+    city: serverCtx.profile.city,
+    claim_status: serverCtx.profile.claim_status,
+    claim_stage: serverCtx.profile.claim_stage,
+    disability_percent: serverCtx.profile.disability_percent,
+    interests: serverCtx.profile.interests,
+  } : userProfile; // fallback to client only if server has nothing
+
   const contextData = {
-    rights, events, userCity, userProfile, memory, medicalInjuries,
-    legalCase, userRightsStatus, vetKnowledge, activeFeatures,
+    rights, events, userCity,
+    userProfile: serverProfile,
+    memory: serverCtx.memory.length ? serverCtx.memory : memory,
+    medicalInjuries: serverCtx.injuries,
+    legalCase: serverCtx.legalCase || legalCase,
+    userRightsStatus, vetKnowledge, activeFeatures,
   };
 
   let system;

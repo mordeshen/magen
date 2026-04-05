@@ -8,10 +8,8 @@
 
 import { getAdminSupabase } from "./lib/supabase-admin";
 import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
-import { generateBrief } from "./lib/understanding";
 import { fetchRAG } from "./lib/rag";
 import { magenChat } from "./lib/magen-engine";
-import { logBrief, processLearning } from "./lib/learning";
 
 export const config = {
   api: { bodyParser: true },
@@ -710,12 +708,7 @@ export default async function handler(req, res) {
         console.error("[whatsapp] Follow-up error:", e.message);
       }
 
-      // Learning layer (async)
-      processLearning(supabase, {
-        brief: { hat: "auto", intent: "auto", complexity: "auto" },
-        responseText: reply,
-        userMessage: message,
-      }).catch(() => {});
+      // Training data now collected via training_candidates table in magen-engine.js
     })();
 
     return; // Already responded

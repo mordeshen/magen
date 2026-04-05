@@ -10,6 +10,7 @@ import { getAdminSupabase } from "./lib/supabase-admin";
 import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
 import { fetchRAG } from "./lib/rag";
 import { magenChat } from "./lib/magen-engine";
+import { fetchUserContext } from "./lib/user-context";
 
 export const config = {
   api: { bodyParser: true },
@@ -300,39 +301,7 @@ async function getPairing(supabase, phone) {
   return data; // null if not found
 }
 
-/**
- * Fetch user profile and memory for a paired user.
- */
-async function getUserContext(supabase, userId) {
-  const [profileRes, memoryRes, legalRes, injuriesRes] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle(),
-    supabase
-      .from("user_memory")
-      .select("key, value")
-      .eq("user_id", userId),
-    supabase
-      .from("legal_cases")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabase
-      .from("injuries")
-      .select("body_zone, hebrew_label, severity, status, details, disability_percent")
-      .eq("user_id", userId)
-      .limit(20),
-  ]);
-
-  return {
-    profile: profileRes.data || null,
-    memory: memoryRes.data || [],
-    legalCase: legalRes.data || null,
-    injuries: injuriesRes.data || [],
-  };
-}
+// getUserContext removed — now using shared fetchUserContext from lib/user-context.js
 
 /**
  * Remove pairing for a phone number.
@@ -476,7 +445,7 @@ export default async function handler(req, res) {
     let legalCase = null;
     let injuries = [];
     if (pairing) {
-      const userCtx = await getUserContext(supabase, pairing.user_id);
+      const userCtx = await fetchUserContext(supabase, pairing.user_id);
       profile = userCtx.profile;
       memory = userCtx.memory;
       legalCase = userCtx.legalCase;

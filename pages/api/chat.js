@@ -10,6 +10,7 @@ import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
 import { MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
 import { invertedChat } from "./lib/inverted-chat";
 import { magenChat } from "./lib/magen-engine";
+import { fetchUserContext } from "./lib/user-context";
 import { logChatMetrics, detectCategory, modelShortName } from "../../lib/analytics";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
@@ -1359,24 +1360,8 @@ export default async function handler(req, res) {
     try {
       const supabase = getAdminSupabase();
 
-      // Build personal context
-      let profile = null, legalCase = null, injuries = [], memory = [];
-      console.log(`[chat] Magen engine: userId=${allowance.userId || "null"}`);
-      if (allowance.userId) {
-        const [profileRes, legalRes, injuryRes, memoryRes] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", allowance.userId).maybeSingle(),
-          supabase.from("legal_cases").select("*").eq("user_id", allowance.userId).maybeSingle(),
-          supabase.from("injuries").select("body_zone, hebrew_label, severity, status, details, disability_percent").eq("user_id", allowance.userId).limit(20),
-          supabase.from("user_memory").select("key, value").eq("user_id", allowance.userId).limit(20),
-        ]);
-        profile = profileRes.data;
-        legalCase = legalRes.data;
-        injuries = injuryRes.data || [];
-        memory = memoryRes.data || [];
-        console.log(`[chat] Supabase data: profile=${!!profile}, legalCase=${!!legalCase}, injuries=${injuries.length}, memory=${memory.length}`);
-        if (profileRes.error) console.error("[chat] profile error:", profileRes.error);
-        if (legalRes.error) console.error("[chat] legalCase error:", legalRes.error);
-      }
+      // Build personal context — single source of truth
+      const { profile, legalCase, injuries, memory } = await fetchUserContext(supabase, allowance.userId);
 
       const magenContext = {
         userId: allowance.userId,

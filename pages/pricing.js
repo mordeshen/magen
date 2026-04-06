@@ -42,6 +42,7 @@ export default function PricingPage() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [justPurchased, setJustPurchased] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const { user, subscription, loadSubscription } = useUser();
   const currentPlan = user ? (subscription?.plan_id || "free") : null;
 
@@ -72,17 +73,23 @@ export default function PricingPage() {
       return;
     }
 
-    const r = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_id: planId }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (d.paymentUrl) {
-      window.location.href = d.paymentUrl;
-    } else {
+    setCheckoutLoading(true);
+    try {
+      const r = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_id: planId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d.paymentUrl) {
+        window.location.href = d.paymentUrl;
+        return; // keep loading until redirect
+      }
       alert("שגיאה ביצירת התשלום. נסה שוב.");
+    } catch {
+      alert("שגיאה בחיבור לשרת.");
     }
+    setCheckoutLoading(false);
   }
 
   return (
@@ -94,6 +101,14 @@ export default function PricingPage() {
       </Head>
 
       <div className="pricing-page" dir="rtl">
+        {checkoutLoading && (
+          <div className="checkout-overlay">
+            <div className="checkout-loader">
+              <div className="checkout-spinner" />
+              <p>מעביר לדף תשלום מאובטח...</p>
+            </div>
+          </div>
+        )}
         <nav className="pricing-nav">
           <a href="/" className="pricing-nav-logo">מגן</a>
           {user && subscription && (
@@ -631,6 +646,42 @@ export default function PricingPage() {
           .faq-grid {
             grid-template-columns: 1fr;
           }
+        }
+
+        /* ── Checkout Loading ── */
+        .checkout-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(12, 10, 9, 0.85);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .checkout-loader {
+          text-align: center;
+        }
+        .checkout-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid var(--stone-700);
+          border-top-color: var(--copper-500);
+          border-radius: 50%;
+          margin: 0 auto 20px;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .checkout-loader p {
+          color: var(--stone-300);
+          font-size: 1rem;
+          font-weight: 500;
         }
 
         *:focus-visible {

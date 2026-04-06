@@ -1285,7 +1285,15 @@ function PricingModal({ onClose, onSuccess, currentPlanId }) {
   };
 
   return (
-    <div className="pricing-overlay" onClick={onClose}>
+    <div className="pricing-overlay" onClick={loadingPlan ? undefined : onClose}>
+      {loadingPlan && (
+        <div className="checkout-loading-overlay">
+          <div className="checkout-loading-box">
+            <div className="checkout-loading-spinner" />
+            <p>מעביר לדף תשלום מאובטח...</p>
+          </div>
+        </div>
+      )}
       <div className="pricing-modal" onClick={e => e.stopPropagation()}>
         <button className="pricing-close" onClick={onClose}>✕</button>
 
@@ -4113,6 +4121,21 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .plan-btn-current { background:transparent; border-color:var(--status-success); color:var(--status-success); }
         .plan-btn-premium { background:linear-gradient(135deg,var(--accent-primary),var(--copper-600)); color:var(--stone-950); border:none; font-weight:600; }
         .plan-btn-premium:hover:not(:disabled) { box-shadow:0 4px 16px rgba(244,162,78,.4); }
+        .checkout-loading-overlay {
+          position:fixed; inset:0; z-index:1001;
+          background:rgba(12,10,9,.85);
+          display:flex; align-items:center; justify-content:center;
+          animation:fadeIn .2s ease;
+        }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        .checkout-loading-box { text-align:center; }
+        .checkout-loading-spinner {
+          width:40px; height:40px; border:3px solid var(--stone-700);
+          border-top-color:var(--accent-primary); border-radius:50%;
+          margin:0 auto 20px; animation:spin .8s linear infinite;
+        }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        .checkout-loading-box p { color:var(--stone-300); font-size:15px; font-weight:500; font-family:Heebo,sans-serif; }
 
         /* ── Mobile Header (hidden on desktop) ── */
         .mobile-header { display:none; }

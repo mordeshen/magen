@@ -1145,22 +1145,30 @@ function WelcomeScreen({ onSelect }) {
 
 function TokenBadge({ subscription, onClick }) {
   if (!subscription) return null;
-  const { remaining, unlimited, plan_id } = subscription;
+  const plan_id = subscription.plan_id;
+  const plan = subscription.subscription_plans || {};
+
+  // Compute remaining from raw Supabase data
+  const isUnlimited = plan_id === "monthly" || plan_id === "premium";
+  let remaining;
+  if (isUnlimited) {
+    remaining = -1;
+  } else if (plan_id === "one_time") {
+    remaining = subscription.token_balance || 0;
+  } else {
+    const dailyLimit = plan.daily_token_limit || 50000;
+    remaining = Math.max(0, dailyLimit - (subscription.daily_tokens_used || 0));
+  }
 
   let label, colorClass;
-  if (unlimited) {
-    label = "∞";
-    colorClass = "tb-green";
-  } else if (remaining === -1) {
+  if (remaining === -1) {
     label = "∞";
     colorClass = "tb-green";
   } else {
-    const rem = typeof remaining === "number" && !isNaN(remaining) ? remaining : 0;
-    const k = Math.round(rem / 1000);
+    const k = Math.round(remaining / 1000);
     label = k >= 1000 ? `${Math.round(k/1000)}M` : `${k}K`;
-    // Determine color based on plan limits
     const limit = plan_id === "one_time" ? 200000 : 50000;
-    const pct = rem / limit;
+    const pct = remaining / limit;
     colorClass = pct > 0.5 ? "tb-green" : pct > 0.25 ? "tb-yellow" : "tb-red";
   }
 

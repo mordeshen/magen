@@ -41,6 +41,7 @@ const PLAN_LABELS = {
 export default function PricingPage() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [justPurchased, setJustPurchased] = useState(false);
   const { user, subscription, loadSubscription } = useUser();
   const currentPlan = user ? (subscription?.plan_id || "free") : null;
 
@@ -49,6 +50,16 @@ export default function PricingPage() {
       .then(r => r.json())
       .then(data => { setPlans(data); setLoading(false); })
       .catch(() => setLoading(false));
+  }, []);
+
+  // Detect payment=success and reload subscription
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("payment=success")) {
+      window.history.replaceState(null, "", window.location.pathname);
+      setJustPurchased(true);
+      if (loadSubscription) loadSubscription();
+      setTimeout(() => setJustPurchased(false), 4000);
+    }
   }, []);
 
   async function handleUpgrade(planId) {
@@ -85,6 +96,21 @@ export default function PricingPage() {
       <div className="pricing-page" dir="rtl">
         <nav className="pricing-nav">
           <a href="/" className="pricing-nav-logo">מגן</a>
+          {user && subscription && (
+            <div className={`nav-tokens${justPurchased ? " tokens-pop" : ""}`}>
+              <span className="nav-tokens-label">טוקנים</span>
+              <span className="nav-tokens-value">
+                {subscription.unlimited
+                  ? "ללא הגבלה"
+                  : subscription.remaining >= 0
+                    ? `${Math.round(subscription.remaining / 1000)}K`
+                    : "—"}
+              </span>
+              {currentPlan && currentPlan !== "free" && (
+                <span className="nav-tokens-plan">{PLAN_LABELS[currentPlan]}</span>
+              )}
+            </div>
+          )}
         </nav>
 
         <header className="pricing-hero">
@@ -256,6 +282,49 @@ export default function PricingPage() {
           letter-spacing: -0.03em;
         }
         .pricing-nav-logo:hover { color: var(--copper-500); }
+
+        .pricing-nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .nav-tokens {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 14px;
+          border: 1px solid var(--border-subtle);
+          border-radius: 6px;
+          font-size: 0.8rem;
+          transition: all 0.3s ease;
+        }
+        .nav-tokens-label { color: var(--stone-400); }
+        .nav-tokens-value {
+          font-family: 'IBM Plex Mono', monospace;
+          font-weight: 500;
+          color: var(--stone-50);
+          font-size: 0.95rem;
+        }
+        .nav-tokens-plan {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: var(--copper-500);
+          padding: 2px 8px;
+          border: 1px solid var(--copper-500);
+          border-radius: 3px;
+        }
+        .tokens-pop {
+          border-color: var(--status-success);
+          animation: tokenPulse 0.6s ease-out;
+        }
+        .tokens-pop .nav-tokens-value {
+          color: var(--status-success);
+        }
+        @keyframes tokenPulse {
+          0% { transform: scale(1); }
+          30% { transform: scale(1.08); border-color: var(--status-success); }
+          100% { transform: scale(1); }
+        }
 
         /* ── Cost Note ── */
         .pricing-cost-note {

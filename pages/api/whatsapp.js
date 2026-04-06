@@ -10,6 +10,7 @@ import { getAdminSupabase } from "./lib/supabase-admin";
 import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
 import { fetchRAG } from "./lib/rag";
 import { magenChat } from "./lib/magen-engine";
+import { alertDev } from "./lib/alert";
 import { fetchUserContext } from "./lib/user-context";
 
 export const config = {
@@ -532,6 +533,7 @@ export default async function handler(req, res) {
           }
         } catch (e) {
           console.error("[whatsapp] Magen engine error:", e.message);
+        await alertDev("whatsapp", "Magen Engine נכשל", { error: e.message, userId: pairing?.user_id });
         }
       }
 
@@ -597,7 +599,9 @@ export default async function handler(req, res) {
           reply = data.content?.[0]?.text || "מצטער, נסה שוב.";
           usedLayer = "opus";
         } else {
-          console.error("[whatsapp] Opus error:", primaryRes.status);
+          const errText = await primaryRes.text().catch(() => "");
+          console.error("[whatsapp] Opus error:", primaryRes.status, errText);
+          await alertDev("whatsapp", `Opus נכשל (${primaryRes.status})`, { error: errText, userId: pairing?.user_id });
           reply = await callClaudeLegacy(history, message);
           usedLayer = "legacy";
         }
@@ -696,6 +700,7 @@ export default async function handler(req, res) {
     return; // Already responded
   } catch (err) {
     console.error("WhatsApp webhook error:", err);
+    await alertDev("whatsapp", "קריסת webhook ראשית", { error: err.message || String(err) }).catch(() => {});
     return res.status(500).json({ error: "internal error" });
   }
 }

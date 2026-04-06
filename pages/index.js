@@ -300,10 +300,11 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
             <div className="sb-popup-links">
               <button className="sb-popup-link" onClick={toggleProfilePanel}>הגדרות פרופיל</button>
               <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">האזור האישי שלי</a>
-              <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-portal-agent")); }}>הגשת פנייה לאגף השיקום</button>
               <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
-            <a href="/pricing" className="sb-popup-link sb-upgrade-btn">מסלולים ומחירים</a>
+            <div className="sb-popup-actions">
+              <a href="/pricing" className="sb-popup-link sb-upgrade-btn">מסלולים ומחירים</a>
+            </div>
             <button className="signout-link" onClick={signOut}>התנתק</button>
           </div>
         )}
@@ -2994,6 +2995,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           cursor:pointer; text-align:right; transition:all .15s ease;
         }
         .sb-popup-link:hover { background:rgba(244,162,78,.06); color:var(--stone-300); }
+        .sb-popup-actions { margin-top:8px; border-top:1px solid var(--border-default); padding-top:10px; display:flex; flex-direction:column; gap:2px; }
         .sb-upgrade-btn { color:var(--copper-500); font-weight:600; }
         .sb-upgrade-btn:hover { background:rgba(217,119,6,.1); color:var(--copper-400); }
 

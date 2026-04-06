@@ -521,22 +521,50 @@ export default async function handler(req, res) {
         usedLayer = "legacy";
       }
     } else {
-      // Text messages → Magen Engine (Opus + RAG + personal context)
-      try {
-        const result = await magenChat(message, magenContext, supabase);
-        if (result) {
-          reply = result.reply;
-          usedLayer = result.layer; // "magen" or "opus"
-          console.log(`[whatsapp] Magen engine responded (layer: ${result.layer}, tokens: ${result.tokens})`);
+      // Text messages → Magen Engine if available, otherwise Opus + RAG
+      if (MODEL_MAGEN) {
+        try {
+          const result = await magenChat(message, magenContext, supabase);
+          if (result) {
+            reply = result.reply;
+            usedLayer = result.layer;
+            console.log(`[whatsapp] Magen engine responded (layer: ${result.layer}, tokens: ${result.tokens})`);
+          }
+        } catch (e) {
+          console.error("[whatsapp] Magen engine error:", e.message);
         }
-      } catch (e) {
-        console.error("[whatsapp] Magen engine error:", e.message);
       }
 
-      // Fallback to Opus if Magen Engine failed
+      // Opus + RAG + personal context (primary path when no Magen, fallback when Magen fails)
       if (!reply) {
-        console.log("[whatsapp] Magen engine failed → Opus fallback");
+        console.log(`[whatsapp] Opus + RAG path`);
         let systemPrompt = PRIMARY_SYSTEM_PROMPT;
+
+        // Personal context
+        if (profile) {
+          systemPrompt += `\n\n[פרופיל משתמש]`;
+          if (profile.name) systemPrompt += `\nשם: ${profile.name}`;
+          if (profile.city) systemPrompt += `\nעיר: ${profile.city}`;
+          if (profile.disability_percent) systemPrompt += `\nאחוזי נכות: ${profile.disability_percent}%`;
+        }
+        if (legalCase) {
+          systemPrompt += `\n\n[תיק משפטי]`;
+          systemPrompt += `\nשלב: ${legalCase.stage}`;
+          if (legalCase.committee_date) systemPrompt += `\nתאריך ועדה: ${legalCase.committee_date}`;
+          if (legalCase.injury_types?.length) systemPrompt += `\nסוגי פגיעה: ${legalCase.injury_types.join(", ")}`;
+        }
+        if (injuries.length > 0) {
+          systemPrompt += `\n\n[פגיעות]`;
+          injuries.forEach(inj => {
+            systemPrompt += `\n• ${inj.hebrew_label || inj.body_zone} — ${inj.severity}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}`;
+          });
+        }
+        if (memory.length > 0) {
+          systemPrompt += `\n\n[זיכרון]`;
+          memory.forEach(m => { systemPrompt += `\n• ${m.key}: ${m.value}`; });
+        }
+
+        // RAG
         const ragBrief = { rag_queries: [message], categories: [], hat: null, intent: null, include_formula: false };
         const ragResults = await fetchRAG(ragBrief, supabase);
         if (ragResults.rights?.length > 0) {
@@ -567,9 +595,9 @@ export default async function handler(req, res) {
         if (primaryRes.ok) {
           const data = await primaryRes.json();
           reply = data.content?.[0]?.text || "מצטער, נסה שוב.";
-          usedLayer = "opus-fallback";
+          usedLayer = "opus";
         } else {
-          console.error("[whatsapp] Opus fallback error:", primaryRes.status);
+          console.error("[whatsapp] Opus error:", primaryRes.status);
           reply = await callClaudeLegacy(history, message);
           usedLayer = "legacy";
         }

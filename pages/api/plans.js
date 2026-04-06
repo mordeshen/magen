@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     .from("subscription_plans")
     .select("id, name, price, token_limit, daily_token_limit, period_days, model, max_tokens, features")
     .eq("active", true)
+    .neq("id", "test")
     .order("price", { ascending: true });
 
   res.json(data || []);

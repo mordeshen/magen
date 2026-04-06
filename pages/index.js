@@ -303,7 +303,7 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
               <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-portal-agent")); }}>הגשת פנייה לאגף השיקום</button>
               <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
-            {onUpgrade && <button className="sb-popup-link sb-upgrade-btn" onClick={() => { setPopupOpen(false); onUpgrade(); }}>שדרג מסלול</button>}
+            <a href="/pricing" className="sb-popup-link sb-upgrade-btn">מסלולים ומחירים</a>
             <button className="signout-link" onClick={signOut}>התנתק</button>
           </div>
         )}
@@ -1196,6 +1196,7 @@ function PricingModal({ onClose, onSuccess, currentPlanId }) {
     setLoadingPlan(planId);
     try {
       const { supabase: sb } = await import("../lib/supabase");
+      console.log("[checkout-client] supabase loaded:", !!sb);
       if (!sb) {
         alert("שגיאת הגדרות — נסה לרענן את הדף");
         setLoadingPlan(null);
@@ -1204,6 +1205,7 @@ function PricingModal({ onClose, onSuccess, currentPlanId }) {
 
       // Check session via cookies — no localStorage needed
       const { data: { session } } = await sb.auth.getSession();
+      console.log("[checkout-client] session:", !!session);
       if (!session) {
         setLoadingPlan(null);
         await sb.auth.signInWithOAuth({
@@ -1216,6 +1218,7 @@ function PricingModal({ onClose, onSuccess, currentPlanId }) {
       // Check if user has phone — if not, ask for it
       const { data: { user: u } } = await sb.auth.getUser();
       const hasPhone = !!(u?.user_metadata?.phone || u?.phone);
+      console.log("[checkout-client] phone:", hasPhone, "proceeding to checkout");
       if (!hasPhone) {
         setPendingPlanId(planId);
         setNeedsPhone(true);
@@ -4011,8 +4014,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .pricing-modal {
           background:var(--surface-deep); border:1px solid var(--border-subtle); border-radius:8px;
-          padding:32px 24px; max-width:520px; width:100%; position:relative;
+          padding:32px 24px; max-width:760px; width:100%; position:relative;
           max-height:85vh; overflow-y:auto;
+        }
+        @media(max-width:640px){
+          .pricing-overlay { padding:0; align-items:flex-end; }
+          .pricing-modal { max-width:100%; border-radius:16px 16px 0 0; max-height:90vh; padding:24px 16px; }
         }
         .pricing-close {
           position:absolute; top:12px; left:12px; background:none; border:none;
@@ -4075,12 +4082,19 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .payment-success-btn:hover { background:#15803d; }
         .pricing-grid {
-          display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+          display:grid; grid-template-columns:repeat(4, 1fr);
           gap:12px;
+        }
+        @media(max-width:640px){
+          .pricing-grid { grid-template-columns:repeat(2, 1fr); }
+        }
+        @media(max-width:380px){
+          .pricing-grid { grid-template-columns:1fr; }
         }
         .plan-card {
           background:var(--stone-950); border:1px solid var(--border-subtle); border-radius:8px;
           padding:20px 16px; text-align:center; transition:border-color .2s;
+          display:flex; flex-direction:column; justify-content:space-between;
         }
         .plan-card:hover { border-color:var(--accent-primary); }
         .plan-featured { border-color:var(--accent-primary); box-shadow:0 0 20px rgba(244,162,78,.1); }

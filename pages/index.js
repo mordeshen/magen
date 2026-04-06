@@ -1897,7 +1897,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
                 {/* Token panel removed — clean UX */}
               </div>
             </div>
-            {/* TokenBadge hidden — users don't need to see token counts */}
+            {subscription && <TokenBadge subscription={subscription} onClick={() => setShowPricing(true)} />}
             <div className="chat-online">● מחובר</div>
             {user && (
               <button className="chat-history-btn" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">

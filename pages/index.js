@@ -4,6 +4,7 @@ import { useUser } from "../lib/UserContext";
 import MagenMedicalSummary from "../components/MagenMedicalSummary";
 import WhatsAppButton from "../components/WhatsAppButton";
 import PortalAgent from "../components/PortalAgent";
+import FeedbackWidget, { shouldShowFeedback } from "../components/FeedbackWidget";
 
 // ─── Utilities ────────────────────────────────────────────
 
@@ -1365,6 +1366,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [hat, setHat]         = useState(initialHat || "lawyer");
   const [msgs, setMsgs]       = useState([]);
+  const [feedbackForIdx, setFeedbackForIdx] = useState(null);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const [banner, setBanner]   = useState(true);
@@ -1805,9 +1807,14 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
       // Typing animation
       setLoading(false);
+      const responseLogId = d._logId || null;
       animateTyping(reply, (finalText) => {
         setMsgs(m => {
-          const updated = [...m, { role: "assistant", content: finalText }];
+          const updated = [...m, { role: "assistant", content: finalText, logId: responseLogId }];
+          // Maybe ask for feedback (random sampling, with cooldown)
+          if (responseLogId && shouldShowFeedback()) {
+            setFeedbackForIdx(updated.length - 1);
+          }
           // Show login hint for non-logged-in users
           if (!user && updated.length <= 3 && !loginHint) {
             setLoginHint(true);
@@ -1962,21 +1969,26 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
         <div className={`chat-msgs${isDragging ? " chat-msgs-dragover" : ""}`} ref={msgsContainerRef} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
           {msgs.map((m, i) => (
-            <div key={i} className={`msg ${m.role}`}>
-              {m.role === "assistant" && <div className="msg-ava">{curHat.emoji}</div>}
-              <div className="bubble">
-                {m.attachment && m.role === "user" && (
-                  <div className="msg-attachment">
-                    {m.attachment.preview ? (
-                      <img src={m.attachment.preview} alt="" className="msg-attach-img"/>
-                    ) : (
-                      <div className="msg-attach-file">{m.attachment.file_name}</div>
-                    )}
-                  </div>
-                )}
-                {m.role === "assistant" ? <ChatBubbleContent text={m.content}/> : m.content}
+            <Fragment key={i}>
+              <div className={`msg ${m.role}`}>
+                {m.role === "assistant" && <div className="msg-ava">{curHat.emoji}</div>}
+                <div className="bubble">
+                  {m.attachment && m.role === "user" && (
+                    <div className="msg-attachment">
+                      {m.attachment.preview ? (
+                        <img src={m.attachment.preview} alt="" className="msg-attach-img"/>
+                      ) : (
+                        <div className="msg-attach-file">{m.attachment.file_name}</div>
+                      )}
+                    </div>
+                  )}
+                  {m.role === "assistant" ? <ChatBubbleContent text={m.content}/> : m.content}
+                </div>
               </div>
-            </div>
+              {feedbackForIdx === i && m.role === "assistant" && m.logId && (
+                <FeedbackWidget chatLogId={m.logId} onClose={() => setFeedbackForIdx(null)} />
+              )}
+            </Fragment>
           ))}
           {/* Typing animation message */}
           {typingText !== null && (

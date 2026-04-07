@@ -11,6 +11,8 @@ import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models
 import { fetchRAG } from "./lib/rag";
 import { magenChat } from "./lib/magen-engine";
 import { alertDev } from "./lib/alert";
+import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
+import crypto from "crypto";
 import { fetchUserContext } from "./lib/user-context";
 
 export const config = {
@@ -609,6 +611,32 @@ export default async function handler(req, res) {
     }
 
     console.log(`[whatsapp] Response sent (layer: ${usedLayer})`);
+
+    // 5.5. Anonymous content + metrics logging (fire-and-forget — never block reply)
+    const waSessionId = crypto.createHash("sha256").update(from || "anon").digest("hex").slice(0, 32);
+    logChatContent({
+      sessionId: waSessionId,
+      channel: "whatsapp",
+      persona: "magen",
+      userMessage: message || "",
+      assistantReply: reply || "",
+      model: modelShortName(MODEL_OPUS),
+      source: usedLayer,
+      usedRag: true,
+      responseTimeMs: 0,
+    }).catch(() => {});
+    logChatMetrics({
+      sessionId: waSessionId,
+      inputTokens: 0,
+      outputTokens: 0,
+      model: modelShortName(MODEL_OPUS),
+      category: detectCategory(message || ""),
+      usedRag: true,
+      usedWebSearch: false,
+      persona: "magen",
+      responseTimeMs: 0,
+      channel: "whatsapp",
+    }).catch(() => {});
 
     // 6. If not paired, occasionally suggest pairing
     if (!pairing) {

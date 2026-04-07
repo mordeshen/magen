@@ -7,11 +7,12 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
-import { MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
+import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
 import { invertedChat } from "./lib/inverted-chat";
 import { magenChat } from "./lib/magen-engine";
 import { fetchUserContext } from "./lib/user-context";
-import { logChatMetrics, detectCategory, modelShortName } from "../../lib/analytics";
+import { getKnowledgeResponse } from "./lib/knowledge-provider";
+import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
 const USE_INVERTED = process.env.INVERTED_ARCH === "1";
@@ -447,6 +448,22 @@ const CORE_APPROACH_MINIMAL = `
 - מהרגש תסיק פרקטיקה. אתה היד שמחזיקה ומובילה.
 `;
 
+// Trailing instructions appended to every system prompt — kept stable for prompt caching
+const GENERAL_INSTRUCTIONS = `---
+הנחיות כלליות:
+- דבר בעברית ישראלית טבעית, פשוטה — כאילו אתה מדבר עם חבר
+- שאל שאלות כדי להתאים — לא להרצות
+- היה אקטיבי: הצע, שאל, אל תחכה שישאלו אותך
+- תמיד תן שלבים מעשיים — מספרי טלפון, מה להגיד, מה לבקש
+- אם הוא צריך לעשות משהו — הצע לעשות את זה ביחד עכשיו
+- כשהוא צריך להגיש פנייה — תכתוב לו נוסח מוכן שהוא יעתיק ויהדביק בפורטל. הנוסח חייב להיות עד 500 תווים!
+- הצג את הנוסח בצורה ברורה ומובדלת, ואמור "הנה הנוסח, תעתיק ותדביק:"
+- אחרי הנוסח, תגיד אם כדאי לצרף קובץ ואיזה (תמונה/מסמך/קבלה)
+- קו חם: מוקד פצועים *6500 | נפש אחת *8944 | אגף השיקום shikum.mod.gov.il
+- אורך תשובה: עד 12 שורות כשכותבים נוסח פנייה. אחרת 3-8 שורות.
+- בסוף כל תשובה, סיים עם שאלה או הצעה שמניעה לפעולה הבאה — כזו שהמשתמש ירצה להגיב עליה
+- אסור להישאר ב"אני לא יודע" יבש. אם אתה לא בטוח: הסבר מה כן בדקת, מה כן ידוע, מה לא ברור, ולמה. הצע צעד הבא קונקרטי — למי להתקשר, מה לבקש, איזה מסמך להביא. תמיד תוציא את המשתמש עם משהו ביד.`;
+
 const MEDICAL_EXTRACT_INSTRUCTIONS = `
 === תיעוד פגיעות לתקציר רפואי ===
 כשמשתמש מספר על פגיעה, ניתוח, או מצב רפואי — חלץ את המידע והצע לשמור.
@@ -847,48 +864,46 @@ function buildSystemPrompt(hat, routerResult, {
   rights, events, userCity, userProfile, memory, medicalInjuries,
   legalCase, userRightsStatus, vetKnowledge, activeFeatures,
 }) {
+  // STABLE blocks → cacheable (persona, approach, knowledge base, general rules)
+  // DYNAMIC blocks → fresh per call (user profile, memory, medical, legal case, vet knowledge)
+  const stable = [];
+  const dynamic = [];
+
   const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.magen;
-  const systemParts = [hatPrompt];
+  stable.push(hatPrompt);
 
   // Magen gets full context always; others follow router depth
   if (hat === "magen") {
-    systemParts.push(CORE_APPROACH);
+    stable.push(CORE_APPROACH);
   } else if (hat !== "events") {
     if (routerResult && routerResult.depth === "detailed") {
-      systemParts.push(CORE_APPROACH);
+      stable.push(CORE_APPROACH);
     } else {
-      systemParts.push(CORE_APPROACH_MINIMAL);
+      stable.push(CORE_APPROACH_MINIMAL);
     }
   }
 
-  // Portal guide — magen always gets it; others only when needed
+  // Portal guide — magen always gets MOD_PORTAL_GUIDE (small).
+  // The heavy SITE_ACTIONS map (~4k tokens) is only injected when the user
+  // is actually asking about a portal action, to keep context lean.
   if (hat === "magen") {
-    systemParts.push(MOD_PORTAL_GUIDE);
-    if (SITE_ACTIONS.length > 0) {
-      let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
-      actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
-      actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
-        `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
-      ).join("\n\n");
-      systemParts.push(actionsCtx);
+    stable.push(MOD_PORTAL_GUIDE);
+    const wantsPortalDetails =
+      !routerResult || // no router → safe default: include
+      routerResult.needs_portal_guide ||
+      routerResult.intent === "portal_action";
+    if (wantsPortalDetails && SITE_ACTIONS.length > 0) {
+      stable.push(buildSiteActionsCtx());
     }
   } else if (hat !== "events" && routerResult && routerResult.needs_portal_guide) {
-    systemParts.push(MOD_PORTAL_GUIDE);
-    // Inject site actions for the lawyer hat
+    stable.push(MOD_PORTAL_GUIDE);
     if (hat === "lawyer" && SITE_ACTIONS.length > 0) {
-      let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
-      actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
-      actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
-        `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
-      ).join("\n\n");
-      systemParts.push(actionsCtx);
+      stable.push(buildSiteActionsCtx());
     }
   }
 
-  // Rights & events context
-  // Magen gets BOTH rights and events; others get one or the other
+  // Rights & events context — STABLE (changes only when Scout updates the JSON, twice/day)
   if (hat === "magen") {
-    // Rights — all, filtered by router if available
     if (rights && rights.length > 0) {
       let filteredRights = rights;
       if (routerResult && routerResult.categories && routerResult.categories.length > 0) {
@@ -896,56 +911,35 @@ function buildSystemPrompt(hat, routerResult, {
         const filtered = rights.filter(r => catSet.has(r.category));
         if (filtered.length > 0) filteredRights = filtered;
       }
-      const rightsCtx = filteredRights
-        .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
-        .join("\n");
-      systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+      stable.push(buildRightsCtx(filteredRights));
     }
-    // Events — upcoming
     if (events && events.length > 0) {
-      const today = new Date().toISOString().split("T")[0];
-      const upcoming = events.filter(e => e.date >= today);
-      const relevant = userCity
-        ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
-        : upcoming;
-      const eventsCtx = relevant
-        .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
-        .join("\n");
-      if (eventsCtx) {
-        systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
-      }
+      const eventsCtx = buildEventsCtx(events, userCity);
+      if (eventsCtx) stable.push(eventsCtx);
     }
   } else if (hat === "events" && events && events.length > 0) {
-    const today = new Date().toISOString().split("T")[0];
-    const upcoming = events.filter(e => e.date >= today);
-    const relevant = userCity
-      ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
-      : upcoming;
-    const eventsCtx = relevant
-      .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
-      .join("\n");
-    if (eventsCtx) {
-      systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
-    }
+    const eventsCtx = buildEventsCtx(events, userCity);
+    if (eventsCtx) stable.push(eventsCtx);
   } else if (rights && rights.length > 0) {
-    // Filter rights by router categories
     let filteredRights = rights;
     if (routerResult && routerResult.categories && routerResult.categories.length > 0) {
       const catSet = new Set(routerResult.categories);
       filteredRights = rights.filter(r => catSet.has(r.category));
-      // If filter yields nothing, fall back to all rights
       if (filteredRights.length === 0) filteredRights = rights;
     }
-    const rightsCtx = filteredRights
-      .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
-      .join("\n");
-    systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+    stable.push(buildRightsCtx(filteredRights));
   }
+
+  // Trailing general instructions — STABLE, must come before any dynamic block
+  // so the cache prefix covers everything stable.
+  stable.push(GENERAL_INSTRUCTIONS);
+
+  // ===== DYNAMIC BLOCKS (per-user / per-session, never cached) =====
 
   // Medical extraction instructions — magen always, others when router says needed
   if (activeFeatures.has("medical_extract") && hat !== "events" &&
       (hat === "magen" || (routerResult && routerResult.needs_medical_context))) {
-    systemParts.push(MEDICAL_EXTRACT_INSTRUCTIONS);
+    dynamic.push(MEDICAL_EXTRACT_INSTRUCTIONS);
   }
 
   // Medical context from DB — magen always, others when router says needed
@@ -956,7 +950,7 @@ function buildSystemPrompt(hat, routerResult, {
       `• ${inj.hebrew_label} (${inj.body_zone}) — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}${inj.details ? `: ${inj.details}` : ""}`
     ).join("\n");
     medCtx += "\nהתאם את התשובות למצב הרפואי — אל תשאל על דברים שכבר ידועים.";
-    systemParts.push(medCtx);
+    dynamic.push(medCtx);
   }
 
   // Legal case context — magen always, others when router says needed
@@ -992,22 +986,12 @@ function buildSystemPrompt(hat, routerResult, {
       }
     }
     legalCtx += "התאם את התשובות לשלב שבו המשתמש נמצא בתהליך המשפטי. הצע צעדים רלוונטיים לשלב הנוכחי.";
-    systemParts.push(legalCtx);
+    dynamic.push(legalCtx);
   }
 
   // User profile — always if exists (small)
   if (userProfile) {
-    let userCtx = "\n--- מידע על המשתמש ---\n";
-    if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
-    if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
-    if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
-      userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
-    } else if (userProfile.claim_status === "after_recognition" && userProfile.disability_percent != null) {
-      userCtx += `מצב: מוכר, אחוזי נכות: ${userProfile.disability_percent}%\n`;
-    }
-    if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
-    userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
-    systemParts.push(userCtx);
+    dynamic.push(buildUserProfileCtx(userProfile));
   }
 
   // Memory from previous sessions — always if exists (small)
@@ -1015,7 +999,7 @@ function buildSystemPrompt(hat, routerResult, {
     let memCtx = "\n--- זיכרון משיחות קודמות ---\n";
     memCtx += memory.map(m => `• ${m.key}: ${m.value}`).join("\n");
     memCtx += "\nהשתמש במידע הזה כדי להמשיך מאיפה שהפסקת — אל תשאל שוב דברים שכבר ידועים.";
-    systemParts.push(memCtx);
+    dynamic.push(memCtx);
   }
 
   // Veteran knowledge — only when depth is standard or detailed
@@ -1028,7 +1012,7 @@ function buildSystemPrompt(hat, routerResult, {
     } else {
       vetCtx += "\n\nאם רלוונטי — שלב תובנות מניסיון ותיקים בתשובותיך.";
     }
-    systemParts.push(vetCtx);
+    dynamic.push(vetCtx);
   }
 
   // Unrealized rights — only when depth is detailed
@@ -1042,27 +1026,60 @@ function buildSystemPrompt(hat, routerResult, {
       let rightsCtxExtra = "\n--- זכויות שהמשתמש טרם מימש ---\n";
       rightsCtxExtra += unrealized.map(r => `• ${r.title} (${r.category}): ${r.summary}`).join("\n");
       rightsCtxExtra += "\nכשאתה מזהה שהמשתמש עשוי להיות זכאי לאחת מהזכויות שטרם מימש — ציין בטבעיות: \"אגב, אולי לא ידעת — מגיע לך גם [שם הזכות].\"";
-      systemParts.push(rightsCtxExtra);
+      dynamic.push(rightsCtxExtra);
     }
   }
 
-  const system = `${systemParts.join("\n\n")}
+  return { stable, dynamic };
+}
 
----
-הנחיות כלליות:
-- דבר בעברית ישראלית טבעית, פשוטה — כאילו אתה מדבר עם חבר
-- שאל שאלות כדי להתאים — לא להרצות
-- היה אקטיבי: הצע, שאל, אל תחכה שישאלו אותך
-- תמיד תן שלבים מעשיים — מספרי טלפון, מה להגיד, מה לבקש
-- אם הוא צריך לעשות משהו — הצע לעשות את זה ביחד עכשיו
-- כשהוא צריך להגיש פנייה — תכתוב לו נוסח מוכן שהוא יעתיק ויהדביק בפורטל. הנוסח חייב להיות עד 500 תווים!
-- הצג את הנוסח בצורה ברורה ומובדלת, ואמור "הנה הנוסח, תעתיק ותדביק:"
-- אחרי הנוסח, תגיד אם כדאי לצרף קובץ ואיזה (תמונה/מסמך/קבלה)
-- קו חם: מוקד פצועים *6500 | נפש אחת *8944 | אגף השיקום shikum.mod.gov.il
-- אורך תשובה: עד 12 שורות כשכותבים נוסח פנייה. אחרת 3-8 שורות.
-- בסוף כל תשובה, סיים עם שאלה או הצעה שמניעה לפעולה הבאה — כזו שהמשתמש ירצה להגיב עליה`;
+// ============================================================
+// Shared block builders (used by both legacy and full builders)
+// ============================================================
 
-  return system;
+function buildSiteActionsCtx() {
+  let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
+  actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
+  actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
+    `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
+  ).join("\n\n");
+  return actionsCtx;
+}
+
+// Compact rights serialization — pipe-delimited, drops verbose Hebrew labels
+// Shaves ~25-30% of tokens vs the previous bullet format.
+function buildRightsCtx(filteredRights) {
+  const lines = filteredRights
+    .map(r => `${r.category}|${r.title}|${r.details}${r.tip ? `|טיפ:${r.tip}` : ""}`)
+    .join("\n");
+  return `---\nזכויות (קטגוריה|כותרת|פירוט|טיפ):\n${lines}`;
+}
+
+function buildEventsCtx(events, userCity) {
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = events.filter(e => e.date >= today);
+  const relevant = userCity
+    ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
+    : upcoming;
+  if (relevant.length === 0) return null;
+  const lines = relevant
+    .map(e => `${e.category}|${e.title}|${e.date}${e.time ? ` ${e.time}` : ""}|${e.location} (${e.city})|${e.organizer || "אחר"}${e.free ? "|חינם" : ""}${e.registration ? `|רישום:${e.registration}` : ""}${e.link ? `|${e.link}` : ""}|${e.description}`)
+    .join("\n");
+  return `---\nאירועים${userCity ? ` (סינון:${userCity})` : ""} (קטגוריה|כותרת|תאריך|מיקום|מארגן|...|תיאור):\n${lines}`;
+}
+
+function buildUserProfileCtx(userProfile) {
+  let userCtx = "\n--- מידע על המשתמש ---\n";
+  if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
+  if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
+  if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
+    userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
+  } else if (userProfile.claim_status === "after_recognition" && userProfile.disability_percent != null) {
+    userCtx += `מצב: מוכר, אחוזי נכות: ${userProfile.disability_percent}%\n`;
+  }
+  if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
+  userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
+  return userCtx;
 }
 
 // ============================================================
@@ -1073,54 +1090,37 @@ function buildFullSystemPrompt(hat, {
   rights, events, userCity, userProfile, memory, medicalInjuries,
   legalCase, userRightsStatus, vetKnowledge, activeFeatures,
 }) {
+  const stable = [];
+  const dynamic = [];
+
   const hatPrompt = HAT_PROMPTS[hat] || HAT_PROMPTS.magen;
-  let systemParts = [hatPrompt];
+  stable.push(hatPrompt);
   if (hat !== "events") {
-    systemParts.push(CORE_APPROACH);
-    systemParts.push(MOD_PORTAL_GUIDE);
+    stable.push(CORE_APPROACH);
+    stable.push(MOD_PORTAL_GUIDE);
     if ((hat === "lawyer" || hat === "magen") && SITE_ACTIONS.length > 0) {
-      let actionsCtx = "\n--- מפת פעולות הפורטל (site-actions) ---\n";
-      actionsCtx += "השתמש במידע הזה כדי להנחות את המשתמש בדיוק מה ללחוץ ומה לכתוב:\n\n";
-      actionsCtx += SITE_ACTIONS.filter(a => a.templateText).map(a =>
-        `[${a.category}] ${a.title}\n  נתיב: ${a.portalPath}\n  מסמכים נדרשים: ${a.requiredDocs.length ? a.requiredDocs.join(", ") : "אין"}\n  ${a.tips.length ? "טיפים: " + a.tips.join(" | ") : ""}`
-      ).join("\n\n");
-      systemParts.push(actionsCtx);
+      stable.push(buildSiteActionsCtx());
     }
   }
 
   // Rights / events context — magen gets both
   if (hat === "magen") {
-    const rightsCtx = (rights || [])
-      .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
-      .join("\n");
-    if (rightsCtx) systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+    if (rights && rights.length > 0) stable.push(buildRightsCtx(rights));
     if (events && events.length > 0) {
-      const today = new Date().toISOString().split("T")[0];
-      const upcoming = events.filter(e => e.date >= today);
-      const relevant = userCity
-        ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
-        : upcoming;
-      const eventsCtx = relevant
-        .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
-        .join("\n");
-      if (eventsCtx) systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
+      const eventsCtx = buildEventsCtx(events, userCity);
+      if (eventsCtx) stable.push(eventsCtx);
     }
   } else if (hat === "events" && events && events.length > 0) {
-    const today = new Date().toISOString().split("T")[0];
-    const upcoming = events.filter(e => e.date >= today);
-    const relevant = userCity
-      ? upcoming.filter(e => e.city === userCity || e.city === "כלל הארץ")
-      : upcoming;
-    const eventsCtx = relevant
-      .map(e => `• [${e.category}] ${e.title} — ${e.date}${e.time ? ` ${e.time}` : ""} | ${e.location} (${e.city}) | מארגן: ${e.organizer || "אחר"}${e.free ? " | חינם" : ""}${e.registration ? ` | הרשמה: ${e.registration}` : ""}${e.link ? ` | ${e.link}` : ""} | ${e.description}`)
-      .join("\n");
-    systemParts.push(`---\nאירועים קרובים${userCity ? ` (סינון: ${userCity})` : ""}:\n${eventsCtx}`);
-  } else {
-    const rightsCtx = (rights || [])
-      .map(r => `• [${r.category}] ${r.title}: ${r.details}${r.tip ? ` (טיפ: ${r.tip})` : ""}`)
-      .join("\n");
-    systemParts.push(`---\nבסיס הידע שלך — זכויות פצועי צה"ל:\n${rightsCtx}`);
+    const eventsCtx = buildEventsCtx(events, userCity);
+    if (eventsCtx) stable.push(eventsCtx);
+  } else if (rights && rights.length > 0) {
+    stable.push(buildRightsCtx(rights));
   }
+
+  // Trailing general instructions — STABLE, before any dynamic block
+  stable.push(GENERAL_INSTRUCTIONS);
+
+  // ===== DYNAMIC BLOCKS =====
 
   // Veteran knowledge
   if (vetKnowledge && vetKnowledge.length > 0) {
@@ -1131,22 +1131,12 @@ function buildFullSystemPrompt(hat, {
     } else {
       vetCtx += "\n\nאם רלוונטי — שלב תובנות מניסיון ותיקים בתשובותיך.";
     }
-    systemParts.push(vetCtx);
+    dynamic.push(vetCtx);
   }
 
   // User profile
   if (userProfile) {
-    let userCtx = "\n--- מידע על המשתמש ---\n";
-    if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
-    if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
-    if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
-      userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
-    } else if (userProfile.claim_status === "after_recognition" && userProfile.disability_percent != null) {
-      userCtx += `מצב: מוכר, אחוזי נכות: ${userProfile.disability_percent}%\n`;
-    }
-    if (userProfile.interests && userProfile.interests.length > 0) userCtx += `תחומי עניין: ${userProfile.interests.join(", ")}\n`;
-    userCtx += "השתמש במידע הזה כדי להתאים את התשובות — אל תשאל שוב דברים שכבר ידועים.";
-    systemParts.push(userCtx);
+    dynamic.push(buildUserProfileCtx(userProfile));
   }
 
   // Medical context
@@ -1156,12 +1146,12 @@ function buildFullSystemPrompt(hat, {
       `• ${inj.hebrew_label} (${inj.body_zone}) — ${inj.severity}, ${inj.status}${inj.disability_percent ? `, ${inj.disability_percent}%` : ""}${inj.details ? `: ${inj.details}` : ""}`
     ).join("\n");
     medCtx += "\nהתאם את התשובות למצב הרפואי — אל תשאל על דברים שכבר ידועים.";
-    systemParts.push(medCtx);
+    dynamic.push(medCtx);
   }
 
   // Medical extraction
   if (activeFeatures.has("medical_extract") && hat !== "events") {
-    systemParts.push(MEDICAL_EXTRACT_INSTRUCTIONS);
+    dynamic.push(MEDICAL_EXTRACT_INSTRUCTIONS);
   }
 
   // Legal case
@@ -1196,7 +1186,7 @@ function buildFullSystemPrompt(hat, {
       }
     }
     legalCtx += "התאם את התשובות לשלב שבו המשתמש נמצא בתהליך המשפטי. הצע צעדים רלוונטיים לשלב הנוכחי.";
-    systemParts.push(legalCtx);
+    dynamic.push(legalCtx);
   }
 
   // Memory
@@ -1204,7 +1194,7 @@ function buildFullSystemPrompt(hat, {
     let memCtx = "\n--- זיכרון משיחות קודמות ---\n";
     memCtx += memory.map(m => `• ${m.key}: ${m.value}`).join("\n");
     memCtx += "\nהשתמש במידע הזה כדי להמשיך מאיפה שהפסקת — אל תשאל שוב דברים שכבר ידועים.";
-    systemParts.push(memCtx);
+    dynamic.push(memCtx);
   }
 
   // Unrealized rights
@@ -1217,27 +1207,37 @@ function buildFullSystemPrompt(hat, {
       let rightsCtxExtra = "\n--- זכויות שהמשתמש טרם מימש ---\n";
       rightsCtxExtra += unrealized.map(r => `• ${r.title} (${r.category}): ${r.summary}`).join("\n");
       rightsCtxExtra += "\nכשאתה מזהה שהמשתמש עשוי להיות זכאי לאחת מהזכויות שטרם מימש — ציין בטבעיות: \"אגב, אולי לא ידעת — מגיע לך גם [שם הזכות].\"";
-      systemParts.push(rightsCtxExtra);
+      dynamic.push(rightsCtxExtra);
     }
   }
 
-  const system = `${systemParts.join("\n\n")}
+  return { stable, dynamic };
+}
 
----
-הנחיות כלליות:
-- דבר בעברית ישראלית טבעית, פשוטה — כאילו אתה מדבר עם חבר
-- שאל שאלות כדי להתאים — לא להרצות
-- היה אקטיבי: הצע, שאל, אל תחכה שישאלו אותך
-- תמיד תן שלבים מעשיים — מספרי טלפון, מה להגיד, מה לבקש
-- אם הוא צריך לעשות משהו — הצע לעשות את זה ביחד עכשיו
-- כשהוא צריך להגיש פנייה — תכתוב לו נוסח מוכן שהוא יעתיק ויהדביק בפורטל. הנוסח חייב להיות עד 500 תווים!
-- הצג את הנוסח בצורה ברורה ומובדלת, ואמור "הנה הנוסח, תעתיק ותדביק:"
-- אחרי הנוסח, תגיד אם כדאי לצרף קובץ ואיזה (תמונה/מסמך/קבלה)
-- קו חם: מוקד פצועים *6500 | נפש אחת *8944 | אגף השיקום shikum.mod.gov.il
-- אורך תשובה: עד 12 שורות כשכותבים נוסח פנייה. אחרת 3-8 שורות.
-- בסוף כל תשובה, סיים עם שאלה או הצעה שמניעה לפעולה הבאה — כזו שהמשתמש ירצה להגיב עליה`;
+// ============================================================
+// Convert {stable, dynamic} into Anthropic system content blocks.
+// Stable parts are bundled into one block tagged with cache_control,
+// dynamic parts go into a second uncached block.
+// ============================================================
+function toCacheableSystem(parts) {
+  const stableText = parts.stable.join("\n\n");
+  const dynamicText = parts.dynamic.join("\n\n");
+  const blocks = [
+    {
+      type: "text",
+      text: stableText,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+  if (dynamicText.trim()) {
+    blocks.push({ type: "text", text: dynamicText });
+  }
+  return blocks;
+}
 
-  return system;
+// Flat string version (for logging / token estimation only)
+function flattenSystem(parts) {
+  return [...parts.stable, ...parts.dynamic].join("\n\n");
 }
 
 // ============================================================
@@ -1372,6 +1372,33 @@ export default async function handler(req, res) {
         recentMessages: messages.slice(-6),
       };
 
+      // === KNOWLEDGE PROVIDER HOOK ===
+      // Single decision point: when KNOWLEDGE_MODE=finetuned, ask the
+      // fine-tuned model first. When KNOWLEDGE_MODE=opus (default), this is
+      // a no-op — getKnowledgeResponse returns { answer: null } and we drop
+      // straight into the existing magenChat (Opus) flow below.
+      // RAG results are passed empty for now — the fine-tuned model is
+      // expected to know facts inherently. When that changes, fetch RAG
+      // here and pass it through.
+      try {
+        const knowledgeResult = await getKnowledgeResponse(
+          lastUserText,
+          magenContext,
+          { rights: [], events: [], veteran: [] },
+          magenContext.recentMessages
+        );
+        if (knowledgeResult && knowledgeResult.answer && knowledgeResult.source !== "opus") {
+          console.log(`[chat] answered by ${knowledgeResult.source}, confidence: ${knowledgeResult.confidence}`);
+          return res.json({
+            reply: knowledgeResult.answer,
+            tokenInfo: { used: 0, remaining: allowance.remaining, plan: allowance.planId },
+            _engine: knowledgeResult.source,
+          });
+        }
+      } catch (e) {
+        console.error("[chat] knowledge provider error, continuing to Opus:", e.message);
+      }
+
       const result = await magenChat(lastUserText, magenContext, supabase);
 
       if (result) {
@@ -1395,11 +1422,38 @@ export default async function handler(req, res) {
 
         console.log(`[chat] Magen engine responded (layer: ${result.layer}, tokens: ${tokensUsed})`);
 
+        // Anonymous content + metrics logging (fire-and-forget — never block reply)
+        const magenSessionId = body.sessionId || crypto.randomUUID();
+        const magenLogId = await logChatContent({
+          sessionId: magenSessionId,
+          channel: "web",
+          persona: clientHat,
+          userMessage: lastUserText,
+          assistantReply: result.reply,
+          model: modelShortName(MODEL_OPUS),  // magen-engine runs on Opus today
+          source: result.layer,                // 'magen' | 'opus'
+          usedRag: true,
+          responseTimeMs: Date.now() - analyticsStart,
+        });
+        logChatMetrics({
+          sessionId: magenSessionId,
+          inputTokens: 0,
+          outputTokens: tokensUsed,
+          model: modelShortName(MODEL_OPUS),
+          category: detectCategory(lastUserText),
+          usedRag: true,
+          usedWebSearch: false,
+          persona: clientHat || "magen",
+          responseTimeMs: Date.now() - analyticsStart,
+          channel: "web",
+        }).catch(() => {});
+
         return res.json({
           reply: result.reply,
           tokenInfo,
           _engine: "magen",
           _layer: result.layer,
+          _logId: magenLogId,
         });
       }
     } catch (e) {
@@ -1547,17 +1601,21 @@ export default async function handler(req, res) {
     userRightsStatus, vetKnowledge, activeFeatures,
   };
 
-  let system;
+  let systemParts;
   if (routerResult) {
     // Smart Router path — build lean context
-    system = buildSystemPrompt(hat, routerResult, contextData);
+    systemParts = buildSystemPrompt(hat, routerResult, contextData);
   } else {
     // Fallback — full context (router failed or timed out)
     console.log("[chat] router failed, using full context fallback");
-    system = buildFullSystemPrompt(hat, contextData);
+    systemParts = buildFullSystemPrompt(hat, contextData);
   }
 
-  console.log("[chat] system prompt tokens (estimated):", Math.round(system.length / 4));
+  const systemBlocks = toCacheableSystem(systemParts);
+  const systemFlatLength = flattenSystem(systemParts).length;
+  console.log("[chat] system tokens ~", Math.round(systemFlatLength / 4),
+              "| stable ~", Math.round(systemParts.stable.join("\n\n").length / 4),
+              "| dynamic ~", Math.round(systemParts.dynamic.join("\n\n").length / 4));
 
   // --- Step 5: Build messages array with optional summary prefix ---
   let finalMessages = optimizedMessages;
@@ -1606,7 +1664,18 @@ export default async function handler(req, res) {
     return { role: m.role, content: m.content };
   });
 
-  const selectedModel = allowance.features.model || MODEL_SONNET;
+  // Route greetings to Haiku (only — never general_info, which can need accurate info).
+  // Default to Opus for everything else — accuracy > cost in this domain.
+  // Never downgrade for events/lawyer hats where wrong info is costly, or when an attachment is present.
+  const canDowngrade =
+    !attachment &&
+    routerResult &&
+    routerResult.intent === "greeting" &&
+    hat !== "lawyer";
+  const selectedModel = canDowngrade
+    ? MODEL_HAIKU
+    : (allowance.features.model || MODEL_OPUS);
+  if (canDowngrade) console.log("[chat] downgrading to Haiku for greeting");
   const maxTokens = attachment ? Math.max(2048, allowance.features.max_tokens || 1024) : (allowance.features.max_tokens || 1024);
 
   try {
@@ -1621,7 +1690,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: selectedModel,
         max_tokens: maxTokens,
-        system,
+        system: systemBlocks,
         messages: apiMessages,
       }),
     });
@@ -1634,7 +1703,13 @@ export default async function handler(req, res) {
 
     const d = await r.json();
     const reply = d.content?.[0]?.text || "לא הצלחתי לענות, נסה שוב.";
-    const tokensUsed = (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0);
+    const cacheRead = d.usage?.cache_read_input_tokens || 0;
+    const cacheWrite = d.usage?.cache_creation_input_tokens || 0;
+    const inputUncached = d.usage?.input_tokens || 0;
+    const outputTokens = d.usage?.output_tokens || 0;
+    // Effective billed tokens — cache reads cost 10%, cache writes cost 125%
+    const tokensUsed = inputUncached + outputTokens + cacheWrite + cacheRead;
+    console.log("[chat] usage — in:", inputUncached, "cacheW:", cacheWrite, "cacheR:", cacheRead, "out:", outputTokens, "model:", selectedModel);
     let tokenInfo = { used: tokensUsed, remaining: allowance.remaining, plan: allowance.planId };
     try {
       const admin = getAdminSupabase();
@@ -1708,22 +1783,34 @@ export default async function handler(req, res) {
       .filter(f => activeFeatures.has(f.id))
       .reduce((sum, f) => sum + f.estimated_tokens, 0);
 
-    // --- Analytics logging (fire-and-forget) ---
+    // --- Analytics + content logging (fire-and-forget — never block response) ---
     const lastUserMsg = messages?.[messages.length - 1]?.content || "";
+    const legacySessionId = body.sessionId || crypto.randomUUID();
+    const legacyLogId = await logChatContent({
+      sessionId: legacySessionId,
+      channel: "web",
+      persona: clientHat,
+      userMessage: typeof lastUserMsg === "string" ? lastUserMsg : "[multimodal]",
+      assistantReply: reply,
+      model: modelShortName(selectedModel),
+      source: "legacy",
+      usedRag: (rights && rights.length > 0) || false,
+      responseTimeMs: Date.now() - analyticsStart,
+    });
     logChatMetrics({
-      sessionId: body.sessionId || crypto.randomUUID(),
+      sessionId: legacySessionId,
       inputTokens: d.usage?.input_tokens || 0,
       outputTokens: d.usage?.output_tokens || 0,
       model: modelShortName(selectedModel),
-      category: detectCategory(lastUserMsg),
+      category: detectCategory(typeof lastUserMsg === "string" ? lastUserMsg : ""),
       usedRag: (rights && rights.length > 0) || false,
       usedWebSearch: false,
       persona: clientHat || "lawyer",
       responseTimeMs: Date.now() - analyticsStart,
       channel: "web",
-    }).catch(() => {}); // never block response
+    }).catch(() => {});
 
-    res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost });
+    res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost, _logId: legacyLogId });
   } catch (err) {
     console.error("API route error:", err);
     res.status(500).json({ reply: "שגיאה פנימית." });

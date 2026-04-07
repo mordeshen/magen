@@ -1,15 +1,17 @@
 // =============================================================
-// Magen Engine — v14b fine-tuned model + RAG + Opus escalation
+// Magen Engine — Opus analyze → RAG → Opus respond + personal context
 // =============================================================
 //
-// Flow:
-//   Step 1: v14b UNDERSTANDS — analyzes user message, outputs:
-//           - rag_queries (what to search)
-//           - emotional_state, complexity
-//           - personal file updates
-//   Step 2: RAG RETRIEVES — fetches factual data based on queries
-//   Step 3: v14b RESPONDS — answers with RAG data + personal context
-//   Step 4: If ESCALATE → Opus handles with full context
+// DEPRECATED: this engine was originally designed around an OpenAI fine-tuned
+// model (v14b). That model was rolled back. Today every step runs on Opus,
+// and the future Gemma 4 fine-tuned model will be wired through
+// knowledge-provider.js — NOT through this file.
+//
+// Flow today:
+//   Step 1: Opus ANALYZES — emits rag_queries, emotional_state, complexity, memory_updates
+//   Step 2: RAG RETRIEVES — rights/events/veteran knowledge
+//   Step 3: Opus RESPONDS — uses RAG + personal context
+//   Step 4: If escalate or weak RAG → Opus handles directly
 //   Step 5: Personal file updated (async)
 // =============================================================
 
@@ -22,6 +24,7 @@ const MAGEN_TONE = `אתה מגן — חבר שעבר את כל הבירוקרט
 פרואקטיבי — אל תחכה שישאלו. אם אתה רואה שמשהו חסר או שיש זכות שהוא כנראה לא יודע עליה, תעלה את זה.
 דבר טבעי, בלי להתאמץ, בלי פאתוס, בלי קלישאות.
 אם מישהו במצוקה — תהיה שם, ישיר ואנושי.
+אסור להישאר ב"אני לא יודע" יבש. אם משהו לא ברור — תסביר מה כן בדקת, מה כן ידוע, מה חסר ולמה, וצעד הבא קונקרטי (למי להתקשר, מה לבקש, איזה מסמך להביא). תוציא את האדם עם משהו ביד.
 קו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`;
 
 // ---- Step 1: v14b analyzes the message (with JSON mode forced) ----

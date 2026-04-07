@@ -1893,7 +1893,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       {banner && (
         <div className="privacy-banner">
           <span className="prv-icon">{"\u25CF"}</span>
-          <span>שיחה זו <strong>אנונימית</strong> — לא מזוהה איתך, לא עוברת לצד שלישי. תוכן השיחה נשמר אנונימית לצורך שיפור התשובות בלבד.</span>
+          <span>השיחה הזו <strong>אנונימית לגמרי</strong>. אתה לא צריך להזדהות, ומה שתספר כאן נשאר ביניכם.</span>
           <button className="prv-close" onClick={() => setBanner(false)}>✕</button>
         </div>
       )}

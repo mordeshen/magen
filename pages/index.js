@@ -1820,9 +1820,10 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       // Typing animation
       setLoading(false);
       const responseLogId = d._logId || null;
+      const responseCanDeep = d.canDeepAnswer === true && !deepAnswer;
       animateTyping(reply, (finalText) => {
         setMsgs(m => {
-          const updated = [...m, { role: "assistant", content: finalText, logId: responseLogId }];
+          const updated = [...m, { role: "assistant", content: finalText, logId: responseLogId, canDeepAnswer: responseCanDeep }];
           // Maybe ask for feedback (random sampling, with cooldown)
           if (responseLogId && shouldShowFeedback()) {
             setFeedbackForIdx(updated.length - 1);
@@ -1854,6 +1855,57 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       if (activeHatRef.current === sendHat) {
         setMsgs(m => [...m, { role: "assistant", content: "שגיאה בחיבור. נסה שוב." }]);
       }
+      setLoading(false);
+    }
+  }
+
+  async function handleDeepAnswer(msgIndex) {
+    // Find the user message that preceded this assistant message
+    const userMsg = msgs.slice(0, msgIndex).reverse().find(m => m.role === "user");
+    if (!userMsg || loading) return;
+
+    // Remove canDeepAnswer flag from the message
+    setMsgs(m => m.map((msg, i) => i === msgIndex ? { ...msg, canDeepAnswer: false } : msg));
+    setLoading(true);
+
+    try {
+      const payload = {
+        messages: msgs.slice(0, msgIndex + 1).map(m => ({ role: m.role, content: m.content })),
+        hat,
+        rights,
+        enabledFeatures: featureConfig.filter(f => enabledFeatures[f.id]).map(f => f.id),
+        deepAnswer: true,
+        sessionId,
+      };
+
+      if (user && profile) {
+        payload.userProfile = {
+          name: profile.name, city: profile.city,
+          disability_percent: profile.disability_percent,
+        };
+      }
+
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let d;
+      try { d = await r.json(); } catch { d = { reply: "שגיאה." }; }
+      if (!r.ok && !d.reply) d.reply = "שגיאה בשרת.";
+
+      if (d.tokenInfo) refreshTokenBalance(d.tokenInfo);
+
+      const deepReply = d.reply || "שגיאה.";
+      const deepLogId = d._logId || null;
+
+      setLoading(false);
+      animateTyping(deepReply, (finalText) => {
+        setMsgs(m => [...m, { role: "assistant", content: finalText, logId: deepLogId, isDeepAnswer: true }]);
+      });
+    } catch {
+      setMsgs(m => [...m, { role: "assistant", content: "שגיאה בחיבור." }]);
       setLoading(false);
     }
   }
@@ -1997,6 +2049,14 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
                   {m.role === "assistant" ? <ChatBubbleContent text={m.content}/> : m.content}
                 </div>
               </div>
+              {m.role === "assistant" && m.canDeepAnswer && !loading && (
+                <button className="deep-answer-btn" onClick={() => handleDeepAnswer(i)}>
+                  <span className="deep-answer-icon">✦</span> תשובה מעמיקה יותר
+                </button>
+              )}
+              {m.role === "assistant" && m.isDeepAnswer && (
+                <div className="deep-answer-badge">✦ תשובה מעמיקה</div>
+              )}
               {feedbackForIdx === i && m.role === "assistant" && m.logId && (
                 <FeedbackWidget chatLogId={m.logId} onClose={() => setFeedbackForIdx(null)} />
               )}
@@ -3778,6 +3838,26 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .bubble { max-width:78%; padding:14px 18px; border-radius:8px; font-size:14px; line-height:1.85; white-space:pre-wrap; }
         .msg.user .bubble { background:rgba(244,162,78,.08); color:var(--text-primary); border-inline-end:2px solid var(--accent-primary); }
         .msg.assistant .bubble { background:var(--surface-card); border:1px solid var(--border-default); color:var(--text-primary); }
+
+        /* Deep Answer button + badge */
+        .deep-answer-btn {
+          display:inline-flex; align-items:center; gap:6px;
+          margin:6px 0 0 40px; padding:6px 14px;
+          background:transparent; border:1px solid var(--border-subtle);
+          border-radius:6px; cursor:pointer;
+          font-family:'Heebo',sans-serif; font-size:12px; font-weight:600;
+          color:var(--copper-500); letter-spacing:0.02em;
+          transition:all var(--duration-fast) var(--ease-out-quad);
+        }
+        .deep-answer-btn:hover { border-color:var(--copper-500); background:rgba(217,119,6,.06); }
+        .deep-answer-icon { font-size:14px; }
+        .deep-answer-badge {
+          display:inline-block; margin:4px 0 0 40px;
+          padding:3px 10px; border-radius:4px;
+          font-size:11px; font-weight:600; letter-spacing:0.03em;
+          color:var(--copper-400); background:rgba(217,119,6,.08);
+          border:1px solid rgba(217,119,6,.15);
+        }
 
         /* Nusach (prepared text) block */
         .nusach-block {

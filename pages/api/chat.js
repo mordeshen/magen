@@ -51,7 +51,9 @@ async function getTokenAllowance(req, res, ip) {
   try {
     const userSb = getUserSupabase(req, res);
     if (userSb) {
-      const { data: { user } } = await userSb.auth.getUser();
+      const authPromise = userSb.auth.getUser();
+      const authTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("auth timeout")), 5000));
+      const { data: { user } } = await Promise.race([authPromise, authTimeout]);
       if (user) earlyUserId = user.id;
     }
   } catch {}
@@ -1241,6 +1243,69 @@ function flattenSystem(parts) {
 }
 
 // ============================================================
+// Deep Answer — concise Opus re-answer for premium users
+// ============================================================
+
+async function callDeepAnswer(userMessage, context, recentMessages) {
+  const contextParts = [];
+  if (context.profile) {
+    const p = context.profile;
+    contextParts.push(`פרופיל: ${p.first_name || ""}, ${p.disability_percent || "?"}% נכות, ${p.city || ""}`);
+  }
+  if (context.legalCase) {
+    contextParts.push(`שלב משפטי: ${context.legalCase.stage || "לא ידוע"}`);
+  }
+  if (context.injuries?.length) {
+    contextParts.push(`פגיעות: ${context.injuries.map(i => i.hebrew_label || i.type).join(", ")}`);
+  }
+
+  const systemPrompt = `אתה מגן — יועץ מומחה לזכויות פצועי צה"ל. אתה לוחם בשביל הפצוע.
+
+כללים קשיחים לתשובה:
+1. ענה ב-3-6 משפטים תכליתיים. לא יותר.
+2. תמיד תן צעד הבא קונקרטי — מספר טלפון, מה להגיד, איזה מסמך להביא
+3. אסרטיבי — "אתה צודק להילחם", "אל תוותר", "זו זכותך"
+4. לעולם לא "אני לא רופא/עו"ד" — ענה ישר ורק בסוף אזכר שמומחה יאשר
+5. עברית חמה, כמו חבר ותיק — לא רשמית, לא קלינית
+6. טלפונים: *6500 (מוקד פצועים), *8944 (נפש אחת 24/7), 03-5251555 (ארגון נכי צה"ל)
+
+${contextParts.length ? "הקשר אישי:\n" + contextParts.join("\n") : ""}`;
+
+  const conversationMessages = recentMessages
+    .filter(m => m.role === "user" || m.role === "assistant")
+    .slice(-4)
+    .map(m => ({ role: m.role, content: typeof m.content === "string" ? m.content : "" }));
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: MODEL_OPUS,
+      max_tokens: 800,
+      system: systemPrompt,
+      messages: [
+        ...conversationMessages,
+        { role: "user", content: userMessage },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Deep answer API ${response.status}`);
+  }
+
+  const data = await response.json();
+  const reply = data.content?.[0]?.text || "";
+  const tokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0);
+
+  return { reply, tokens };
+}
+
+// ============================================================
 // Main handler
 // ============================================================
 
@@ -1297,6 +1362,7 @@ export default async function handler(req, res) {
     legalCase = null,
     enabledFeatures: requestedFeatures = [],
     hatExplicit = false,
+    deepAnswer = false,
   } = body;
   let { attachment } = body;
 
@@ -1399,6 +1465,43 @@ export default async function handler(req, res) {
         console.error("[chat] knowledge provider error, continuing to Opus:", e.message);
       }
 
+      // === DEEP ANSWER (Opus concise) ===
+      // When user clicks "תשובה מעמיקה" on a previous response, re-answer
+      // with Opus using a concise, assertive prompt. Gated by plan.
+      if (deepAnswer && activeFeatures.has("deep_answer")) {
+        try {
+          const deepResult = await callDeepAnswer(lastUserText, magenContext, messages.slice(-6));
+          const tokensUsed = deepResult.tokens || 0;
+          let tokenInfo = { used: tokensUsed, remaining: allowance.remaining, plan: allowance.planId };
+          try {
+            if (allowance.userId) {
+              const { data: deductResult } = await supabase.rpc("deduct_tokens", {
+                p_user_id: allowance.userId, p_amount: tokensUsed, p_is_daily: allowance.planId === "free",
+              });
+              if (deductResult) tokenInfo.remaining = deductResult.remaining;
+            }
+          } catch (e) { console.error("Token tracking error (deep):", e); }
+
+          const deepSessionId = body.sessionId || crypto.randomUUID();
+          const deepLogId = await logChatContent({
+            sessionId: deepSessionId, channel: "web", persona: clientHat,
+            userMessage: lastUserText, assistantReply: deepResult.reply,
+            model: modelShortName(MODEL_OPUS), source: "deep_opus",
+            usedRag: false, responseTimeMs: Date.now() - analyticsStart,
+          });
+
+          return res.json({
+            reply: deepResult.reply,
+            tokenInfo,
+            _engine: "deep_opus",
+            _logId: deepLogId,
+          });
+        } catch (e) {
+          console.error("[chat] deep answer error:", e.message);
+          // Fall through to normal magen engine
+        }
+      }
+
       const result = await magenChat(lastUserText, magenContext, supabase);
 
       if (result) {
@@ -1454,6 +1557,7 @@ export default async function handler(req, res) {
           _engine: "magen",
           _layer: result.layer,
           _logId: magenLogId,
+          canDeepAnswer: activeFeatures.has("deep_answer"),
         });
       }
     } catch (e) {

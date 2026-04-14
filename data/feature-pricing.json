@@ -58,5 +58,15 @@
     "always_on": false,
     "enabled_by_default": false,
     "plans": ["free", "one_time", "monthly", "premium"]
+  },
+  {
+    "id": "deep_answer",
+    "label": "תשובה מעמיקה",
+    "description": "תשובה מפורטת ומדויקת יותר מהמודל המתקדם ביותר",
+    "icon": "✦",
+    "estimated_tokens": 3000,
+    "always_on": false,
+    "enabled_by_default": false,
+    "plans": ["monthly", "premium"]
   }
 ]

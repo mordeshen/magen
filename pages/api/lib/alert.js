@@ -14,7 +14,7 @@ export async function alertDev(source, message, details = {}) {
   const text = [
     `🚨 *${source.toUpperCase()}*`,
     message,
-    details.userId ? `👤 ${details.userId}` : null,
+    details.userId ? `👤 user_***` : null,
     details.error ? `❌ ${details.error}` : null,
     details.extra ? `📎 ${details.extra}` : null,
     `🕐 ${new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`,

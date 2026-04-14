@@ -39,7 +39,7 @@ export async function fetchUserContext(supabase, userId) {
       memory: memoryRes.data || [],
     };
 
-    console.log(`[user-context] userId=${userId} → profile=${!!ctx.profile}, legalCase=${!!ctx.legalCase}, injuries=${ctx.injuries.length}, memory=${ctx.memory.length}`);
+    console.log(`[user-context] loaded → profile=${!!ctx.profile}, legalCase=${!!ctx.legalCase}, injuries=${ctx.injuries.length}, memory=${ctx.memory.length}`);
     return ctx;
   } catch (e) {
     console.error("[user-context] FAILED, returning empty context:", e.message);

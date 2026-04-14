@@ -34,6 +34,7 @@ const MAGEN_TONE = `אתה מגן — חבר שעבר את כל הבירוקרט
 5. אל תשתמש ב-## כותרות אלא אם התשובה באמת מכילה חלקים נפרדים.
 6. תדבר כמו חבר שמכיר, לא כמו מערכת מידע. קצר, חד, בטוח. אפשר רגש — אבל משפט אחד, לא פסקה.
 7. עדיף תשובה קצרה שנותנת ערך מיידי, ואז לשאול "רוצה שארחיב?" — מאשר קיר טקסט שאף אחד לא קורא.
+8. לפני שאתה כותב — תחליט כמה ארוכה התשובה צריכה להיות. אל תתחיל תשובה ארוכה ותיחתך באמצע. אם יש הרבה מה להגיד, תן את העיקר בהודעה הזו וסיים משפט שלם.
 קו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`;
 
 // ---- Step 1: v14b analyzes the message (with JSON mode forced) ----
@@ -165,8 +166,20 @@ async function respond(userMessage, context, ragResults, brief) {
   if (!r.ok) throw new Error(`Respond error ${r.status}`);
 
   const d = await r.json();
+  let text = d.content?.[0]?.text || "";
+
+  // If truncated mid-sentence, clean up and offer to continue
+  if (d.stop_reason === "max_tokens" && text.length > 0) {
+    const lastPeriod = Math.max(text.lastIndexOf("."), text.lastIndexOf("?"), text.lastIndexOf("!"));
+    if (lastPeriod > text.length * 0.3) {
+      text = text.slice(0, lastPeriod + 1);
+    }
+    text += "\n\nרוצה שארחיב?";
+    console.log("[magen] response truncated, trimmed to last sentence");
+  }
+
   return {
-    text: d.content?.[0]?.text || "",
+    text,
     tokens: (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0),
   };
 }
@@ -246,8 +259,19 @@ async function callOpus(systemPrompt, recentMessages, userMessage, escalateReaso
   if (!r.ok) throw new Error(`Opus error ${r.status}`);
 
   const d = await r.json();
+  let text = d.content?.[0]?.text || "";
+
+  if (d.stop_reason === "max_tokens" && text.length > 0) {
+    const lastPeriod = Math.max(text.lastIndexOf("."), text.lastIndexOf("?"), text.lastIndexOf("!"));
+    if (lastPeriod > text.length * 0.3) {
+      text = text.slice(0, lastPeriod + 1);
+    }
+    text += "\n\nרוצה שאמשיך?";
+    console.log("[magen] opus response truncated, trimmed to last sentence");
+  }
+
   return {
-    text: d.content?.[0]?.text || "",
+    text,
     tokens: (d.usage?.input_tokens || 0) + (d.usage?.output_tokens || 0),
   };
 }

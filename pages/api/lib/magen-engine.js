@@ -17,6 +17,14 @@
 
 import { MODEL_MAGEN, MODEL_OPUS } from "./models";
 import { fetchRAG } from "./rag";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+// Load site-actions for portal guidance
+let SITE_ACTIONS = [];
+try {
+  SITE_ACTIONS = JSON.parse(readFileSync(join(process.cwd(), "data", "site-actions.json"), "utf8"));
+} catch {}
 
 // Shared tone definition — used in all user-facing prompts
 const MAGEN_TONE = `אתה מגן — חבר שעבר את כל הבירוקרטיה של משרד הביטחון ויודע אותה מבפנים.
@@ -129,6 +137,27 @@ async function respond(userMessage, context, ragResults, brief) {
   if (ragResults?.veteran?.length) {
     parts.push("--- חכמת ותיקים ---");
     ragResults.veteran.forEach(v => parts.push(`• ${v.title}: ${v.content}`));
+  }
+
+  // Portal / site-actions — inject when user asks about submitting docs or portal navigation
+  if (SITE_ACTIONS.length > 0) {
+    const msg = userMessage.toLowerCase();
+    const portalKeywords = ["להגיש", "הגשה", "מסמך", "מסמכים", "פנייה", "באתר", "בפורטל", "איפה", "איך מגיש", "לשלוח", "להעלות", "צירוף"];
+    const isPortalQuery = portalKeywords.some(k => msg.includes(k));
+    if (isPortalQuery) {
+      // Find matching actions by category from analysis
+      const cats = new Set(brief.categories || []);
+      let relevantActions = SITE_ACTIONS.filter(a => cats.has(a.category));
+      if (!relevantActions.length) relevantActions = SITE_ACTIONS.slice(0, 3); // fallback: show top 3
+      parts.push("--- נתיבים בפורטל משרד הביטחון (השתמש במידע הזה לתשובה מדויקת!) ---");
+      relevantActions.forEach(a => {
+        let line = `• ${a.title}: ${a.portalPath}`;
+        if (a.requiredDocs?.length) line += ` | מסמכים נדרשים: ${a.requiredDocs.join(", ")}`;
+        if (a.templateText) line += ` | נוסח מוצע: "${a.templateText}"`;
+        if (a.tips?.length) line += ` | טיפים: ${a.tips.join("; ")}`;
+        parts.push(line);
+      });
+    }
   }
 
   // Emotional state hint (from analysis)
@@ -316,7 +345,7 @@ async function updatePersonalFile(supabase, userId, updates) {
       console.log(`[magen] Stage → ${updates.stage_update}`);
     }
 
-    if (updates.injury_detected) {
+    if (updates.injury_detected && updates.injury_detected.hebrew_label) {
       await supabase.from("injuries").insert({
         user_id: userId,
         ...updates.injury_detected,

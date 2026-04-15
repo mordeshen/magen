@@ -85,44 +85,53 @@ async function tryFinetunedWithFallback(userMessage, context, ragResults, recent
  * else in the codebase.
  */
 async function callFinetuned(userMessage, context) {
-  const systemBlocks = [
-    {
-      role: "system",
-      content: 'אתה מומחה בזכויות נכי צה"ל. ענה בעברית, ישיר ופרקטי. אם אינך בטוח — החזר confidence נמוך והסבר מה חסר.',
-    },
-  ];
-  if (context.profile) {
-    systemBlocks.push({
-      role: "system",
-      content: `פרופיל משתמש: ${JSON.stringify(context.profile)}`,
-    });
+  const OPENAI_KEY = process.env.OPENAI_API_KEY;
+  const MODEL = process.env.MAGEN_OPENAI_MODEL;
+
+  if (!OPENAI_KEY || !MODEL) {
+    throw new Error("OPENAI_API_KEY or MAGEN_OPENAI_MODEL not set");
   }
 
-  const response = await fetch(FINETUNED_API_URL, {
+  const systemPrompt = `אתה מגן — מומחה בזכויות נכי צה"ל. ענה בעברית, ישיר, קצר (2-4 משפטים).
+אם אתה לא בטוח בתשובה או שהשאלה מורכבת — תגיד "לא בטוח" ואני אעביר למומחה.
+${context.profile ? `פרופיל: ${JSON.stringify({ name: context.profile.name, city: context.profile.city, disability_percent: context.profile.disability_percent, claim_status: context.profile.claim_status })}` : ""}
+${context.legalCase ? `שלב משפטי: ${context.legalCase.stage}` : ""}`;
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(FINETUNED_API_KEY && { Authorization: `Bearer ${FINETUNED_API_KEY}` }),
+      Authorization: `Bearer ${OPENAI_KEY}`,
     },
+    signal: AbortSignal.timeout(10000),
     body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 300,
       messages: [
-        ...systemBlocks,
+        { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Finetuned API returned ${response.status}`);
+    throw new Error(`OpenAI returned ${response.status}`);
   }
 
   const data = await response.json();
+  const answer = data.choices?.[0]?.message?.content || "";
 
-  // Tolerate multiple response shapes — adapt when the real endpoint is wired.
+  // Detect low confidence from the model's own text
+  const lowConfidenceSignals = ["לא בטוח", "לא יודע", "אין לי מידע", "צריך לבדוק", "לא ברור לי"];
+  const needsEscalation = lowConfidenceSignals.some(s => answer.includes(s));
+  const confidence = needsEscalation ? 0.3 : 0.8;
+
+  console.log(`[knowledge] v14b answered (${data.usage?.total_tokens || 0} tokens, confidence: ${confidence})`);
+
   return {
-    answer: data.choices?.[0]?.message?.content || data.content || data.answer || "",
-    confidence: typeof data.confidence === "number" ? data.confidence : 0.5,
-    needsEscalation: data.needs_escalation === true,
+    answer,
+    confidence,
+    needsEscalation,
   };
 }
 

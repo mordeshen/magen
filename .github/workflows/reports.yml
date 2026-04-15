@@ -1,0 +1,34 @@
+name: Reports
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"    # pending-payments: כל 30 דק'
+    - cron: "0 7 * * 0"       # weekly-stats: יום ראשון 10:00 שעון ישראל (07:00 UTC)
+  workflow_dispatch:
+    inputs:
+      which:
+        description: "איזה דוח להריץ ידנית"
+        type: choice
+        options: [pending-payments, weekly-stats]
+        default: pending-payments
+
+jobs:
+  pending-payments:
+    if: github.event.schedule == '*/30 * * * *' || github.event.inputs.which == 'pending-payments'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check pending payments
+        run: |
+          curl -s --max-time 30 --fail \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            https://shikum.org/api/reports/pending-payments
+
+  weekly-stats:
+    if: github.event.schedule == '0 7 * * 0' || github.event.inputs.which == 'weekly-stats'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send weekly stats
+        run: |
+          curl -s --max-time 30 --fail \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            https://shikum.org/api/reports/weekly-stats

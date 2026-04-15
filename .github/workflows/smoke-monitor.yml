@@ -1,0 +1,41 @@
+name: Smoke Monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # כל 5 דק'
+  workflow_dispatch:  # אפשר להריץ ידנית
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit smoke-test endpoint
+        id: smoke
+        run: |
+          BODY=$(curl -s --max-time 30 \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            https://shikum.org/api/smoke-test)
+
+          STATUS=$(echo "$BODY" | grep HTTP_STATUS | cut -d: -f2)
+          JSON=$(echo "$BODY" | sed '/HTTP_STATUS/d')
+
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "json<<EOF" >> $GITHUB_OUTPUT
+          echo "$JSON" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "HTTP $STATUS"
+          echo "$JSON"
+
+      # אם ה-endpoint לא מגיב בכלל (כל האתר מת) → Telegram ישיר מכאן
+      - name: Alert if endpoint unreachable
+        if: steps.smoke.outputs.status == '' || steps.smoke.outputs.status == '000' || steps.smoke.outputs.status == '502' || steps.smoke.outputs.status == '503' || steps.smoke.outputs.status == '504'
+        run: |
+          MSG="🚨 *WATCHDOG*%0Ashikum.org לא מגיב כלל!%0AHTTP: ${{ steps.smoke.outputs.status }}%0A🕐 $(TZ=Asia/Jerusalem date '+%d/%m/%Y %H:%M')"
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "text=$MSG" \
+            -d "parse_mode=Markdown"
+          exit 1

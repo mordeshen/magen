@@ -3,13 +3,14 @@ name: Reports
 on:
   schedule:
     - cron: "*/30 * * * *"    # pending-payments: כל 30 דק'
+    - cron: "7 * * * *"       # abandoned-cart: כל שעה בדקה :07 (לא בראש השעה כדי לא להתנגש)
     - cron: "0 7 * * 0"       # weekly-stats: יום ראשון 10:00 שעון ישראל (07:00 UTC)
   workflow_dispatch:
     inputs:
       which:
         description: "איזה דוח להריץ ידנית"
         type: choice
-        options: [pending-payments, weekly-stats]
+        options: [pending-payments, abandoned-cart, weekly-stats]
         default: pending-payments
 
 jobs:
@@ -22,6 +23,16 @@ jobs:
           curl -s --max-time 30 --fail \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             https://shikum.org/api/reports/pending-payments
+
+  abandoned-cart:
+    if: github.event.schedule == '7 * * * *' || github.event.inputs.which == 'abandoned-cart'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send abandoned-cart reminders
+        run: |
+          curl -s --max-time 60 --fail \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            https://shikum.org/api/reports/abandoned-cart-reminder
 
   weekly-stats:
     if: github.event.schedule == '0 7 * * 0' || github.event.inputs.which == 'weekly-stats'

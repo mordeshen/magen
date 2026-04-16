@@ -7,6 +7,9 @@ import { alertDev } from "../lib/alert";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const STUCK_AFTER_MIN = 10;
+const STUCK_BEFORE_HOURS = 24; // אם ישן יותר מיום — נזנח, לא התראה דחופה
+const SKIP_PLAN_IDS = ["test"];
+const SKIP_EMAILS = ["mordechay.shenvald@gmail.com"]; // admin test emails
 
 export default async function handler(req, res) {
   const provided = req.headers["x-cron-secret"] || req.query.secret;
@@ -15,13 +18,18 @@ export default async function handler(req, res) {
   }
 
   const sb = getAdminSupabase();
-  const cutoff = new Date(Date.now() - STUCK_AFTER_MIN * 60 * 1000).toISOString();
+  const now = Date.now();
+  const cutoffStart = new Date(now - STUCK_AFTER_MIN * 60 * 1000).toISOString();
+  const cutoffEnd = new Date(now - STUCK_BEFORE_HOURS * 60 * 60 * 1000).toISOString();
 
   const { data: stuck, error } = await sb
     .from("pending_purchases")
     .select("id, email, plan_id, amount, created_at")
     .eq("fulfilled", false)
-    .lt("created_at", cutoff)
+    .lt("created_at", cutoffStart)
+    .gt("created_at", cutoffEnd)
+    .not("plan_id", "in", `(${SKIP_PLAN_IDS.map(p => `"${p}"`).join(",")})`)
+    .not("email", "in", `(${SKIP_EMAILS.map(e => `"${e}"`).join(",")})`)
     .order("created_at", { ascending: true });
 
   if (error) {

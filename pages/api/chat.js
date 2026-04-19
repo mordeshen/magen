@@ -46,23 +46,6 @@ const hourlyMap = new Map(); // ip -> timestamp[]
 
 // --- Token allowance check (subscription-based) ---
 async function getTokenAllowance(req, res, ip) {
-  // TEMPORARY: unlimited for everyone until payment is set up
-  // But still extract userId for personal context
-  let earlyUserId = null;
-  try {
-    const userSb = getUserSupabase(req, res);
-    if (userSb) {
-      const authPromise = userSb.auth.getUser();
-      const authTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("auth timeout")), 5000));
-      const { data: { user } } = await Promise.race([authPromise, authTimeout]);
-      if (user) earlyUserId = user.id;
-    }
-  } catch {}
-  return {
-    allowed: true, userId: earlyUserId, planId: "free",
-    features: { model: MODEL_SONNET, max_tokens: 4096 },
-    unlimited: true, remaining: -1, ip,
-  };
   // Try JWT auth first
   try {
     const userSb = getUserSupabase(req, res);
@@ -1812,7 +1795,7 @@ export default async function handler(req, res) {
     if (!r.ok) {
       const err = await r.text();
       console.error("Claude API error:", r.status);
-      return res.status(500).json({ reply: "שגיאה בחיבור. נסה שוב." });
+      return res.status(500).json({ reply: "אופס, נתקלנו בתקלה זמנית. אנחנו עובדים על זה — נסו שוב עוד כמה דקות." });
     }
 
     const d = await r.json();
@@ -1927,6 +1910,6 @@ export default async function handler(req, res) {
     res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost, _logId: legacyLogId });
   } catch (err) {
     console.error("API route error:", err);
-    res.status(500).json({ reply: "שגיאה פנימית." });
+    res.status(500).json({ reply: "אופס, נתקלנו בתקלה זמנית. אנחנו עובדים על זה — נסו שוב עוד כמה דקות." });
   }
 }

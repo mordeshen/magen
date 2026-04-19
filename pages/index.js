@@ -1325,7 +1325,7 @@ function PricingModal({ onClose, onSuccess, currentPlanId }) {
       await proceedToCheckout(planId);
     } catch (err) {
       console.error("[checkout-client] error:", err);
-      alert("שגיאה בחיבור לשרת.");
+      alert("נראה שיש בעיה זמנית בחיבור. נסו שוב עוד רגע.");
       setLoadingPlan(null);
     }
   }
@@ -1344,7 +1344,7 @@ function PricingModal({ onClose, onSuccess, currentPlanId }) {
       await proceedToCheckout(pendingPlanId);
     } catch (err) {
       console.error("[checkout-client] phone submit error:", err);
-      alert("שגיאה. נסה שוב.");
+      alert("אופס, משהו לא עבד. נסו שוב עוד רגע.");
       setLoadingPlan(null);
     }
   }
@@ -1814,8 +1814,8 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
       let d;
       try { d = await r.json(); } catch { d = { reply: "שגיאה בתשובה מהשרת." }; }
-      if (!r.ok && !d.reply) d.reply = "שגיאה בשרת.";
-      let reply = d.reply || "שגיאה.";
+      if (!r.ok && !d.reply) d.reply = "אופס, נתקלנו בתקלה זמנית. אנחנו עובדים על זה — נסו שוב עוד כמה דקות.";
+      let reply = d.reply || "אופס, משהו השתבש. נסו שוב עוד רגע.";
 
       // Update token balance from response
       if (d.tokenInfo) refreshTokenBalance(d.tokenInfo);
@@ -1935,7 +1935,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
     } catch (err) {
       console.error("Chat send error:", err);
       if (activeHatRef.current === sendHat) {
-        setMsgs(m => [...m, { role: "assistant", content: "שגיאה בחיבור. נסה שוב." }]);
+        setMsgs(m => [...m, { role: "assistant", content: "נראה שיש בעיה זמנית בחיבור. נסו שוב עוד רגע. נסה שוב." }]);
       }
       setLoading(false);
     }
@@ -1974,12 +1974,12 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       });
 
       let d;
-      try { d = await r.json(); } catch { d = { reply: "שגיאה." }; }
-      if (!r.ok && !d.reply) d.reply = "שגיאה בשרת.";
+      try { d = await r.json(); } catch { d = { reply: "אופס, משהו השתבש. נסו שוב עוד רגע." }; }
+      if (!r.ok && !d.reply) d.reply = "אופס, נתקלנו בתקלה זמנית. אנחנו עובדים על זה — נסו שוב עוד כמה דקות.";
 
       if (d.tokenInfo) refreshTokenBalance(d.tokenInfo);
 
-      const deepReply = d.reply || "שגיאה.";
+      const deepReply = d.reply || "אופס, משהו השתבש. נסו שוב עוד רגע.";
       const deepLogId = d._logId || null;
 
       setLoading(false);
@@ -1987,7 +1987,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         setMsgs(m => [...m, { role: "assistant", content: finalText, logId: deepLogId, isDeepAnswer: true }]);
       });
     } catch {
-      setMsgs(m => [...m, { role: "assistant", content: "שגיאה בחיבור." }]);
+      setMsgs(m => [...m, { role: "assistant", content: "נראה שיש בעיה זמנית בחיבור. נסו שוב עוד רגע." }]);
       setLoading(false);
     }
   }

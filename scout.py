@@ -16,6 +16,8 @@ DATA      = Path("data")
 SEEN_FILE = Path("seen_hashes.json")
 MODEL     = "claude-sonnet-4-6"
 
+BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
 # ── בתי הלוחם — WordPress sites ──────────────────────────
 BEIT_HALOHEM_SITES = [
     {"url": "https://bh-tla.inz.org.il/אירועים-וחדשות/", "city": "תל אביב", "organizer": "בית הלוחם תל אביב"},
@@ -201,7 +203,7 @@ async def scrape_beit_halohem(client, site, seen):
 
     try:
         r = await client.get(url, timeout=30, follow_redirects=True,
-                             headers={"User-Agent": "MagenScout/1.0 (veteran support)"})
+                             headers={"User-Agent": BROWSER_UA})
         if r.status_code != 200:
             print(f"    ⚠️  {organizer}: HTTP {r.status_code}")
             return []
@@ -362,10 +364,36 @@ async def send_telegram(client, n_updates, n_events):
 
 
 def git_push():
+    token    = os.environ.get("GIT_TOKEN", "")
+    repo_url = os.environ.get("GIT_REPO_URL", "")
+    user     = os.environ.get("GIT_USER_NAME", "scout-bot")
+    email    = os.environ.get("GIT_USER_EMAIL", "scout@magen.app")
+
+    if not token or not repo_url:
+        print("  ⚠️  Git: חסר GIT_TOKEN או GIT_REPO_URL — מדלג על push")
+        return
+
     try:
+        # Configure git identity
+        subprocess.run(["git", "config", "user.name", user], check=True)
+        subprocess.run(["git", "config", "user.email", email], check=True)
+
+        # Build authenticated remote URL: https://TOKEN@github.com/user/repo.git
+        # GIT_REPO_URL is expected as https://github.com/user/repo.git
+        auth_url = repo_url.replace("https://", f"https://{token}@")
+        subprocess.run(["git", "remote", "set-url", "origin", auth_url], check=True)
+
         subprocess.run(["git", "add", "data/"], check=True)
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            print("  💤 Git: אין שינויים לדחיפה")
+            return
+
         subprocess.run(["git", "commit", "-m", f"scout: {date.today()}"], check=True)
-        subprocess.run(["git", "push"], check=True)
+        subprocess.run(["git", "push", "origin", "main"], check=True)
         print("  🚀 Git pushed → redeploy")
     except subprocess.CalledProcessError as e:
         print(f"  ⚠️  Git: {e}")

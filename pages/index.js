@@ -5,6 +5,7 @@ import MagenMedicalSummary from "../components/MagenMedicalSummary";
 import WhatsAppButton from "../components/WhatsAppButton";
 import PortalAgent from "../components/PortalAgent";
 import FeedbackWidget, { shouldShowFeedback } from "../components/FeedbackWidget";
+import AccessibilityWidget from "../components/AccessibilityWidget";
 
 // ─── Utilities ────────────────────────────────────────────
 
@@ -349,13 +350,14 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
 // ─── ProfileSettingsPanel ─────────────────────────────────
 
 function ProfileSettingsPanel() {
-  const { profile, showProfilePanel, toggleProfilePanel, updateProfile, signOut, clearMemory, clearAllSessions, userMemory, chatSessions } = useUser();
+  const { profile, showProfilePanel, toggleProfilePanel, updateProfile, signOut, clearMemory, clearAllSessions, userMemory, chatSessions, deleteAccount } = useUser();
   const [city, setCity] = useState(profile?.city || "");
   const [claimStatus, setClaimStatus] = useState(profile?.claim_status || "");
   const [claimStage, setClaimStage] = useState(profile?.claim_stage || "");
   const [pct, setPct] = useState(profile?.disability_percent ?? "");
   const [interests, setInterests] = useState(profile?.interests || []);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -439,6 +441,18 @@ function ProfileSettingsPanel() {
           {userMemory.length === 0 && chatSessions.length === 0 && (
             <p style={{fontSize:12.5,color:"var(--text-secondary)"}}>אין נתונים שמורים</p>
           )}
+          <button
+            className="privacy-btn privacy-btn-danger"
+            disabled={deleting}
+            onClick={async () => {
+              if (!confirm("למחוק את כל המידע שלך לצמיתות?\n\nפרופיל, תיק משפטי, פגיעות, שיחות, זיכרון, מנויים — הכל יימחק ולא ניתן לשחזר.\n\nלהמשיך?")) return;
+              if (!confirm("בטוח? הפעולה בלתי הפיכה.")) return;
+              setDeleting(true);
+              await deleteAccount();
+            }}
+          >
+            {deleting ? "מוחק..." : "מחק את כל המידע שלי"}
+          </button>
         </div>
 
         <div className="settings-actions">
@@ -990,63 +1004,123 @@ function TipsView() {
 // ─── TermsView ───────────────────────────────────────────────
 
 function TermsView() {
+  const listStyle = {paddingInlineStart:"18px",margin:"6px 0",lineHeight:"1.7"};
   return (
     <>
       <div className="pg-hdr">
-        <h1>תנאי שימוש ופרטיות</h1>
-        <p>עודכן לאחרונה: אפריל 2026</p>
+        <h1>תנאי שימוש ומדיניות פרטיות</h1>
+        <p>עודכן לאחרונה: 20 באפריל 2026</p>
       </div>
       <div className="terms-content">
+
         <div className="terms-section">
-          <h3>כללי</h3>
-          <p>שיט.קום הוא פורטל מידע ציבורי המיועד לפצועי צה"ל ולבני משפחותיהם. השימוש באתר מהווה הסכמה לתנאים המפורטים להלן.</p>
+          <h3>1. כללי</h3>
+          <p>מגן (להלן: "השירות") הוא פלטפורמת מידע וסיוע המיועדת לפצועי צה"ל, נכי צה"ל ובני משפחותיהם. השירות מופעל באמצעות אתר אינטרנט בכתובת shikum.org ובוט WhatsApp.</p>
+          <p>השימוש בשירות מהווה הסכמה לתנאים המפורטים להלן. אם אינך מסכים לתנאים אלה — אנא הימנע משימוש בשירות.</p>
+          <p>השירות אינו גוף ממשלתי, אינו קשור לאגף השיקום במשרד הביטחון, ואינו מייצג גורם רשמי כלשהו.</p>
         </div>
 
-        <div className="terms-section">
-          <h3>פרטיות — מה כן ומה לא</h3>
-          <p><strong>מה אנחנו לא שומרים:</strong> שמות, מספרי ת.ז., מספרי טלפון, כתובות מייל או כל פרט מזהה אחר אינם נצמדים לתוכן השיחות. אנחנו לא מעבירים מידע לצדדים שלישיים מסחריים, ולא מוכרים מידע לאף אחד.</p>
-
-          <p><strong>מה אנחנו כן שומרים — באופן אנונימי:</strong> תוכן השיחות (השאלה והתשובה) נשמר בצורה אנונימית, ללא קישור לזהות שלך. השמירה נעשית לשתי מטרות בלבד:</p>
-          <ul style={{paddingInlineStart:"18px",margin:"6px 0",lineHeight:"1.7"}}>
-            <li>שיפור איכות התשובות של מגן — אם תשובה לא הייתה מספיק טובה, נוכל ללמוד מזה</li>
-            <li>אימון של מודלים פנימיים שלנו, שירוצו בעתיד בעלות נמוכה יותר ויאפשרו לנו להמשיך להציע את השירות בחינם או במחיר סמלי</li>
+        <div className="terms-section terms-highlight">
+          <h3>2. הגבלת אחריות — חשוב לקרוא</h3>
+          <p><strong>השירות מספק מידע לצרכי אינפורמציה כללית בלבד. אין במידע זה תחליף לייעוץ משפטי, רפואי, כלכלי או מקצועי מוסמך.</strong></p>
+          <p>היועצים הדיגיטליים (דן, מיכל, הפסיכולוג, רועי, מגן) הם כלי עזר מבוססי בינה מלאכותית (AI). הם אינם אנשי מקצוע מורשים, אינם מחליפים ייצוג אנושי, ועלולים לטעות.</p>
+          <ul style={listStyle}>
+            <li>סכומים, אחוזים, תנאי זכאות ומועדים עשויים להשתנות. האתר עושה מאמץ להתעדכן אך <strong>אינו מתחייב לדיוק מוחלט</strong>.</li>
+            <li>לפני ביצוע כל פעולה משפטית, רפואית או כלכלית על סמך מידע מהשירות — <strong>חובה לוודא את המידע מול גורם מקצועי מוסמך</strong> (עורך דין, רופא, עובד סוציאלי וכו').</li>
+            <li>הנהלת השירות אינה אחראית לנזק כלשהו, ישיר או עקיף, שייגרם כתוצאה מהסתמכות על המידע המופיע בשירות.</li>
+            <li>השימוש בשירות הוא <strong>על אחריות המשתמש בלבד</strong>.</li>
           </ul>
-          <p>השיחות מסומנות במזהה אנונימי של סשן (מספר אקראי), ללא חיבור לזהות שלך. גם אם תהיה לנו שיחה איתך — אין לנו דרך לדעת שזה אתה.</p>
-
-          <p><strong>פידבק:</strong> מדי פעם נציע לדרג תשובה (1-5 כוכבים, אופציונלי). הדירוג נשמר באופן אנונימי, ועוזר לנו להבין אילו תשובות באמת עוזרות.</p>
-
-          <p><strong>אם נרשמת לחשבון:</strong> פרטי הפרופיל שלך (שם, עיר, אחוזי נכות, תיק משפטי) נשמרים מוצפנים ב-Supabase, נגישים רק לך, ומשמשים כדי שמגן יוכל לעזור לך באופן אישי. אתה יכול למחוק אותם בכל רגע מההגדרות.</p>
-
-          <p><strong>שיחות WhatsApp:</strong> אם אתה מדבר עם מגן בוואטסאפ, ההודעות מועברות דרך Twilio (ספק ה-API שלנו) ואז דרך Anthropic (יצרני המודל). מספר הטלפון שלך עובר רק ל-Twilio, לא לשום מקום אחר.</p>
+          <p>במצב חירום נפשי, יש לפנות מיידית לקו <strong>"נפש אחת" *8944</strong> (24/7) או למיון הקרוב.</p>
         </div>
 
         <div className="terms-section">
-          <h3>הגבלת אחריות</h3>
-          <p>המידע באתר, לרבות תשובות היועצים הדיגיטליים, מוגש לצרכי אינפורמציה כללית בלבד. <strong>אין במידע זה תחליף לייעוץ משפטי, רפואי או מקצועי מוסמך.</strong></p>
-          <p>הנהלת האתר אינה אחראית לנזק כלשהו שייגרם כתוצאה מהסתמכות על המידע המופיע באתר.</p>
+          <h3>3. מדיניות פרטיות</h3>
+          <p>מגן מחויב לפרטיות המשתמשים. מדיניות זו תואמת את חוק הגנת הפרטיות, התשמ"א-1981 ותקנות הגנת הפרטיות (אבטחת מידע), התשע"ז-2017.</p>
+
+          <h4>3.1 שיחות ללא הרשמה (אנונימי)</h4>
+          <p>ניתן להשתמש בצ'אט ללא הרשמה וללא מסירת פרטים מזהים. שיחות אלה הן <strong>אנונימיות לחלוטין</strong>:</p>
+          <ul style={listStyle}>
+            <li>לא נשמר שם, ת.ז., טלפון, מייל או כל פרט מזהה</li>
+            <li>תוכן השיחה (שאלה + תשובה) נשמר עם מזהה סשן אקראי בלבד — ללא חיבור לזהות המשתמש</li>
+            <li>לא ניתן לשייך את תוכן השיחה לאדם מסוים, גם לא על ידינו</li>
+          </ul>
+
+          <h4>3.2 משתמשים רשומים</h4>
+          <p>אם בחרת להירשם, המידע הבא נשמר באופן מוצפן בשרתי Supabase (אירוח באירופה — פרנקפורט):</p>
+          <ul style={listStyle}>
+            <li><strong>פרופיל:</strong> שם, עיר, אחוזי נכות, שלב תביעה</li>
+            <li><strong>תיק משפטי:</strong> שלב, סוגי פגיעה, תאריך ועדה</li>
+            <li><strong>פגיעות:</strong> אזורי גוף, חומרה, אחוזי נכות לפגיעה</li>
+            <li><strong>היסטוריית שיחות:</strong> שיחות שמורות לצורך המשכיות</li>
+            <li><strong>זיכרון:</strong> העדפות ומידע שביקשת שמגן יזכור</li>
+          </ul>
+          <p>מידע זה נגיש <strong>רק לך</strong> ומשמש אך ורק כדי שמגן יוכל לתת לך מענה מותאם אישית. <strong>ניתן למחוק את כל המידע בכל רגע מהגדרות הפרופיל.</strong></p>
+
+          <h4>3.3 שיחות WhatsApp</h4>
+          <p>הודעות WhatsApp מועברות דרך Twilio (ספק API) ומעובדות על ידי Anthropic (ספק מודל AI). מספר הטלפון שלך נשמר אצל Twilio בלבד ואינו מועבר לגורמים אחרים.</p>
+
+          <h4>3.4 מטרות שמירת מידע אנונימי</h4>
+          <p>תוכן שיחות אנונימי (ללא פרטים מזהים) נשמר לשתי מטרות בלבד:</p>
+          <ul style={listStyle}>
+            <li>שיפור איכות התשובות ואיתור שגיאות</li>
+            <li>אימון מודלים פנימיים לצורך הורדת עלויות והמשך מתן שירות חינמי או בעלות סמלית</li>
+          </ul>
+
+          <h4>3.5 מה אנחנו לא עושים</h4>
+          <ul style={listStyle}>
+            <li>לא מוכרים מידע לאף גורם</li>
+            <li>לא מעבירים מידע מזהה לצדדים שלישיים מסחריים</li>
+            <li>לא משתמשים במידע לפרסום ממוקד</li>
+            <li>לא צומדים פרטים מזהים לתוכן שיחות אנונימיות</li>
+          </ul>
+
+          <h4>3.6 זכות מחיקה</h4>
+          <p>בהתאם לחוק הגנת הפרטיות, לכל משתמש רשום עומדת הזכות לדרוש מחיקת כל המידע האישי שלו. ניתן לבצע זאת בלחיצת כפתור מ"הגדרות פרופיל". המחיקה היא מלאה ובלתי הפיכה — כל הנתונים (פרופיל, תיק, פגיעות, שיחות, זיכרון, מנויים) יימחקו לצמיתות.</p>
+
+          <h4>3.7 אבטחת מידע</h4>
+          <ul style={listStyle}>
+            <li>כל התקשורת מוצפנת ב-TLS (HTTPS)</li>
+            <li>בסיס הנתונים מוצפן at rest ומאוחסן בשרתים באירופה (פרנקפורט)</li>
+            <li>גישה לנתונים מוגנת באמצעות Row Level Security (RLS) — כל משתמש רואה רק את הנתונים שלו</li>
+            <li>אין גישת אדמין לתוכן שיחות של משתמשים רשומים, אלא באמצעות מפתח שירות מוגבל (service role)</li>
+          </ul>
         </div>
 
         <div className="terms-section">
-          <h3>חובת אימות מול גורם מוסמך</h3>
-          <p>לפני ביצוע כל פעולה משפטית, רפואית או כלכלית על סמך מידע מהאתר — <strong>חובה לוודא את המידע מול עורך דין, רופא או גורם מקצועי מוסמך.</strong></p>
-          <p>סכומי כסף, אחוזים, תנאי זכאות ומועדים עשויים להשתנות. האתר עושה מאמץ להתעדכן אך אינו מתחייב לדיוק מוחלט.</p>
+          <h3>4. שימוש בבינה מלאכותית</h3>
+          <p>השירות משתמש במודלים של בינה מלאכותית (Claude מבית Anthropic, וכן מודלים פנימיים) ליצירת תשובות. מודלים אלה:</p>
+          <ul style={listStyle}>
+            <li>אינם בני אדם ואינם מחליפים ייעוץ מקצועי</li>
+            <li>עלולים לייצר מידע שגוי או לא מעודכן</li>
+            <li>מתבססים על מידע שנאסף ממקורות ציבוריים ומבסיס ידע פנימי</li>
+          </ul>
+          <p>השיחות עם היועצים הדיגיטליים אינן חסויות במובן המשפטי של יחסי עורך דין-לקוח או רופא-מטופל.</p>
         </div>
 
         <div className="terms-section">
-          <h3>שימוש ביועצים הדיגיטליים</h3>
-          <p>היועצים הדיגיטליים (AI) אינם אנשי מקצוע אמיתיים. הם כלי עזר מבוסס בינה מלאכותית שנועד לכוון, להסביר ולסייע בניווט הבירוקרטיה — לא להחליף ייצוג אנושי.</p>
-          <p>במצב חירום נפשי, יש לפנות מיידית לקו "נפש אחת" *8944 (24/7).</p>
+          <h3>5. פידבק ודירוג</h3>
+          <p>מדי פעם נציע לדרג תשובה (1-5 כוכבים). הדירוג הוא אופציונלי, נשמר באופן אנונימי, ומסייע לנו לשפר את איכות השירות.</p>
         </div>
 
         <div className="terms-section">
-          <h3>זכויות יוצרים</h3>
-          <p>תכני האתר, לרבות עיצוב, טקסטים וקוד, מוגנים בזכויות יוצרים. ניתן לשתף מידע מהאתר לצרכים אישיים ולמען קהילת פצועי צה"ל.</p>
+          <h3>6. זכויות יוצרים</h3>
+          <p>תכני השירות, לרבות עיצוב, טקסטים וקוד, מוגנים בזכויות יוצרים. ניתן לשתף מידע מהשירות לצרכים אישיים ולמען קהילת פצועי צה"ל.</p>
         </div>
 
         <div className="terms-section">
-          <h3>יצירת קשר</h3>
-          <p>לשאלות בנוגע לתנאי השימוש או לאתר בכלל, ניתן לפנות דרך כפתור "רעיונות לשימור/שיפור?" בתפריט.</p>
+          <h3>7. שינויים בתנאי השימוש</h3>
+          <p>הנהלת השירות רשאית לעדכן תנאים אלה מעת לעת. שינויים מהותיים יפורסמו באתר. המשך השימוש לאחר עדכון מהווה הסכמה לתנאים המעודכנים.</p>
         </div>
+
+        <div className="terms-section">
+          <h3>8. יצירת קשר</h3>
+          <p>לשאלות בנוגע לתנאי השימוש, מדיניות הפרטיות, או לבקשת מחיקת מידע:</p>
+          <ul style={listStyle}>
+            <li>דרך כפתור "רעיונות לשיפור" בתפריט</li>
+            <li>דוא"ל: contact@shikum.org</li>
+          </ul>
+        </div>
+
       </div>
     </>
   );
@@ -2126,7 +2200,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         </div>
       </div>
 
-      <p className="chat-disclaimer">המידע הוא לצרכי אינפורמציה בלבד ואינו מחליף ייעוץ מקצועי מוסמך.</p>
+      <p className="chat-disclaimer">השימוש במגן הוא על אחריות המשתמש בלבד. המידע אינו מהווה ייעוץ משפטי, רפואי או מקצועי ואינו מחליף פנייה לגורם מוסמך.</p>
 
       {showPricing && <PricingModal currentPlanId={subscription?.plan_id} onClose={() => setShowPricing(false)} onSuccess={() => { setShowPricing(false); setPaymentSuccess(true); loadSubscription(); }} />}
       {paymentSuccess && (
@@ -2625,6 +2699,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [showPricingGlobal, setShowPricingGlobal] = useState(false);
   const [showPortalAgent, setShowPortalAgent] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
+
+  // Show consent banner on first visit
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("magen-consent")) setShowConsent(true);
+    } catch {}
+  }, []);
 
   // Listen for portal agent open event (from sidebar popup)
   useEffect(() => {
@@ -3099,6 +3181,41 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .sb-popup-actions { margin-top:8px; border-top:1px solid var(--border-default); padding-top:10px; display:flex; flex-direction:column; gap:2px; }
         .sb-upgrade-btn { color:var(--copper-500); font-weight:600; }
         .sb-upgrade-btn:hover { background:rgba(217,119,6,.1); color:var(--copper-400); }
+
+        /* ── Consent Banner ── */
+        .consent-banner {
+          position:fixed; bottom:0; left:0; right:0; z-index:9998;
+          background:var(--stone-900); border-top:2px solid var(--copper-500);
+          padding:16px 20px; box-shadow:0 -4px 20px rgba(0,0,0,0.5);
+        }
+        .consent-content {
+          max-width:700px; margin:0 auto;
+          display:flex; flex-direction:column; gap:12px;
+          font-family:'Heebo',sans-serif; font-size:14px; line-height:1.6;
+          color:var(--text-primary);
+        }
+        .consent-content p { margin:0; }
+        .consent-actions { display:flex; gap:10px; flex-wrap:wrap; }
+        .consent-accept {
+          padding:10px 24px; border-radius:8px; border:none;
+          background:var(--copper-500); color:var(--stone-950);
+          font-family:'Heebo',sans-serif; font-weight:700; font-size:14px;
+          cursor:pointer; transition:background .15s ease;
+        }
+        .consent-accept:hover { background:var(--copper-600); }
+        .consent-terms {
+          padding:10px 24px; border-radius:8px;
+          border:1px solid var(--border-default); background:transparent;
+          color:var(--text-secondary); font-family:'Heebo',sans-serif;
+          font-size:13px; cursor:pointer; transition:all .15s ease;
+        }
+        .consent-terms:hover { border-color:var(--copper-500); color:var(--text-primary); }
+
+        /* ── Terms highlight ── */
+        .terms-highlight {
+          background:rgba(220,38,38,.06); border:1px solid rgba(220,38,38,.2);
+          border-radius:8px; padding:16px !important;
+        }
 
         .portal-overlay {
           position:fixed; inset:0; z-index:9999;
@@ -3575,6 +3692,11 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           font-size:12px; cursor:pointer; transition:all .2s ease;
         }
         .privacy-btn:hover { background:rgba(224,82,82,.12); border-color:var(--status-urgent); }
+        .privacy-btn-danger {
+          margin-top:12px; width:100%; background:rgba(220,38,38,.1);
+          border-color:rgba(220,38,38,.4); font-weight:600;
+        }
+        .privacy-btn-danger:hover { background:rgba(220,38,38,.2); }
 
         /* ── Chat outer ── */
         .chat-outer { display:flex; flex-direction:column; gap:16px; }
@@ -3959,7 +4081,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .chat-send:hover:not(:disabled) { background:var(--accent-hover); }
         .chat-send:disabled { background:var(--border-default); cursor:not-allowed; color:var(--text-muted); }
-        .chat-disclaimer { font-size:11.5px; color:var(--text-muted); text-align:center; }
+        .chat-disclaimer { font-size:11.5px; color:var(--stone-400); text-align:center; padding:4px 8px; border-top:1px solid var(--border-subtle); }
 
         /* ── Token Badge ── */
         .token-badge {
@@ -4643,6 +4765,18 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
       `}</style>
       <WhatsAppButton />
+      <AccessibilityWidget />
+      {showConsent && (
+        <div className="consent-banner" dir="rtl">
+          <div className="consent-content">
+            <p>השימוש ב<strong>מגן</strong> הוא לצרכי מידע כללי בלבד ואינו מהווה ייעוץ מקצועי. <strong>האחריות על השימוש במידע היא שלך.</strong></p>
+            <div className="consent-actions">
+              <button className="consent-accept" onClick={() => { try { localStorage.setItem("magen-consent", "1"); } catch {} setShowConsent(false); }}>מסכים, בואו נתחיל</button>
+              <button className="consent-terms" onClick={() => { setView("terms"); setShowConsent(false); try { localStorage.setItem("magen-consent", "1"); } catch {} }}>קרא תנאי שימוש</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showPricingGlobal && <PricingModal onClose={() => setShowPricingGlobal(false)} onSuccess={() => setShowPricingGlobal(false)} />}
       {showPortalAgent && <div className="portal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowPortalAgent(false); }}>
         <div className="portal-container">

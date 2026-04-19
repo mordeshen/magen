@@ -13,6 +13,7 @@ import { magenChat } from "./lib/magen-engine";
 import { fetchUserContext } from "./lib/user-context";
 import { getKnowledgeResponse } from "./lib/knowledge-provider";
 import { fetchRAG } from "./lib/rag";
+import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
@@ -1795,6 +1796,7 @@ export default async function handler(req, res) {
     if (!r.ok) {
       const err = await r.text();
       console.error("Claude API error:", r.status);
+      alertDev("chat", `Claude API שגיאה (${r.status})`, { error: err.slice(0, 200) }).catch(() => {});
       return res.status(500).json({ reply: "אופס, נתקלנו בתקלה זמנית. אנחנו עובדים על זה — נסו שוב עוד כמה דקות." });
     }
 
@@ -1910,6 +1912,7 @@ export default async function handler(req, res) {
     res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost, _logId: legacyLogId });
   } catch (err) {
     console.error("API route error:", err);
+    alertDev("chat", "קריסת endpoint ראשי", { error: err.message || String(err) }).catch(() => {});
     res.status(500).json({ reply: "אופס, נתקלנו בתקלה זמנית. אנחנו עובדים על זה — נסו שוב עוד כמה דקות." });
   }
 }

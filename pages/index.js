@@ -1403,6 +1403,14 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const activeHatRef = useRef(hat); // track current hat for async safety
 
   const isPsycho = hat === "psycho";
+  const warmedUpRef = useRef(false);
+
+  // Wake up V5 model container on Modal (fire-and-forget, once per session)
+  function warmupV5() {
+    if (warmedUpRef.current) return;
+    warmedUpRef.current = true;
+    fetch("/api/warmup", { method: "POST" }).catch(() => {});
+  }
 
   // Handle payment=success redirect — reload subscription even if PricingModal is not mounted
   useEffect(() => {
@@ -2107,6 +2115,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
             ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
+            onFocus={warmupV5}
             onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={placeholder}
             className={`chat-inp ${isPsycho ? "chat-inp-multi" : ""}`}

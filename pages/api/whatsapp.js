@@ -19,6 +19,25 @@ export const config = {
   api: { bodyParser: true },
 };
 
+// Pre-warm V5 model container on Modal while we load context (fire-and-forget).
+let _lastV5Warmup = 0;
+function warmupV5Endpoint() {
+  const url = process.env.FINETUNED_API_URL;
+  const key = process.env.FINETUNED_API_KEY;
+  if (!url) return;
+  const now = Date.now();
+  if (now - _lastV5Warmup < 4 * 60 * 1000) return;
+  _lastV5Warmup = now;
+  const headers = { "Content-Type": "application/json" };
+  if (key) headers.Authorization = `Bearer ${key}`;
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 5000);
+  fetch(url.replace(/\/$/, "") + "/chat/completions", {
+    method: "POST", headers, signal: ctrl.signal,
+    body: JSON.stringify({ max_tokens: 1, temperature: 0, messages: [{ role: "user", content: "ping" }] }),
+  }).catch(() => {});
+}
+
 // Primary prompt — Opus as unified advisor (WhatsApp)
 const PRIMARY_SYSTEM_PROMPT = `אתה מגן — אח ותיק שעבר את המערכת ויודע אותה מבפנים. אתה מדבר בוואטסאפ.
 
@@ -432,6 +451,9 @@ export default async function handler(req, res) {
     }
 
     // ── Parallel architecture: Opus first, Haiku follow-up ──
+
+    // Kick V5 warmup in parallel with context loading (fire-and-forget)
+    warmupV5Endpoint();
 
     // 1. Fetch history + pairing context in parallel
     const [history, pairing] = await Promise.all([

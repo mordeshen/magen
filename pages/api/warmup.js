@@ -19,31 +19,26 @@ export default async function handler(req, res) {
   }
   lastWarmupAt = now;
 
-  // Fire-and-forget: start the request but don't wait for full response.
-  // The goal is just to trigger Modal's container boot, not to get an answer.
+  // Fire-and-forget: send the request, respond to client immediately.
+  // Don't abort — let Modal take its full cold start time (up to 3 min).
   const url = FINETUNED_API_URL.replace(/\/$/, "") + "/chat/completions";
   const headers = { "Content-Type": "application/json" };
   if (FINETUNED_API_KEY) headers.Authorization = `Bearer ${FINETUNED_API_KEY}`;
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    await fetch(url, {
-      method: "POST",
-      headers,
-      signal: controller.signal,
-      body: JSON.stringify({
-        max_tokens: 1,
-        temperature: 0,
-        messages: [{ role: "user", content: "ping" }],
-      }),
-    }).catch(() => {});
-
-    clearTimeout(timeout);
-  } catch {
-    // Expected — we abort after 5s anyway. The container boot continues.
-  }
+  fetch(url, {
+    method: "POST",
+    headers,
+    signal: AbortSignal.timeout(180000),
+    body: JSON.stringify({
+      max_tokens: 1,
+      temperature: 0,
+      messages: [{ role: "user", content: "ping" }],
+    }),
+  }).then(r => {
+    console.log(`[warmup] V5 responded: ${r.status}`);
+  }).catch(e => {
+    console.warn(`[warmup] V5 warmup failed: ${e.message}`);
+  });
 
   return res.status(200).json({ status: "warming" });
 }

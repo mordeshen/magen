@@ -124,7 +124,7 @@ async function callFinetuned(userMessage, context, ragResults, recentMessages) {
   const response = await fetch(url, {
     method: "POST",
     headers,
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(180000),
     body: JSON.stringify({
       max_tokens: 400,
       temperature: 0.3,

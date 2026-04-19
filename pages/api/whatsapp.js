@@ -30,12 +30,10 @@ function warmupV5Endpoint() {
   _lastV5Warmup = now;
   const headers = { "Content-Type": "application/json" };
   if (key) headers.Authorization = `Bearer ${key}`;
-  const ctrl = new AbortController();
-  setTimeout(() => ctrl.abort(), 5000);
   fetch(url.replace(/\/$/, "") + "/chat/completions", {
-    method: "POST", headers, signal: ctrl.signal,
+    method: "POST", headers, signal: AbortSignal.timeout(180000),
     body: JSON.stringify({ max_tokens: 1, temperature: 0, messages: [{ role: "user", content: "ping" }] }),
-  }).catch(() => {});
+  }).then(r => console.log(`[warmup] V5: ${r.status}`)).catch(() => {});
 }
 
 // Primary prompt — Opus as unified advisor (WhatsApp)

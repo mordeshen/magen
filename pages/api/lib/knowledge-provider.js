@@ -1,4 +1,5 @@
 import { getAdminSupabase } from "./supabase-admin";
+import { alertDev } from "./alert";
 
 // =============================================================
 // Knowledge Provider — single source of truth for answer generation
@@ -26,6 +27,12 @@ const FINETUNED_API_KEY = process.env.FINETUNED_API_KEY || "";
 // Confidence below this triggers Opus fallback. Tune when the model is live.
 const FT_CONFIDENCE_THRESHOLD = parseFloat(process.env.FT_CONFIDENCE_THRESHOLD || "0.7");
 
+// Fallback alerts to Telegram are throttled so a noisy V5 session doesn't spam.
+// Only the first fallback in each 10-min window alerts; the rest stay in
+// Supabase's missing_knowledge table + Railway logs.
+const FALLBACK_ALERT_THROTTLE_MS = 10 * 60 * 1000;
+let _lastFallbackAlertAt = 0;
+
 /**
  * Get an answer from the active knowledge source.
  *
@@ -48,7 +55,7 @@ export async function getKnowledgeResponse(userMessage, context, ragResults, rec
 
 async function tryFinetunedWithFallback(userMessage, context, ragResults, recentMessages) {
   try {
-    const ftResponse = await callFinetuned(userMessage, context);
+    const ftResponse = await callFinetuned(userMessage, context, ragResults, recentMessages);
 
     // If the fine-tuned model isn't confident enough, fall back to Opus and
     // log the question so we can improve the next training round.
@@ -56,6 +63,15 @@ async function tryFinetunedWithFallback(userMessage, context, ragResults, recent
       console.log(
         `[knowledge] finetuned confidence=${ftResponse.confidence}, escalation=${ftResponse.needsEscalation} → Opus fallback`
       );
+
+      const now = Date.now();
+      if (now - _lastFallbackAlertAt > FALLBACK_ALERT_THROTTLE_MS) {
+        _lastFallbackAlertAt = now;
+        const reason = ftResponse.needsEscalation ? "escalation signal" : `low confidence ${ftResponse.confidence}`;
+        alertDev("v5", `fallback to Opus (${reason})`, {
+          extra: `q: ${userMessage.slice(0, 80)}`,
+        }).catch(() => {});
+      }
 
       await logMissingKnowledge(userMessage, ftResponse, context);
 
@@ -70,69 +86,104 @@ async function tryFinetunedWithFallback(userMessage, context, ragResults, recent
     };
   } catch (err) {
     console.error("[knowledge] finetuned call failed, falling back to Opus:", err.message);
+    alertDev("v5", "call failed — falling back to Opus", {
+      error: err.message,
+      extra: `q: ${userMessage.slice(0, 80)}`,
+    }).catch(() => {});
     const opusResponse = await getOpusResponse(userMessage, context, ragResults, recentMessages);
     return { ...opusResponse, source: "opus_fallback" };
   }
 }
 
 /**
- * Call the fine-tuned model. Real implementation comes when the model is
- * deployed — for now this is a placeholder that demonstrates the interface
- * but is never reached because KNOWLEDGE_MODE defaults to "opus".
+ * Call the fine-tuned V5 model (Gemma 4 + Magen LoRA) served via an
+ * OpenAI-compatible endpoint (Modal / vLLM / HF Endpoints / local MLX).
  *
- * The exact request/response shape will depend on the serving stack
- * (vLLM, Ollama, Modal, custom). Adjust callFinetuned() then, not anywhere
- * else in the codebase.
+ * FINETUNED_API_URL should point at the chat-completions endpoint base
+ * (e.g. https://<modal-app>.modal.run/v1). FINETUNED_API_KEY is optional
+ * (local MLX doesn't require one).
+ *
+ * RAG results are injected as a system block so V5 answers with facts
+ * from the knowledge base, not just its trained intuition.
  */
-async function callFinetuned(userMessage, context) {
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  const MODEL = process.env.MAGEN_OPENAI_MODEL;
-
-  if (!OPENAI_KEY || !MODEL) {
-    throw new Error("OPENAI_API_KEY or MAGEN_OPENAI_MODEL not set");
+async function callFinetuned(userMessage, context, ragResults, recentMessages) {
+  if (!FINETUNED_API_URL) {
+    throw new Error("FINETUNED_API_URL not set");
   }
 
-  const systemPrompt = `אתה מגן — מומחה בזכויות נכי צה"ל. ענה בעברית, ישיר, קצר (2-4 משפטים).
-אם אתה לא בטוח בתשובה או שהשאלה מורכבת — תגיד "לא בטוח" ואני אעביר למומחה.
-${context.profile ? `פרופיל: ${JSON.stringify({ name: context.profile.name, city: context.profile.city, disability_percent: context.profile.disability_percent, claim_status: context.profile.claim_status })}` : ""}
-${context.legalCase ? `שלב משפטי: ${context.legalCase.stage}` : ""}`;
+  const systemPrompt = buildFinetunedSystemPrompt(context, ragResults);
+  const history = (recentMessages || [])
+    .filter((m) => m && m.role && m.content)
+    .slice(-6)
+    .map((m) => ({ role: m.role, content: m.content }));
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const url = FINETUNED_API_URL.replace(/\/$/, "") + "/chat/completions";
+  const headers = { "Content-Type": "application/json" };
+  if (FINETUNED_API_KEY) headers.Authorization = `Bearer ${FINETUNED_API_KEY}`;
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_KEY}`,
-    },
-    signal: AbortSignal.timeout(10000),
+    headers,
+    signal: AbortSignal.timeout(15000),
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 300,
+      max_tokens: 400,
+      temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
+        ...history,
         { role: "user", content: userMessage },
       ],
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI returned ${response.status}`);
+    throw new Error(`finetuned endpoint returned ${response.status}`);
   }
 
   const data = await response.json();
   const answer = data.choices?.[0]?.message?.content || "";
 
-  // Detect low confidence from the model's own text
   const lowConfidenceSignals = ["לא בטוח", "לא יודע", "אין לי מידע", "צריך לבדוק", "לא ברור לי"];
-  const needsEscalation = lowConfidenceSignals.some(s => answer.includes(s));
-  const confidence = needsEscalation ? 0.3 : 0.8;
+  const needsEscalation = lowConfidenceSignals.some((s) => answer.includes(s));
+  const ragHits = (ragResults?.rights?.length || 0) + (ragResults?.veteran?.length || 0);
+  const confidence = needsEscalation ? 0.3 : (ragHits > 0 ? 0.85 : 0.65);
 
-  console.log(`[knowledge] v14b answered (${data.usage?.total_tokens || 0} tokens, confidence: ${confidence})`);
+  console.log(`[knowledge] V5 answered (${data.usage?.total_tokens || 0} tokens, rag_hits=${ragHits}, confidence=${confidence})`);
 
-  return {
-    answer,
-    confidence,
-    needsEscalation,
-  };
+  return { answer, confidence, needsEscalation };
+}
+
+function buildFinetunedSystemPrompt(context, ragResults) {
+  const lines = [
+    'אתה מגן — מומחה בזכויות נכי צה"ל. ענה בעברית, ישיר, חם, בסגנון שאומן עליו.',
+    'אם תוצאות ה-RAG למטה לא מכסות את השאלה או שאתה לא בטוח בפרט מסוים — תגיד "לא בטוח" במקום להמציא.',
+  ];
+
+  if (context?.profile) {
+    const p = context.profile;
+    lines.push(`פרופיל: ${JSON.stringify({
+      name: p.name, city: p.city,
+      disability_percent: p.disability_percent,
+      claim_status: p.claim_status,
+    })}`);
+  }
+  if (context?.legalCase?.stage) {
+    lines.push(`שלב משפטי: ${context.legalCase.stage}`);
+  }
+
+  const rights = (ragResults?.rights || []).slice(0, 3);
+  const veteran = (ragResults?.veteran || []).slice(0, 2);
+  if (rights.length || veteran.length) {
+    lines.push("\n=== ידע רלוונטי (RAG) — השתמש רק בעובדות מכאן ===");
+    for (const r of rights) {
+      lines.push(`• ${r.title || r.category || "זכות"}: ${r.summary || ""}${r.practical_tip ? ` טיפ: ${r.practical_tip}` : ""}${r.phone_number ? ` טלפון: ${r.phone_number}` : ""}`);
+    }
+    for (const v of veteran) {
+      lines.push(`• ${v.title || "ידע"}: ${v.summary || v.content || ""}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 /**

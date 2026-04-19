@@ -12,6 +12,7 @@ import { invertedChat } from "./lib/inverted-chat";
 import { magenChat } from "./lib/magen-engine";
 import { fetchUserContext } from "./lib/user-context";
 import { getKnowledgeResponse } from "./lib/knowledge-provider";
+import { fetchRAG } from "./lib/rag";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
@@ -1439,18 +1440,27 @@ export default async function handler(req, res) {
       };
 
       // === KNOWLEDGE PROVIDER HOOK ===
-      // Single decision point: when KNOWLEDGE_MODE=finetuned, ask the
-      // fine-tuned model first. When KNOWLEDGE_MODE=opus (default), this is
-      // a no-op — getKnowledgeResponse returns { answer: null } and we drop
-      // straight into the existing magenChat (Opus) flow below.
-      // RAG results are passed empty for now — the fine-tuned model is
-      // expected to know facts inherently. When that changes, fetch RAG
-      // here and pass it through.
+      // Single decision point: when KNOWLEDGE_MODE=finetuned, fetch RAG
+      // facts and pass them to V5 so it answers in Magen voice with grounded
+      // detail. When KNOWLEDGE_MODE=opus (default), getKnowledgeResponse
+      // returns { answer: null } and we drop straight into the existing
+      // magenChat (Opus) flow below — so the RAG call is skipped.
       try {
+        let ragResults = { rights: [], events: [], veteran: [] };
+        if (process.env.KNOWLEDGE_MODE === "finetuned") {
+          try {
+            ragResults = await fetchRAG(
+              { rag_queries: [lastUserText], categories: [], hat: "magen", intent: "rights_query" },
+              supabase
+            );
+          } catch (ragErr) {
+            console.warn("[chat] RAG fetch for V5 failed, continuing without:", ragErr.message);
+          }
+        }
         const knowledgeResult = await getKnowledgeResponse(
           lastUserText,
           magenContext,
-          { rights: [], events: [], veteran: [] },
+          ragResults,
           magenContext.recentMessages
         );
         if (knowledgeResult && knowledgeResult.answer && knowledgeResult.source !== "opus") {

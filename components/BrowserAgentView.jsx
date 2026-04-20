@@ -376,7 +376,16 @@ export default function BrowserAgentView({ onClose, initialTask }) {
             />
           ) : (
             <div className="ba-placeholder">
-              <p>מסך האתר יופיע כאן</p>
+              <div className="ba-loading-site">
+                <div className="ba-loading-bar" />
+                <p>טוען את אתר אגף השיקום...</p>
+              </div>
+            </div>
+          )}
+          {loading && screenshot && (
+            <div className="ba-loading-overlay">
+              <div className="ba-loading-bar" />
+              <span>מעבד...</span>
             </div>
           )}
           {screenshot && (
@@ -597,8 +606,35 @@ export default function BrowserAgentView({ onClose, initialTask }) {
           border-radius: 4px; border: 1px solid var(--stone-700);
         }
         .ba-placeholder {
-          color: var(--stone-600); text-align: center; font-size: 14px;
+          color: var(--stone-400); text-align: center; font-size: 14px;
+          display: flex; align-items: center; justify-content: center;
         }
+        .ba-loading-site {
+          display: flex; flex-direction: column; align-items: center; gap: 16px;
+        }
+        .ba-loading-site p { font-family: 'Heebo', sans-serif; margin: 0; }
+        .ba-loading-bar {
+          width: 200px; height: 3px; background: var(--stone-700);
+          border-radius: 3px; overflow: hidden; position: relative;
+        }
+        .ba-loading-bar::after {
+          content: ''; position: absolute; top: 0; left: 0;
+          width: 40%; height: 100%; background: var(--copper-500);
+          border-radius: 3px;
+          animation: ba-loading-slide 1.5s ease-in-out infinite;
+        }
+        @keyframes ba-loading-slide {
+          0% { left: -40%; }
+          100% { left: 100%; }
+        }
+        .ba-loading-overlay {
+          position: absolute; top: 0; left: 0; right: 0;
+          display: flex; align-items: center; gap: 10px;
+          padding: 8px 16px; background: rgba(12,10,9,0.85);
+          font-family: 'Heebo', sans-serif; font-size: 13px;
+          color: var(--copper-400); z-index: 2;
+        }
+        .ba-loading-overlay .ba-loading-bar { flex: 1; height: 2px; }
         .ba-browser-focused { outline: 2px solid var(--copper-500); outline-offset: -2px; }
         .ba-browser-bar {
           position: absolute; bottom: 8px; left: 8px; right: 8px;

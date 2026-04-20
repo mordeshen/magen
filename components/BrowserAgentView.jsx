@@ -4,6 +4,8 @@ const STATUS_LABELS = {
   idle: "מוכן",
   starting: "פותח את אתר אגף השיקום...",
   waiting_login: "ממתין להתחברות",
+  waiting_phone: "הכנס מספר טלפון",
+  waiting_otp: "הכנס קוד חד-פעמי",
   working: "עובד...",
   awaiting_confirmation: "ממתין לאישור שלך",
   done: "הושלם!",
@@ -17,6 +19,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
   const [sessionId, setSessionId] = useState(null);
   const [taskInput, setTaskInput] = useState(initialTask || "");
   const [loginId, setLoginId] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [correction, setCorrection] = useState("");
   const [loading, setLoading] = useState(false);
@@ -74,11 +77,37 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       const d = await r.json();
       if (d.screenshot) setScreenshot(d.screenshot);
       addMessage(d.message, d.step === "error" ? "error" : "agent");
-      if (d.step === "otp_sent") {
+      if (d.step === "need_phone") {
+        setStatus("waiting_phone");
+      } else if (d.step === "otp_sent") {
         setStatus("waiting_otp");
       }
     } catch {
       addMessage("שגיאה בשליחת ת.ז.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSendPhone() {
+    if (!phoneNumber || loading) return;
+    setLoading(true);
+    addMessage("שולח מספר טלפון...", "agent");
+
+    try {
+      const r = await fetch("/api/browser-agent/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, phoneNumber }),
+      });
+      const d = await r.json();
+      if (d.screenshot) setScreenshot(d.screenshot);
+      addMessage(d.message, d.step === "error" ? "error" : "agent");
+      if (d.step === "otp_sent") {
+        setStatus("waiting_otp");
+      }
+    } catch {
+      addMessage("שגיאה בשליחת מספר טלפון", "error");
     } finally {
       setLoading(false);
     }
@@ -239,6 +268,26 @@ export default function BrowserAgentView({ onClose, initialTask }) {
                 />
                 <button onClick={handleSendId} disabled={loading || !loginId} className="ba-btn ba-btn-primary">
                   {loading ? "שולח..." : "שלח קוד חד-פעמי"}
+                </button>
+              </div>
+            )}
+
+            {status === "waiting_phone" && (
+              <div className="ba-login-form">
+                <p className="ba-login-note">הכנס את מספר הטלפון הנייד שרשום אצל אגף השיקום.</p>
+                <input
+                  type="text"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendPhone()}
+                  placeholder="מספר טלפון נייד"
+                  className="ba-input"
+                  autoComplete="off"
+                  inputMode="numeric"
+                  maxLength={10}
+                />
+                <button onClick={handleSendPhone} disabled={loading || !phoneNumber} className="ba-btn ba-btn-primary">
+                  {loading ? "שולח..." : "שלח קוד"}
                 </button>
               </div>
             )}

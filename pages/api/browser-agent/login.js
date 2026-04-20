@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   } catch {}
   if (!user) return res.status(401).json({ error: "unauthorized" });
 
-  const { sessionId, idNumber, otpCode } = req.body;
+  const { sessionId, idNumber, phoneNumber, otpCode } = req.body;
   if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
 
   try {
@@ -58,14 +58,51 @@ export default async function handler(req, res) {
         'button:has-text("קוד חד פעמי")',
       ]);
 
-      await page.waitForTimeout(3000);
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+      const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
+
+      session.status = "waiting_phone";
+      return res.status(200).json({
+        step: "need_phone",
+        screenshot,
+        message: "הכנס את מספר הטלפון הנייד שרשום אצל אגף השיקום.",
+      });
+    }
+
+    // Step 2: Enter phone number and send OTP
+    if (phoneNumber && !otpCode) {
+      // Make sure "נייד" radio is selected
+      await tryClick(page, [
+        'input[value="phone"]',
+        'label:has-text("נייד")',
+        'input[type="radio"]:checked',
+      ]);
+
+      // Fill phone number
+      await tryFill(page, [
+        'input[placeholder*="טלפון"]',
+        'input[placeholder*="נייד"]',
+        'input[type="tel"]',
+        'input[type="text"]:not(#idNumber):not(#login-by-id-number)',
+      ], phoneNumber);
+
+      // Click "המשך"
+      await tryClick(page, [
+        'button:has-text("המשך")',
+        'button[type="submit"]',
+        'button:has-text("שלח")',
+      ]);
+
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(2000);
       const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
 
       session.status = "waiting_otp";
       return res.status(200).json({
         step: "otp_sent",
         screenshot,
-        message: "שלחנו קוד חד-פעמי ב-SMS למספר שרשום אצל אגף השיקום. הכנס את הקוד כאן.",
+        message: "שלחנו קוד חד-פעמי ב-SMS. הכנס את הקוד כאן.",
       });
     }
 

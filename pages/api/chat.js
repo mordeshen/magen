@@ -449,7 +449,17 @@ const GENERAL_INSTRUCTIONS = `---
 - קו חם: מוקד פצועים *6500 | נפש אחת *8944 | אגף השיקום shikum.mod.gov.il
 - אורך תשובה: עד 12 שורות כשכותבים נוסח פנייה. אחרת 3-8 שורות.
 - בסוף כל תשובה, סיים עם שאלה או הצעה שמניעה לפעולה הבאה — כזו שהמשתמש ירצה להגיב עליה
-- אסור להישאר ב"אני לא יודע" יבש. אם אתה לא בטוח: הסבר מה כן בדקת, מה כן ידוע, מה לא ברור, ולמה. הצע צעד הבא קונקרטי — למי להתקשר, מה לבקש, איזה מסמך להביא. תמיד תוציא את המשתמש עם משהו ביד.`;
+- אסור להישאר ב"אני לא יודע" יבש. אם אתה לא בטוח: הסבר מה כן בדקת, מה כן ידוע, מה לא ברור, ולמה. הצע צעד הבא קונקרטי — למי להתקשר, מה לבקש, איזה מסמך להביא. תמיד תוציא את המשתמש עם משהו ביד.
+
+=== זיהוי משימות ===
+כשאתה מזהה שהמשתמש צריך לבצע פעולה קונקרטית — הוסף בסוף התשובה שלך תגיות משימה בפורמט:
+[TASK:כותרת המשימה|תיאור קצר של מה צריך לעשות|הוראה לסוכן אוטומטי (או ריק)]
+דוגמאות:
+- [TASK:הגש בקשה לעזרת ניידות|להגיש פנייה בפורטל אגף השיקום בקטגוריית רכב|הגש פנייה בקטגוריית רכב - בקשה לרכב רפואי]
+- [TASK:ערער על אחוזי נכות|להגיש ערעור על החלטת הוועדה תוך 45 יום|]
+- [TASK:הזמן תיק רפואי צבאי|להזמין תיק מארכיון משרד הביטחון archives.mod.gov.il|]
+- [TASK:התקשר לקצין שיקום|להתקשר ל-*6500 ולבקש שיחה עם קצין השיקום|]
+הוסף תגיות משימה רק כשיש פעולה ברורה שהמשתמש צריך לעשות. עד 3 משימות לתשובה. אם המשימה ניתנת לביצוע דרך פורטל אגף השיקום — מלא את שדה הסוכן.`;
 
 const MEDICAL_EXTRACT_INSTRUCTIONS = `
 === תיעוד פגיעות לתקציר רפואי ===
@@ -1291,6 +1301,29 @@ ${contextParts.length ? "הקשר אישי:\n" + contextParts.join("\n") : ""}`;
 }
 
 // ============================================================
+// Task extraction — parse [TASK:title|description|agentTask] from reply
+// ============================================================
+
+function extractTasks(reply) {
+  const tasks = [];
+  const cleaned = reply.replace(/\[TASK:([^\]]+)\]/g, (_, content) => {
+    const parts = content.split("|").map(s => s.trim());
+    if (parts[0]) {
+      tasks.push({
+        id: "task-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        title: parts[0],
+        description: parts[1] || "",
+        agentTask: parts[2] || "",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+    }
+    return "";
+  });
+  return { cleanReply: cleaned.trim(), suggestedTasks: tasks };
+}
+
+// ============================================================
 // Main handler
 // ============================================================
 
@@ -1484,9 +1517,11 @@ export default async function handler(req, res) {
             usedRag: false, responseTimeMs: Date.now() - analyticsStart,
           });
 
+          const { cleanReply: deepReply, suggestedTasks: deepTasks } = extractTasks(deepResult.reply);
           return res.json({
-            reply: deepResult.reply,
+            reply: deepReply,
             tokenInfo,
+            suggestedTasks: deepTasks,
             _engine: "deep_opus",
             _logId: deepLogId,
           });
@@ -1545,9 +1580,11 @@ export default async function handler(req, res) {
           channel: "web",
         }).catch(() => {});
 
+        const { cleanReply: magenReply, suggestedTasks: magenTasks } = extractTasks(result.reply);
         return res.json({
-          reply: result.reply,
+          reply: magenReply,
           tokenInfo,
+          suggestedTasks: magenTasks,
           _engine: "magen",
           _layer: result.layer,
           _logId: magenLogId,
@@ -1643,13 +1680,15 @@ export default async function handler(req, res) {
           .filter(f => activeFeatures.has(f.id))
           .reduce((sum, f) => sum + f.estimated_tokens, 0);
 
+        const { cleanReply: invertedReply, suggestedTasks: invertedTasks } = extractTasks(result.reply);
         return res.json({
-          reply: result.reply,
+          reply: invertedReply,
           extractedMemory,
           sessionTitle,
           tokenInfo,
           activeFeatures: [...activeFeatures],
           estimatedCost,
+          suggestedTasks: invertedTasks,
           _inverted: true,
           _layer: result.layer,
           _hat: result.brief.hat,
@@ -1909,7 +1948,8 @@ export default async function handler(req, res) {
       channel: "web",
     }).catch(() => {});
 
-    res.json({ reply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost, _logId: legacyLogId });
+    const { cleanReply: finalReply, suggestedTasks } = extractTasks(reply);
+    res.json({ reply: finalReply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost, suggestedTasks, _logId: legacyLogId });
   } catch (err) {
     console.error("API route error:", err);
     alertDev("chat", "קריסת endpoint ראשי", { error: err.message || String(err) }).catch(() => {});

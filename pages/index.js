@@ -6,6 +6,9 @@ import WhatsAppButton from "../components/WhatsAppButton";
 import PortalAgent from "../components/PortalAgent";
 import FeedbackWidget, { shouldShowFeedback } from "../components/FeedbackWidget";
 import AccessibilityWidget from "../components/AccessibilityWidget";
+import TaskQueue from "../components/TaskQueue";
+import dynamic from "next/dynamic";
+const BrowserAgentView = dynamic(() => import("../components/BrowserAgentView"), { ssr: false });
 
 // ─── Utilities ────────────────────────────────────────────
 
@@ -302,6 +305,7 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
             <div className="sb-popup-links">
               <button className="sb-popup-link" onClick={toggleProfilePanel}>הגדרות פרופיל</button>
               <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">האזור האישי שלי</a>
+              <button className="sb-popup-link sb-agent-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-browser-agent")); }}>סוכן — הגשת פנייה לאגף השיקום</button>
               <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
             </div>
             <div className="sb-popup-actions">
@@ -1468,6 +1472,8 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const [featureConfig, setFeatureConfig] = useState([]);
   const [enabledFeatures, setEnabledFeatures] = useState({});
   const [showFeaturePanel, setShowFeaturePanel] = useState(false);
+  const [taskQueue, setTaskQueue] = useState([]);
+  const [taskPanelCollapsed, setTaskPanelCollapsed] = useState(true);
   const bottom = useRef(null);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
@@ -1478,6 +1484,35 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
 
   const isPsycho = hat === "psycho";
   const warmedUpRef = useRef(false);
+
+  // Load tasks from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("magen_task_queue");
+      if (saved) setTaskQueue(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // Persist tasks to localStorage on change
+  function updateTaskQueue(newTasks) {
+    setTaskQueue(newTasks);
+    try { localStorage.setItem("magen_task_queue", JSON.stringify(newTasks)); } catch {}
+  }
+
+  function addSuggestedTasks(tasks) {
+    if (!tasks || tasks.length === 0) return;
+    setTaskQueue(prev => {
+      // Avoid adding duplicate tasks (same title)
+      const existingTitles = new Set(prev.map(t => t.title));
+      const newTasks = tasks.filter(t => !existingTitles.has(t.title));
+      if (newTasks.length === 0) return prev;
+      const updated = [...prev, ...newTasks];
+      try { localStorage.setItem("magen_task_queue", JSON.stringify(updated)); } catch {}
+      // Auto-expand panel when new tasks arrive
+      setTaskPanelCollapsed(false);
+      return updated;
+    });
+  }
 
   // Wake up V5 model container on Modal (fire-and-forget, once per session)
   function warmupV5() {
@@ -1882,6 +1917,11 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         saveMemory(d.extractedMemory);
       }
 
+      // Add suggested tasks to queue
+      if (d.suggestedTasks && d.suggestedTasks.length > 0) {
+        addSuggestedTasks(d.suggestedTasks);
+      }
+
       // Update placeholder from reply
       const newPh = extractPlaceholder(reply);
       if (newPh) setPlaceholder(newPh);
@@ -2055,7 +2095,8 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         </div>
       )}
 
-      {/* Chat window */}
+      {/* Chat window + Task Queue */}
+      <div className={`chat-with-tasks ${taskQueue.length > 0 ? "has-tasks" : ""}`}>
       <div className={`chat-wrap ${isPsycho ? "chat-wrap-full" : ""}`}>
         <div className="chat-hdr">
           <div className="chat-hdr-top">
@@ -2198,6 +2239,15 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           />
           <button onClick={send} disabled={loading || typingText !== null || (!input.trim() && !attachment)} className="chat-send">←</button>
         </div>
+      </div>
+      {taskQueue.length > 0 && (
+        <TaskQueue
+          tasks={taskQueue}
+          onUpdateTasks={updateTaskQueue}
+          collapsed={taskPanelCollapsed}
+          onToggleCollapse={() => setTaskPanelCollapsed(p => !p)}
+        />
+      )}
       </div>
 
       <p className="chat-disclaimer">השימוש במגן הוא על אחריות המשתמש בלבד. המידע אינו מהווה ייעוץ משפטי, רפואי או מקצועי ואינו מחליף פנייה לגורם מוסמך.</p>
@@ -2699,6 +2749,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [showPricingGlobal, setShowPricingGlobal] = useState(false);
   const [showPortalAgent, setShowPortalAgent] = useState(false);
+  const [showBrowserAgent, setShowBrowserAgent] = useState(false);
+  const [browserAgentTask, setBrowserAgentTask] = useState("");
   const [showConsent, setShowConsent] = useState(false);
 
   // Show consent banner on first visit
@@ -2708,11 +2760,17 @@ export default function Home({ rights, updates, events, legalStages, committeePr
     } catch {}
   }, []);
 
-  // Listen for portal agent open event (from sidebar popup)
+  // Listen for agent open events (from sidebar popup or chat)
   useEffect(() => {
     const handler = () => setShowPortalAgent(true);
+    const baHandler = (e) => {
+      const taskDetail = e.detail?.task || "";
+      setBrowserAgentTask(taskDetail);
+      setShowBrowserAgent(true);
+    };
     window.addEventListener("open-portal-agent", handler);
-    return () => window.removeEventListener("open-portal-agent", handler);
+    window.addEventListener("open-browser-agent", baHandler);
+    return () => { window.removeEventListener("open-portal-agent", handler); window.removeEventListener("open-browser-agent", baHandler); };
   }, []);
   const [openId,    setOpenId]    = useState(null);
   const [rCat,      setRCat]      = useState("הכל");
@@ -3181,6 +3239,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .sb-popup-actions { margin-top:8px; border-top:1px solid var(--border-default); padding-top:10px; display:flex; flex-direction:column; gap:2px; }
         .sb-upgrade-btn { color:var(--copper-500); font-weight:600; }
         .sb-upgrade-btn:hover { background:rgba(217,119,6,.1); color:var(--copper-400); }
+        .sb-agent-btn { color:var(--olive-700, #4a5c3e); font-weight:600; }
+        .sb-agent-btn:hover { background:rgba(74,92,62,.1); color:var(--olive-400, #8fa677); }
 
         /* ── Consent Banner ── */
         .consent-banner {
@@ -3700,6 +3760,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
         /* ── Chat outer ── */
         .chat-outer { display:flex; flex-direction:column; gap:16px; }
+        .chat-with-tasks { display:flex; flex-direction:row-reverse; gap:0; }
+        .chat-with-tasks .chat-wrap { flex:1; min-width:0; }
 
         /* Privacy banner — with fade out */
         .privacy-banner {
@@ -4783,6 +4845,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           <PortalAgent onClose={() => setShowPortalAgent(false)} onSaveReference={(ref) => console.log("Reference saved:", ref)} />
         </div>
       </div>}
+      {showBrowserAgent && <BrowserAgentView initialTask={browserAgentTask} onClose={() => { setShowBrowserAgent(false); setBrowserAgentTask(""); }} />}
     </>
   );
 }

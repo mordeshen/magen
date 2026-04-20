@@ -70,22 +70,42 @@ export default async function handler(req, res) {
       });
     }
 
-    // Step 2: Enter phone number and send OTP
+    // Step 2: Enter phone/email and send OTP
     if (phoneNumber && !otpCode) {
-      // Make sure "נייד" radio is selected
-      await tryClick(page, [
-        'input[value="phone"]',
-        'label:has-text("נייד")',
-        'input[type="radio"]:checked',
-      ]);
+      const isEmail = phoneNumber.includes("@");
 
-      // Fill phone number
-      await tryFill(page, [
-        'input[placeholder*="טלפון"]',
-        'input[placeholder*="נייד"]',
-        'input[type="tel"]',
-        'input[type="text"]:not(#idNumber):not(#login-by-id-number)',
-      ], phoneNumber);
+      if (isEmail) {
+        // Select email radio
+        await tryClick(page, [
+          'label:has-text("דואר")',
+          'label:has-text("מייל")',
+          'input[value="email"]',
+          'input[value="mail"]',
+        ]);
+        await page.waitForTimeout(500);
+        // Fill email field
+        await tryFill(page, [
+          'input[placeholder*="מייל"]',
+          'input[placeholder*="דוא"]',
+          'input[type="email"]',
+          'input[type="text"]:not(#idNumber):not(#login-by-id-number):not([placeholder*="טלפון"])',
+        ], phoneNumber);
+      } else {
+        // Select phone radio
+        await tryClick(page, [
+          'label:has-text("נייד")',
+          'input[value="phone"]',
+          'input[value="sms"]',
+        ]);
+        await page.waitForTimeout(500);
+        // Fill phone number
+        await tryFill(page, [
+          'input[placeholder*="טלפון"]',
+          'input[placeholder*="נייד"]',
+          'input[type="tel"]',
+          'input[type="text"]:not(#idNumber):not(#login-by-id-number):not([placeholder*="מייל"])',
+        ], phoneNumber);
+      }
 
       // Click "המשך"
       await tryClick(page, [

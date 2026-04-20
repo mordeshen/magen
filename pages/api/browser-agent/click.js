@@ -60,14 +60,31 @@ export default async function handler(req, res) {
       await page.waitForTimeout(1500);
     }
 
-    // Check if we've passed login
+    // Check page state
     const currentUrl = page.url();
     const isLoggedIn = !currentUrl.includes("login") && !currentUrl.includes("authorize") && currentUrl.includes("myshikum");
+
+    // Detect OTP method selection (SMS vs email)
+    const pageContext = await page.evaluate(() => {
+      const emailRadio = document.querySelector('input[value="email"], input[value="mail"]');
+      const phoneRadio = document.querySelector('input[value="phone"], input[value="sms"]');
+      const emailChecked = emailRadio?.checked || false;
+      const phoneInput = document.querySelector('input[placeholder*="טלפון"], input[placeholder*="נייד"]');
+      const emailInput = document.querySelector('input[placeholder*="מייל"], input[placeholder*="דוא"], input[type="email"]');
+      const otpInput = document.querySelector('input[placeholder*="קוד"], input[placeholder*="חד"]');
+      return {
+        otpMethod: emailChecked ? "email" : "sms",
+        hasPhoneField: !!phoneInput,
+        hasEmailField: !!emailInput,
+        hasOtpField: !!otpInput,
+      };
+    }).catch(() => ({}));
 
     return res.status(200).json({
       screenshot,
       url: currentUrl,
       loggedIn: isLoggedIn,
+      pageContext,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });

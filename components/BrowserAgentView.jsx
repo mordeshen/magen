@@ -207,30 +207,66 @@ export default function BrowserAgentView({ onClose, initialTask }) {
   }
 
   const [browserFocused, setBrowserFocused] = useState(false);
+  const keyBufferRef = useRef("");
+  const keyTimerRef = useRef(null);
+  const flushingRef = useRef(false);
+
+  async function flushKeys() {
+    if (flushingRef.current || !keyBufferRef.current) return;
+    flushingRef.current = true;
+    const text = keyBufferRef.current;
+    keyBufferRef.current = "";
+    try {
+      const r = await fetch("/api/browser-agent/click", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, text }),
+      });
+      const d = await r.json();
+      if (d.screenshot) setScreenshot(d.screenshot);
+      if (d.loggedIn && status !== "active") {
+        setStatus("active");
+        addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
+        handleStep();
+      }
+    } catch {}
+    flushingRef.current = false;
+    if (keyBufferRef.current) flushKeys();
+  }
 
   useEffect(() => {
     if (!browserFocused || !sessionId) return;
-    async function onKey(e) {
+    function onKey(e) {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       e.preventDefault();
       const key = e.key;
-      try {
-        const r = await fetch("/api/browser-agent/click", {
+      // Special keys — send immediately
+      if (["Backspace", "Enter", "Tab", "Escape", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Delete"].includes(key)) {
+        if (keyTimerRef.current) { clearTimeout(keyTimerRef.current); keyTimerRef.current = null; }
+        if (keyBufferRef.current) flushKeys();
+        fetch("/api/browser-agent/click", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId, key }),
-        });
-        const d = await r.json();
-        if (d.screenshot) setScreenshot(d.screenshot);
-        if (d.loggedIn && status !== "active") {
-          setStatus("active");
-          addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
-          handleStep();
-        }
-      } catch {}
+        }).then(r => r.json()).then(d => {
+          if (d.screenshot) setScreenshot(d.screenshot);
+          if (d.loggedIn && status !== "active") {
+            setStatus("active");
+            addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
+            handleStep();
+          }
+        }).catch(() => {});
+        return;
+      }
+      // Regular characters — buffer and debounce
+      if (key.length === 1) {
+        keyBufferRef.current += key;
+        if (keyTimerRef.current) clearTimeout(keyTimerRef.current);
+        keyTimerRef.current = setTimeout(() => { keyTimerRef.current = null; flushKeys(); }, 300);
+      }
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); if (keyTimerRef.current) clearTimeout(keyTimerRef.current); };
   }, [browserFocused, sessionId, status]);
 
   async function handleScreenClick(e) {

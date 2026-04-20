@@ -23,11 +23,19 @@ export default function BrowserAgentView({ onClose, initialTask }) {
   const [otpCode, setOtpCode] = useState("");
   const [correction, setCorrection] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mobileTab, setMobileTab] = useState("chat"); // "chat" | "browser"
   const msgsEndRef = useRef(null);
 
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Auto-start if initialTask is provided
+  useEffect(() => {
+    if (initialTask && status === "idle") {
+      handleStart();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function addMessage(text, from = "agent") {
     setMessages((prev) => [...prev, { text, from, time: new Date() }]);
@@ -198,6 +206,31 @@ export default function BrowserAgentView({ onClose, initialTask }) {
     setCorrection("");
   }
 
+  async function handleScreenClick(e) {
+    if (!sessionId || loading) return;
+    const img = e.target;
+    if (img.tagName !== "IMG") return;
+    const rect = img.getBoundingClientRect();
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * 1280);
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * 800);
+    setLoading(true);
+    try {
+      const r = await fetch("/api/browser-agent/click", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, x, y }),
+      });
+      const d = await r.json();
+      if (d.screenshot) setScreenshot(d.screenshot);
+      if (d.loggedIn && status !== "active") {
+        setStatus("active");
+        addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
+        handleStep();
+      }
+    } catch {}
+    setLoading(false);
+  }
+
   return (
     <div className="ba-container" dir="rtl">
       <div className="ba-header">
@@ -206,9 +239,14 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         <button className="ba-close" onClick={handleCancel} aria-label="סגור">✕</button>
       </div>
 
+      <div className="ba-mobile-tabs">
+        <button className={`ba-tab ${mobileTab === "chat" ? "ba-tab-active" : ""}`} onClick={() => setMobileTab("chat")}>פעולות</button>
+        <button className={`ba-tab ${mobileTab === "browser" ? "ba-tab-active" : ""}`} onClick={() => setMobileTab("browser")}>מסך האתר</button>
+      </div>
+
       <div className="ba-content">
         {/* Screenshot panel */}
-        <div className="ba-browser">
+        <div className={`ba-browser ${mobileTab !== "browser" ? "ba-mobile-hidden" : ""}`} onClick={handleScreenClick}>
           {screenshot ? (
             <img
               src={`data:image/png;base64,${screenshot}`}
@@ -220,10 +258,13 @@ export default function BrowserAgentView({ onClose, initialTask }) {
               <p>מסך האתר יופיע כאן</p>
             </div>
           )}
+          {screenshot && (status === "waiting_login" || status === "waiting_phone" || status === "waiting_otp") && (
+            <div className="ba-interact-hint">לחץ על המסך כדי להתחבר ידנית</div>
+          )}
         </div>
 
         {/* Chat/controls panel */}
-        <div className="ba-chat">
+        <div className={`ba-chat ${mobileTab !== "chat" ? "ba-mobile-hidden" : ""}`}>
           <div className="ba-messages">
             {messages.map((m, i) => (
               <div key={i} className={`ba-msg ba-msg-${m.from}`}>
@@ -385,16 +426,29 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         }
         .ba-close:hover { color: var(--text-primary); }
 
+        /* Mobile tabs */
+        .ba-mobile-tabs { display: none; }
+        @media (max-width: 768px) {
+          .ba-mobile-tabs {
+            display: flex; border-bottom: 1px solid var(--stone-700);
+          }
+          .ba-tab {
+            flex: 1; padding: 10px; border: none; background: var(--stone-900);
+            color: var(--stone-400); font-family: 'Heebo', sans-serif;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.15s ease;
+          }
+          .ba-tab-active { color: var(--copper-400); border-bottom: 2px solid var(--copper-500); }
+          .ba-mobile-hidden { display: none !important; }
+        }
+
         .ba-content {
           flex: 1; display: flex; overflow: hidden;
-        }
-        @media (max-width: 768px) {
-          .ba-content { flex-direction: column; }
         }
 
         .ba-browser {
           flex: 3; background: #111; display: flex; align-items: center; justify-content: center;
-          overflow: auto; padding: 8px;
+          overflow: auto; padding: 8px; position: relative; cursor: pointer;
         }
         .ba-screenshot {
           max-width: 100%; max-height: 100%; object-fit: contain;
@@ -403,6 +457,12 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         .ba-placeholder {
           color: var(--stone-600); text-align: center; font-size: 14px;
         }
+        .ba-interact-hint {
+          position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+          background: rgba(0,0,0,0.7); color: var(--copper-400);
+          padding: 6px 16px; border-radius: 20px; font-size: 12px;
+          font-family: 'Heebo', sans-serif; pointer-events: none;
+        }
 
         .ba-chat {
           flex: 2; display: flex; flex-direction: column;
@@ -410,7 +470,8 @@ export default function BrowserAgentView({ onClose, initialTask }) {
           min-width: 300px; max-width: 400px;
         }
         @media (max-width: 768px) {
-          .ba-chat { max-width: 100%; min-width: 0; border-inline-start: none; border-top: 1px solid var(--stone-700); }
+          .ba-chat { max-width: 100%; min-width: 0; border-inline-start: none; flex: 1; }
+          .ba-browser { flex: 1; }
         }
 
         .ba-messages {

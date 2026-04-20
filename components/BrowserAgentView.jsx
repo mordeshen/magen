@@ -185,7 +185,11 @@ export default function BrowserAgentView({ onClose, initialTask }) {
     }
   }
 
+  const steppingRef = useRef(false);
+
   async function handleStep(userCorrection) {
+    if (steppingRef.current) return;
+    steppingRef.current = true;
     setLoading(true);
     setStatus("working");
 
@@ -200,9 +204,15 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         }),
       });
       const d = await r.json();
+      if (!r.ok && d.error === "session not active") {
+        // Session not ready yet — wait and retry once
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        steppingRef.current = false;
+        return handleStep(userCorrection);
+      }
       if (d.screenshot) setScreenshot(d.screenshot);
-      if (d.message) addMessage(d.message, "agent");
-      if (d.error) addMessage(d.error, "error");
+      if (d.message && d.message !== "session not active") addMessage(d.message, "agent");
+      if (d.error && d.error !== "session not active") addMessage(d.error, "error");
 
       if (d.done) {
         setStatus("done");
@@ -218,6 +228,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       setStatus("error");
     } finally {
       setLoading(false);
+      steppingRef.current = false;
     }
   }
 

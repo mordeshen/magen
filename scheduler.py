@@ -36,7 +36,7 @@ def now_il():
 def run_scout():
     print(f"\n🕐 [{now_il().strftime('%H:%M')}] מפעיל Scout...")
     try:
-        subprocess.run(["python", "scout.py"], check=True)
+        subprocess.run(["python3", "scout.py"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"⚠️  Scout נכשל: {e}")
 
@@ -47,15 +47,16 @@ def send_feedback_digest():
     if not app_url or not secret:
         print("⚠️  חסר APP_URL או FEEDBACK_CRON_SECRET — מדלג על פידבק")
         return
-    url = f"{app_url}/api/feedback-digest?key={secret}"
+    url = f"{app_url}/api/feedback-digest"
+    auth_headers = {"Authorization": f"Bearer {secret}"}
     print(f"\n📬 [{now_il().strftime('%H:%M')}] שולח סיכום פידבקים...")
     try:
         if httpx:
-            r = httpx.get(url, timeout=30)
+            r = httpx.get(url, headers=auth_headers, timeout=30)
             print(f"  📬 תגובה: {r.status_code} — {r.text[:200]}")
         else:
             import urllib.request
-            req = urllib.request.Request(url)
+            req = urllib.request.Request(url, headers=auth_headers)
             with urllib.request.urlopen(req, timeout=30) as resp:
                 print(f"  📬 תגובה: {resp.status} — {resp.read(200).decode()}")
     except Exception as e:

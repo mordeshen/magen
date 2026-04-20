@@ -94,27 +94,41 @@ export default async function handler(req, res) {
         'button:has-text("שלח")',
       ]);
 
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(2000);
-      const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
+      await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(3000);
+
+      // Retry screenshot if page is blank
+      let screenshot;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        screenshot = (await page.screenshot({ type: "png" })).toString("base64");
+        const bodyText = await page.textContent("body").catch(() => "");
+        if (bodyText.trim().length > 50) break;
+        await page.waitForTimeout(2000);
+      }
 
       session.status = "waiting_otp";
       return res.status(200).json({
         step: "otp_sent",
         screenshot,
-        message: "שלחנו קוד חד-פעמי ב-SMS. הכנס את הקוד כאן.",
+        message: "נשלח קוד חד-פעמי. אפשר להכניס את הקוד כאן למטה, או ללחוץ ישירות על המסך.",
       });
     }
 
-    // Step 2: Enter OTP code
+    // Step 3: Enter OTP code
     if (otpCode) {
-      // Find OTP input field
+      // Wait for the OTP input page to be ready
+      await page.waitForTimeout(1000);
+
+      // Find OTP input field — try multiple selectors
       const otpFilled = await tryFill(page, [
         "#otpCode",
         "#otp",
         'input[placeholder*="קוד"]',
-        'input[type="text"]:not(#idNumber):not(#login-by-id-number)',
+        'input[placeholder*="חד"]',
+        'input[placeholder*="אימות"]',
+        'input[type="text"]:not(#idNumber):not(#login-by-id-number):not([placeholder*="טלפון"])',
         'input[type="number"]:not(#login-by-id-number)',
+        'input[type="tel"]:not([placeholder*="טלפון"])',
       ], otpCode);
 
       if (!otpFilled) {

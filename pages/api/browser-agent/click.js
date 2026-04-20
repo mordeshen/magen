@@ -50,7 +50,15 @@ export default async function handler(req, res) {
     }
 
     await page.waitForLoadState("domcontentloaded", { timeout: 5000 }).catch(() => {});
-    const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
+    // Wait a bit and retry if page looks blank (transition)
+    let screenshot;
+    for (let i = 0; i < 2; i++) {
+      await page.waitForTimeout(500);
+      screenshot = (await page.screenshot({ type: "png" })).toString("base64");
+      const bodyLen = await page.evaluate(() => document.body?.innerText?.trim()?.length || 0).catch(() => 0);
+      if (bodyLen > 30) break;
+      await page.waitForTimeout(1500);
+    }
 
     // Check if we've passed login
     const currentUrl = page.url();

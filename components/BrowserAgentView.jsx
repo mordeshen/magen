@@ -207,6 +207,24 @@ export default function BrowserAgentView({ onClose, initialTask }) {
   }
 
   const [browserFocused, setBrowserFocused] = useState(false);
+
+  async function refreshScreenshot() {
+    if (!sessionId) return;
+    try {
+      const r = await fetch("/api/browser-agent/click", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const d = await r.json();
+      if (d.screenshot) setScreenshot(d.screenshot);
+      if (d.loggedIn && status !== "active") {
+        setStatus("active");
+        addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
+        handleStep();
+      }
+    } catch {}
+  }
   const keyBufferRef = useRef("");
   const keyTimerRef = useRef(null);
   const flushingRef = useRef(false);
@@ -321,8 +339,13 @@ export default function BrowserAgentView({ onClose, initialTask }) {
               <p>מסך האתר יופיע כאן</p>
             </div>
           )}
-          {screenshot && (status === "waiting_login" || status === "waiting_phone" || status === "waiting_otp") && (
-            <div className="ba-interact-hint">לחץ על המסך כדי להתחבר ידנית</div>
+          {screenshot && (
+            <div className="ba-browser-bar">
+              {(status === "waiting_login" || status === "waiting_phone" || status === "waiting_otp") && (
+                <span className="ba-interact-hint">לחץ על המסך כדי להתחבר ידנית</span>
+              )}
+              <button className="ba-refresh-btn" onClick={refreshScreenshot} title="רענן מסך">↻</button>
+            </div>
           )}
         </div>
 
@@ -521,12 +544,23 @@ export default function BrowserAgentView({ onClose, initialTask }) {
           color: var(--stone-600); text-align: center; font-size: 14px;
         }
         .ba-browser-focused { outline: 2px solid var(--copper-500); outline-offset: -2px; }
+        .ba-browser-bar {
+          position: absolute; bottom: 8px; left: 8px; right: 8px;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
         .ba-interact-hint {
-          position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
           background: rgba(0,0,0,0.7); color: var(--copper-400);
           padding: 6px 16px; border-radius: 20px; font-size: 12px;
-          font-family: 'Heebo', sans-serif; pointer-events: none;
+          font-family: 'Heebo', sans-serif;
         }
+        .ba-refresh-btn {
+          position: absolute; inset-inline-end: 0;
+          width: 36px; height: 36px; border-radius: 50%;
+          background: rgba(0,0,0,0.7); border: 1px solid var(--stone-600);
+          color: var(--stone-300); font-size: 18px; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .ba-refresh-btn:hover { background: rgba(0,0,0,0.9); color: var(--copper-400); }
 
         .ba-chat {
           flex: 2; display: flex; flex-direction: column;

@@ -1,4 +1,12 @@
 import { useState, useRef, useEffect } from "react";
+import { useUser } from "../lib/UserContext";
+
+const EXAMPLE_TASKS = [
+  { title: "הגשת בקשה לרכב רפואי", desc: "פנייה באתר אגף השיקום", example: true },
+  { title: "ערעור על אחוזי נכות", desc: "הגשת ערעור על החלטת ועדה", example: true },
+  { title: "בקשה להחזר הוצאות", desc: "העלאת קבלות ואישורים", example: true },
+  { title: "הפניה רפואית חדשה", desc: "פתיחת הפניה לטיפול", example: true },
+];
 
 const STATUS_LABELS = {
   idle: "מוכן",
@@ -13,7 +21,8 @@ const STATUS_LABELS = {
 };
 
 export default function BrowserAgentView({ onClose, initialTask }) {
-  const [status, setStatus] = useState("idle");
+  const { user, profile, legalCase } = useUser();
+  const [status, setStatus] = useState("starting"); // start immediately
   const [screenshot, setScreenshot] = useState(null);
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState(null);
@@ -31,12 +40,35 @@ export default function BrowserAgentView({ onClose, initialTask }) {
     msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Auto-start if initialTask is provided
+  // Auto-start — always open the site immediately
   useEffect(() => {
-    if (initialTask && status === "idle") {
-      handleStart();
-    }
+    autoStart();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function autoStart() {
+    setStatus("starting");
+    addMessage(initialTask ? `משימה: ${initialTask}` : "פותח את אתר אגף השיקום...", initialTask ? "user" : "agent");
+    try {
+      const r = await fetch("/api/browser-agent/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: initialTask || "ניווט חופשי" }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        addMessage(d.error || "שגיאה בהפעלה", "error");
+        setStatus("error");
+        return;
+      }
+      setSessionId(d.sessionId);
+      setScreenshot(d.screenshot);
+      setStatus(d.status || "waiting_login");
+      addMessage(d.message, "agent");
+    } catch {
+      addMessage("שגיאה בחיבור לשרת", "error");
+      setStatus("error");
+    }
+  }
 
   function addMessage(text, from = "agent") {
     setMessages((prev) => [...prev, { text, from, time: new Date() }]);
@@ -359,6 +391,25 @@ export default function BrowserAgentView({ onClose, initialTask }) {
 
         {/* Chat/controls panel */}
         <div className={`ba-chat ${mobileTab !== "chat" ? "ba-mobile-hidden" : ""}`}>
+          {/* Task suggestions */}
+          <div className="ba-suggestions">
+            <div className="ba-suggestions-title">מה אפשר לעשות כאן?</div>
+            <div className="ba-suggestions-list">
+              {EXAMPLE_TASKS.map((t, i) => (
+                <button key={i} className="ba-suggestion" onClick={() => {
+                  setTaskInput(t.title);
+                  if (sessionId && status !== "starting") {
+                    addMessage(`משימה: ${t.title}`, "user");
+                  }
+                }}>
+                  <span className="ba-suggestion-title">{t.title}</span>
+                  <span className="ba-suggestion-desc">{t.desc}</span>
+                  {t.example && <span className="ba-suggestion-badge">דוגמה</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="ba-messages">
             {messages.map((m, i) => (
               <div key={i} className={`ba-msg ba-msg-${m.from}`}>
@@ -371,19 +422,9 @@ export default function BrowserAgentView({ onClose, initialTask }) {
           {/* Controls based on status */}
           <div className="ba-controls">
             {status === "idle" && (
-              <div className="ba-task-input">
-                <input
-                  type="text"
-                  value={taskInput}
-                  onChange={(e) => setTaskInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleStart()}
-                  placeholder="מה תרצה לעשות? (למשל: הגשת בקשה לעזרת ניידות)"
-                  className="ba-input"
-                  disabled={loading}
-                />
-                <button onClick={handleStart} disabled={loading || !taskInput.trim()} className="ba-btn ba-btn-primary">
-                  {loading ? "מפעיל..." : "התחל"}
-                </button>
+              <div className="ba-working">
+                <div className="ba-spinner" />
+                <span>מתחיל...</span>
               </div>
             )}
 
@@ -585,6 +626,35 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         @media (max-width: 768px) {
           .ba-chat { max-width: 100%; min-width: 0; border-inline-start: none; flex: 1; }
           .ba-browser { flex: 1; }
+        }
+
+        /* Suggestions panel */
+        .ba-suggestions {
+          padding: 10px 12px; border-bottom: 1px solid var(--stone-700);
+          background: var(--stone-900);
+        }
+        .ba-suggestions-title {
+          font-size: 12px; font-weight: 600; color: var(--stone-400);
+          margin-bottom: 8px; font-family: 'Heebo', sans-serif;
+        }
+        .ba-suggestions-list {
+          display: flex; flex-wrap: wrap; gap: 6px;
+        }
+        .ba-suggestion {
+          display: flex; flex-direction: column; gap: 2px;
+          padding: 6px 10px; border-radius: 6px;
+          border: 1px solid var(--stone-700); background: var(--stone-800);
+          cursor: pointer; text-align: right; direction: rtl;
+          font-family: 'Heebo', sans-serif;
+          transition: all 0.15s ease; position: relative;
+        }
+        .ba-suggestion:hover { border-color: var(--copper-500); background: rgba(217,119,6,.06); }
+        .ba-suggestion-title { font-size: 12px; font-weight: 600; color: var(--stone-200); }
+        .ba-suggestion-desc { font-size: 10px; color: var(--stone-400); }
+        .ba-suggestion-badge {
+          position: absolute; top: -4px; inset-inline-start: -4px;
+          font-size: 9px; font-weight: 700; color: var(--stone-950);
+          background: var(--stone-500); padding: 1px 5px; border-radius: 3px;
         }
 
         .ba-messages {

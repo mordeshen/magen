@@ -206,6 +206,33 @@ export default function BrowserAgentView({ onClose, initialTask }) {
     setCorrection("");
   }
 
+  const [browserFocused, setBrowserFocused] = useState(false);
+
+  useEffect(() => {
+    if (!browserFocused || !sessionId) return;
+    async function onKey(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      e.preventDefault();
+      const key = e.key;
+      try {
+        const r = await fetch("/api/browser-agent/click", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, key }),
+        });
+        const d = await r.json();
+        if (d.screenshot) setScreenshot(d.screenshot);
+        if (d.loggedIn && status !== "active") {
+          setStatus("active");
+          addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
+          handleStep();
+        }
+      } catch {}
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [browserFocused, sessionId, status]);
+
   async function handleScreenClick(e) {
     if (!sessionId || loading) return;
     const img = e.target;
@@ -246,7 +273,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
 
       <div className="ba-content">
         {/* Screenshot panel */}
-        <div className={`ba-browser ${mobileTab !== "browser" ? "ba-mobile-hidden" : ""}`} onClick={handleScreenClick}>
+        <div className={`ba-browser ${mobileTab !== "browser" ? "ba-mobile-hidden" : ""} ${browserFocused ? "ba-browser-focused" : ""}`} onClick={(e) => { setBrowserFocused(true); handleScreenClick(e); }} tabIndex={0} onFocus={() => setBrowserFocused(true)} onBlur={() => setBrowserFocused(false)}>
           {screenshot ? (
             <img
               src={`data:image/png;base64,${screenshot}`}
@@ -457,6 +484,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         .ba-placeholder {
           color: var(--stone-600); text-align: center; font-size: 14px;
         }
+        .ba-browser-focused { outline: 2px solid var(--copper-500); outline-offset: -2px; }
         .ba-interact-hint {
           position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
           background: rgba(0,0,0,0.7); color: var(--copper-400);

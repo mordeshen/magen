@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   } catch {}
   if (!user) return res.status(401).json({ error: "unauthorized" });
 
-  const { sessionId, x, y, text } = req.body;
+  const { sessionId, x, y, text, key } = req.body;
   if (!sessionId) return res.status(400).json({ error: "missing sessionId" });
 
   try {
@@ -33,6 +33,20 @@ export default async function handler(req, res) {
     if (text) {
       await page.keyboard.type(text);
       await page.waitForTimeout(300);
+    }
+
+    if (key) {
+      const keyMap = {
+        "Backspace": "Backspace", "Enter": "Enter", "Tab": "Tab",
+        "Escape": "Escape", "ArrowLeft": "ArrowLeft", "ArrowRight": "ArrowRight",
+        "ArrowUp": "ArrowUp", "ArrowDown": "ArrowDown", "Delete": "Delete",
+      };
+      if (keyMap[key]) {
+        await page.keyboard.press(keyMap[key]);
+      } else if (key.length === 1) {
+        await page.keyboard.type(key);
+      }
+      await page.waitForTimeout(100);
     }
 
     await page.waitForLoadState("domcontentloaded", { timeout: 5000 }).catch(() => {});

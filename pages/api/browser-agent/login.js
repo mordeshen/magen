@@ -1,4 +1,4 @@
-import { getUserSupabase } from "../lib/supabase-admin";
+import { getAdminSupabase, getUserSupabase } from "../lib/supabase-admin";
 import { alertDev } from "../lib/alert";
 
 // OTP-based login flow for myshikum.mod.gov.il:
@@ -91,20 +91,35 @@ export default async function handler(req, res) {
           'input[type="text"]:not(#idNumber):not(#login-by-id-number):not([placeholder*="טלפון"])',
         ], phoneNumber);
       } else {
-        // Select phone radio
+        // SMS is typically the default — try clicking radio only if it exists
         await tryClick(page, [
+          'label:has-text("SMS")',
           'label:has-text("נייד")',
+          'label:has-text("טלפון")',
           'input[value="phone"]',
           'input[value="sms"]',
+          'input[value="mobile"]',
         ]);
         await page.waitForTimeout(500);
         // Fill phone number
-        await tryFill(page, [
+        const phoneFilled = await tryFill(page, [
+          'input[type="tel"]',
           'input[placeholder*="טלפון"]',
           'input[placeholder*="נייד"]',
-          'input[type="tel"]',
-          'input[type="text"]:not(#idNumber):not(#login-by-id-number):not([placeholder*="מייל"])',
+          'input[placeholder*="050"]',
+          'input[inputmode="tel"]',
+          'input[inputmode="numeric"]:not(#idNumber):not(#login-by-id-number)',
+          'input[type="text"]:not(#idNumber):not(#login-by-id-number):not([placeholder*="מייל"]):not([placeholder*="דוא"])',
         ], phoneNumber);
+
+        if (!phoneFilled) {
+          const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
+          return res.status(200).json({
+            step: "error",
+            screenshot,
+            message: "לא מצאתי את שדה הטלפון. נסה להזין ידנית על המסך, או עבור למייל.",
+          });
+        }
       }
 
       // Click "המשך"
@@ -114,16 +129,16 @@ export default async function handler(req, res) {
         'button:has-text("שלח")',
       ]);
 
-      await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(3000);
+      await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(1500);
 
       // Retry screenshot if page is blank
       let screenshot;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 2; attempt++) {
         screenshot = (await page.screenshot({ type: "png" })).toString("base64");
         const bodyText = await page.textContent("body").catch(() => "");
         if (bodyText.trim().length > 50) break;
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000);
       }
 
       session.status = "waiting_otp";
@@ -179,6 +194,22 @@ export default async function handler(req, res) {
 
       if (isLoggedIn) {
         session.status = "active";
+
+        // Save cookies for future instant login
+        try {
+          const cookies = await session.getCookies();
+          if (cookies.length > 0) {
+            const adminSb = getAdminSupabase();
+            await adminSb.from("user_memory").upsert({
+              user_id: user.id,
+              key: "portal_cookies",
+              value: JSON.stringify(cookies),
+            }, { onConflict: "user_id,key" });
+          }
+        } catch (e) {
+          console.warn("[browser-agent] failed to save cookies:", e.message);
+        }
+
         return res.status(200).json({
           step: "logged_in",
           screenshot,

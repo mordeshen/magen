@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
-import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
+import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
 import { invertedChat } from "./lib/inverted-chat";
 import { magenChat } from "./lib/magen-engine";
 import { fetchUserContext } from "./lib/user-context";
@@ -1067,7 +1067,10 @@ function buildEventsCtx(events, userCity) {
 
 function buildUserProfileCtx(userProfile) {
   let userCtx = "\n--- מידע על המשתמש ---\n";
-  if (userProfile.name) userCtx += `שם: ${userProfile.name}\n`;
+  if (userProfile.name) {
+    userCtx += `שם: ${userProfile.name}\n`;
+    userCtx += `פנה אליו בשמו הפרטי (${userProfile.name}) — באופן טבעי, לא בכל משפט. למשל: "שמע ${userProfile.name}," או "אז ${userProfile.name}," בתחילת תשובה.\n`;
+  }
   if (userProfile.city) userCtx += `עיר: ${userProfile.city}\n`;
   if (userProfile.claim_status === "before_recognition" && userProfile.claim_stage) {
     userCtx += `מצב בתביעה: לפני הכרה — ${userProfile.claim_stage}\n`;
@@ -1246,6 +1249,7 @@ async function callDeepAnswer(userMessage, context, recentMessages) {
   if (context.profile) {
     const p = context.profile;
     contextParts.push(`פרופיל: ${p.first_name || ""}, ${p.disability_percent || "?"}% נכות, ${p.city || ""}`);
+    if (p.first_name) contextParts.push(`פנה אליו בשמו (${p.first_name}) באופן טבעי`);
   }
   if (context.legalCase) {
     contextParts.push(`שלב משפטי: ${context.legalCase.stage || "לא ידוע"}`);

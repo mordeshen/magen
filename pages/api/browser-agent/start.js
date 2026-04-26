@@ -4,7 +4,6 @@ import { alertDev } from "../lib/alert";
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  // Auth required
   const userSb = getUserSupabase(req, res);
   if (!userSb) return res.status(401).json({ error: "unauthorized" });
 
@@ -25,19 +24,48 @@ export default async function handler(req, res) {
     const { SHIKUM_URL } = require("../../../lib/browser-agent/orchestrator");
 
     const session = await createSession(user.id);
-
-    // Navigate to rehabilitation portal
-    const state = await session.navigateTo(SHIKUM_URL);
-    session.status = "waiting_login";
-
-    // Store task on session for later use
     session.task = task;
     session.history = [];
+
+    // Try to restore saved cookies for instant login
+    const adminSb = getAdminSupabase();
+    const { data: savedCookies } = await adminSb
+      .from("user_memory")
+      .select("value")
+      .eq("user_id", user.id)
+      .eq("key", "portal_cookies")
+      .maybeSingle();
+
+    if (savedCookies?.value) {
+      try {
+        const cookies = JSON.parse(savedCookies.value);
+        await session.setCookies(cookies);
+        const state = await session.navigateTo(SHIKUM_URL);
+        const url = session.page.url();
+        const isLoggedIn = !url.includes("login") && !url.includes("authorize") && !url.includes("oauth");
+
+        if (isLoggedIn) {
+          session.status = "active";
+          return res.status(200).json({
+            sessionId: session.id,
+            screenshot: state.screenshot.toString("base64"),
+            message: "מחובר אוטומטית! מתחיל לעבוד על המשימה.",
+            status: "working",
+          });
+        }
+      } catch {
+        // Cookies expired or invalid — fall through to normal login
+      }
+    }
+
+    // No saved cookies or they expired — normal login flow
+    const state = await session.navigateTo(SHIKUM_URL);
+    session.status = "waiting_login";
 
     return res.status(200).json({
       sessionId: session.id,
       screenshot: state.screenshot.toString("base64"),
-      message: "פתחתי את אתר אגף השיקום. כדי להמשיך, צריך להתחבר עם תעודת זהות וסיסמה.",
+      message: "פתחתי את אתר אגף השיקום. כדי להמשיך, צריך להתחבר עם תעודת זהות.",
       status: "waiting_login",
     });
   } catch (e) {

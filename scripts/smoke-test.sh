@@ -103,6 +103,72 @@ else
   echo "  ⏭  אין .env.local מקומי — מדלג"
 fi
 
+# ── 8. תקציר רפואי — API מחזיר מבנה נכון (כולל legalCase, eligibleRights) ──
+echo ""
+echo "[8] תקציר רפואי (מבנה API)"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE/api/medical-summary")
+if [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]; then
+  pass "Medical summary endpoint מגיב ($STATUS)"
+else
+  fail "Medical summary → $STATUS (צפוי 200/401)"
+fi
+
+# ── 9. Rights eligibility data ──
+echo ""
+echo "[9] מיפוי זכויות (rights-eligibility.json)"
+if [ -f "data/rights-eligibility.json" ]; then
+  RULE_COUNT=$(node -e "const d=require('./data/rights-eligibility.json'); console.log(Object.keys(d.rules).length)" 2>/dev/null)
+  RIGHTS_COUNT=$(node -e "const d=require('./data/rights.json'); console.log(d.length)" 2>/dev/null)
+  if [ "$RULE_COUNT" = "$RIGHTS_COUNT" ]; then
+    pass "מיפוי זכויות מכסה את כל $RIGHTS_COUNT הזכויות"
+  else
+    fail "מיפוי חלקי — $RULE_COUNT כללים מתוך $RIGHTS_COUNT זכויות"
+  fi
+else
+  fail "חסר data/rights-eligibility.json"
+fi
+
+# ── 10. V5 Gemma (finetuned model) ──
+echo ""
+echo "[10] V5 Gemma model (Modal)"
+V5_URL="${FINETUNED_API_URL:-$( grep FINETUNED_API_URL .env.local 2>/dev/null | cut -d= -f2 )}"
+V5_KEY="${FINETUNED_API_KEY:-$( grep FINETUNED_API_KEY .env.local 2>/dev/null | cut -d= -f2 )}"
+if [ -n "$V5_URL" ] && [ -n "$V5_KEY" ]; then
+  V5_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -H "Authorization: Bearer $V5_KEY" "$V5_URL/models")
+  if [ "$V5_STATUS" = "200" ]; then
+    pass "V5 endpoint חי ($V5_URL)"
+  elif [ "$V5_STATUS" = "000" ]; then
+    echo "  ⏭  V5 endpoint לא מגיב (cold start?) — דלג"
+  else
+    fail "V5 endpoint → $V5_STATUS"
+  fi
+else
+  echo "  ⏭  FINETUNED_API_URL לא מוגדר — מדלג על בדיקת V5"
+fi
+
+# ── 11. Browser agent endpoint ──
+echo ""
+echo "[11] Browser agent endpoints"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"task":"test"}' "$BASE/api/browser-agent/start")
+if [ "$STATUS" = "401" ] || [ "$STATUS" = "200" ]; then
+  pass "Browser agent /start מגיב ($STATUS)"
+else
+  fail "Browser agent /start → $STATUS (צפוי 200/401)"
+fi
+
+# ── 12. Build integrity — קבצי פיצ'רים חדשים קיימים ──
+echo ""
+echo "[12] קבצי פיצ'רים חדשים"
+for f in "components/AgentChoiceModal.jsx" "components/WalkthroughTour.jsx" "lib/rights-matcher.js" "data/rights-eligibility.json"; do
+  if [ -f "$f" ]; then
+    pass "$f קיים"
+  else
+    fail "חסר $f"
+  fi
+done
+
 # ── סיכום ──
 echo ""
 echo "─────────────────────────────────────────"

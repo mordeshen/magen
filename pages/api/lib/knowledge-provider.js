@@ -121,10 +121,13 @@ async function callFinetuned(userMessage, context, ragResults, recentMessages) {
   const headers = { "Content-Type": "application/json" };
   if (FINETUNED_API_KEY) headers.Authorization = `Bearer ${FINETUNED_API_KEY}`;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180000);
+
   const response = await fetch(url, {
     method: "POST",
     headers,
-    signal: AbortSignal.timeout(180000),
+    signal: controller.signal,
     body: JSON.stringify({
       max_tokens: 400,
       temperature: 0.3,
@@ -135,6 +138,8 @@ async function callFinetuned(userMessage, context, ragResults, recentMessages) {
       ],
     }),
   });
+
+  clearTimeout(timeout);
 
   if (!response.ok) {
     throw new Error(`finetuned endpoint returned ${response.status}`);

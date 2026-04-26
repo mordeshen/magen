@@ -7,9 +7,8 @@
 // Layer 3 (async): Learn from interaction
 
 import { getAdminSupabase } from "./lib/supabase-admin";
-import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU, MODEL_MAGEN } from "./lib/models";
+import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
 import { fetchRAG } from "./lib/rag";
-import { magenChat } from "./lib/magen-engine";
 import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
 import crypto from "crypto";
@@ -545,21 +544,7 @@ export default async function handler(req, res) {
       }
     } else {
       // Text messages → Magen Engine if available, otherwise Opus + RAG
-      if (MODEL_MAGEN) {
-        try {
-          const result = await magenChat(message, magenContext, supabase);
-          if (result) {
-            reply = result.reply;
-            usedLayer = result.layer;
-            console.log(`[whatsapp] Magen engine responded (layer: ${result.layer}, tokens: ${result.tokens})`);
-          }
-        } catch (e) {
-          console.error("[whatsapp] Magen engine error:", e.message);
-        await alertDev("whatsapp", "Magen Engine נכשל", { error: e.message, userId: pairing?.user_id });
-        }
-      }
-
-      // Opus + RAG + personal context (primary path when no Magen, fallback when Magen fails)
+      // Opus + RAG + personal context
       if (!reply) {
         console.log(`[whatsapp] Opus + RAG path`);
         let systemPrompt = PRIMARY_SYSTEM_PROMPT;

@@ -64,6 +64,9 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       setScreenshot(d.screenshot);
       setStatus(d.status || "waiting_login");
       addMessage(d.message, "agent");
+      if (d.status === "working") {
+        setTimeout(() => handleStep(), 500);
+      }
     } catch {
       addMessage("שגיאה בחיבור לשרת", "error");
       setStatus("error");
@@ -205,7 +208,6 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       });
       const d = await r.json();
       if (!r.ok && d.error === "session not active") {
-        // Session not ready yet — wait and retry once
         await new Promise(resolve => setTimeout(resolve, 2000));
         steppingRef.current = false;
         return handleStep(userCorrection);
@@ -214,13 +216,14 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       if (d.message && d.message !== "session not active") addMessage(d.message, "agent");
       if (d.error && d.error !== "session not active") addMessage(d.error, "error");
 
-      if (d.done) {
+      if (!r.ok) {
+        setStatus("error");
+      } else if (d.done) {
         setStatus("done");
         addMessage("המשימה הושלמה בהצלחה!", "agent");
       } else if (d.awaitConfirmation) {
         setStatus("awaiting_confirmation");
       } else {
-        // Auto-continue
         setTimeout(() => handleStep(), 500);
       }
     } catch {

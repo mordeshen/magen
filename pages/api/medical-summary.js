@@ -3,10 +3,27 @@
 // POST — add new injury
 
 import { getUserSupabase } from "./lib/supabase-admin";
+import { matchRights } from "../../lib/rights-matcher";
+import allRights from "../../data/rights.json";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "100kb" } },
 };
+
+function calcWeightedDisabilityServer(injuries) {
+  const sorted = [...injuries].sort((a, b) => (b.disabilityPercent || 0) - (a.disabilityPercent || 0));
+  const paired = sorted.filter(i => i.pairedOrgan);
+  const regular = sorted.filter(i => !i.pairedOrgan);
+  let remaining = 100, total = 0;
+  for (const inj of regular) {
+    const p = inj.disabilityPercent || 0;
+    const contribution = (p / 100) * remaining;
+    total += contribution;
+    remaining -= contribution;
+  }
+  for (const inj of paired) total += inj.disabilityPercent || 0;
+  return Math.round(total);
+}
 
 const VALID_ZONES = new Set([
   "head", "chest-left", "chest-right", "abdomen", "pelvis",
@@ -24,11 +41,13 @@ export default async function handler(req, res) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return res.status(401).json({ error: "לא מאומת" });
 
-  // GET — return injuries + events
+  // GET — return injuries + events + legalCase + profile
   if (req.method === "GET") {
-    const [injResult, evtResult] = await Promise.all([
+    const [injResult, evtResult, lcResult, profResult] = await Promise.all([
       sb.from("injuries").select("*").eq("user_id", user.id).order("injury_date", { ascending: true }),
       sb.from("medical_events").select("*").eq("user_id", user.id).order("event_date", { ascending: true }),
+      sb.from("legal_cases").select("stage, injury_types, injury_type, disability_percent, representative_name, representative_org, committee_date, notes").eq("user_id", user.id).maybeSingle(),
+      sb.from("profiles").select("first_name, disability_percent, city").eq("id", user.id).maybeSingle(),
     ]);
 
     const injuries = (injResult.data || []).map(inj => ({
@@ -55,7 +74,30 @@ export default async function handler(req, res) {
       injuries: evt.related_injury_ids || [],
     }));
 
-    return res.json({ injuries, events });
+    const lc = lcResult.data;
+    const legalCase = lc ? {
+      stage: lc.stage,
+      injuryTypes: lc.injury_types || (lc.injury_type ? [lc.injury_type] : []),
+      disabilityPercent: lc.disability_percent,
+      representative: lc.representative_name ? `${lc.representative_name}${lc.representative_org ? ` (${lc.representative_org})` : ""}` : null,
+      committeeDate: lc.committee_date,
+      notes: lc.notes,
+    } : null;
+
+    const prof = profResult.data;
+    const profile = prof ? {
+      name: prof.first_name,
+      disabilityPercent: prof.disability_percent,
+      city: prof.city,
+    } : null;
+
+    const officialPercent = legalCase?.disabilityPercent ?? profile?.disabilityPercent;
+    const disabilityPercent = officialPercent ?? calcWeightedDisabilityServer(injuries);
+    const injuryTypes = legalCase?.injuryTypes || [];
+    const rawInjuries = (injResult.data || []).map(i => ({ body_zone: i.body_zone, hebrew_label: i.hebrew_label }));
+    const rightsMatch = matchRights(allRights, { injuries: rawInjuries, disabilityPercent, injuryTypes });
+
+    return res.json({ injuries, events, legalCase, profile, eligibleRights: rightsMatch.matched, userInjuryTypes: rightsMatch.userTypes });
   }
 
   // POST — add injury

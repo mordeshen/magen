@@ -182,14 +182,39 @@ function DisabilityCalc({ injuries }) {
 // רכיב ראשי
 // =============================================
 
+const STAGE_LABELS = {
+  initial_claim: "תביעה ראשונית",
+  recognition: "הכרה",
+  committee_scheduled: "ועדה נקבעה",
+  committee_done: "ועדה בוצעה",
+  appeal: "ערעור",
+  increase_request: "בקשת החמרה",
+  closed: "סגור",
+};
+
+const CAT_COLORS = {
+  "כספי": "#F59E0B",
+  "בריאות": "#EF4444",
+  "משפטי": "#8B5CF6",
+  "לימודים": "#3B82F6",
+  "תעסוקה": "#10B981",
+  "מיסים": "#06B6D4",
+  "פנאי": "#EC4899",
+  "דיור": "#F97316",
+};
+
 export default function MagenMedicalSummary({
   injuries = [],
   events = [],
+  legalCase = null,
+  profile = null,
+  eligibleRights = [],
   loading = false,
   onRefresh,
 }) {
   const [selInj, setSelInj] = useState(null);
   const [selEvt, setSelEvt] = useState(null);
+  const [showRights, setShowRights] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -201,7 +226,7 @@ export default function MagenMedicalSummary({
     );
   }
 
-  if (injuries.length === 0) {
+  if (injuries.length === 0 && !legalCase) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "#718096", direction: "rtl", fontFamily: "Heebo, sans-serif" }}>
         <div style={{ fontSize: 36, marginBottom: 16, opacity: 0.5 }}>🛡</div>
@@ -212,15 +237,47 @@ export default function MagenMedicalSummary({
   }
 
   const disabilityResult = calcWeightedDisability(injuries);
+  const officialPercent = legalCase?.disabilityPercent ?? profile?.disabilityPercent;
 
   return (
     <div style={{ color: "#F7FAFC", fontFamily: "Heebo, sans-serif", direction: "rtl" }}>
+      {/* Legal Case Summary */}
+      {legalCase && (
+        <div style={{ background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.15)", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "#d97706", fontWeight: 700, marginBottom: 8 }}>תיק משפטי</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px", fontSize: 12, color: "#CBD5E0" }}>
+            {legalCase.stage && (
+              <span>שלב: <strong style={{ color: "#F7FAFC" }}>{STAGE_LABELS[legalCase.stage] || legalCase.stage}</strong></span>
+            )}
+            {officialPercent != null && (
+              <span>נכות רשמית: <strong style={{ color: "#60A5FA" }}>{officialPercent}%</strong></span>
+            )}
+            {legalCase.injuryTypes?.length > 0 && (
+              <span>סוגי פגיעה: <strong style={{ color: "#F7FAFC" }}>{legalCase.injuryTypes.join(", ")}</strong></span>
+            )}
+            {legalCase.representative && (
+              <span>מייצג: <strong style={{ color: "#F7FAFC" }}>{legalCase.representative}</strong></span>
+            )}
+            {legalCase.committeeDate && (
+              <span>ועדה: <strong style={{ color: "#F7FAFC" }}>{new Date(legalCase.committeeDate).toLocaleDateString("he-IL")}</strong></span>
+            )}
+          </div>
+          {legalCase.notes && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "#A0AEC0", lineHeight: 1.5, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>
+              {legalCase.notes}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Quick Stats */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         {[
           { v: injuries.length, l: "פגיעות", c: "#F7FAFC" },
           { v: injuries.filter(i => i.severity === "severe").length, l: "חמורות", c: "#EF4444" },
-          { v: disabilityResult.total + "%", l: "נכות משוקללת", c: "#60A5FA" },
+          ...(officialPercent != null
+            ? [{ v: officialPercent + "%", l: "נכות רשמית", c: "#60A5FA" }]
+            : [{ v: disabilityResult.total + "%", l: "נכות משוקללת", c: "#60A5FA" }]),
         ].map((s, i) => (
           <div key={i} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 18px", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</span>
@@ -325,6 +382,52 @@ export default function MagenMedicalSummary({
           )}
         </div>
       </div>
+
+      {/* Eligible Rights */}
+      {eligibleRights.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <button onClick={() => setShowRights(!showRights)} style={{
+            width: "100%", padding: "14px 18px", borderRadius: 10,
+            background: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.2)",
+            color: "#d97706", cursor: "pointer", fontFamily: "Heebo, sans-serif",
+            fontSize: 14, fontWeight: 700, textAlign: "right", direction: "rtl",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <span>מה מגיע לי? — {eligibleRights.length} זכויות מתאימות</span>
+            <span style={{ fontSize: 18, transition: "transform 0.2s", transform: showRights ? "rotate(180deg)" : "none" }}>&#9660;</span>
+          </button>
+
+          {showRights && (
+            <div style={{ marginTop: 8 }}>
+              {Object.entries(
+                eligibleRights.reduce((acc, r) => {
+                  (acc[r.category] = acc[r.category] || []).push(r);
+                  return acc;
+                }, {})
+              ).map(([cat, rights]) => (
+                <div key={cat} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: CAT_COLORS[cat] || "#718096", marginBottom: 6, paddingRight: 4 }}>
+                    {cat} ({rights.length})
+                  </div>
+                  {rights.map(r => (
+                    <div key={r.id} style={{
+                      background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: 8, padding: "8px 12px", marginBottom: 4,
+                      borderInlineStart: `3px solid ${CAT_COLORS[r.category] || "#718096"}`,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#F7FAFC", marginBottom: 2 }}>{r.title}</div>
+                      <div style={{ fontSize: 11, color: "#A0AEC0", lineHeight: 1.5 }}>{r.summary}</div>
+                      {r.matchReason && (
+                        <div style={{ fontSize: 10, color: "#d97706", marginTop: 4 }}>{r.matchReason}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ textAlign: "center", marginTop: 24, fontSize: 10, color: "#4A5568" }}>
         תקציר רפואי • לא מהווה תחליף לתיק רפואי מלא • חישוב הנכות לפי שיטת השקלול של משרד הביטחון

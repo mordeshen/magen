@@ -1,21 +1,16 @@
 // =============================================================
-// Magen Engine — Opus analyze → RAG → Opus respond + personal context
+// Magen Engine — Haiku analyze → RAG → Opus respond + personal context
 // =============================================================
 //
-// DEPRECATED: this engine was originally designed around an OpenAI fine-tuned
-// model (v14b). That model was rolled back. Today every step runs on Opus,
-// and the future Gemma 4 fine-tuned model will be wired through
-// knowledge-provider.js — NOT through this file.
-//
-// Flow today:
-//   Step 1: Opus ANALYZES — emits rag_queries, emotional_state, complexity, memory_updates
+// Flow:
+//   Step 1: Haiku ANALYZES (fast) — emits rag_queries, emotional_state, complexity, memory_updates
 //   Step 2: RAG RETRIEVES — rights/events/veteran knowledge
 //   Step 3: Opus RESPONDS — uses RAG + personal context
 //   Step 4: If escalate or weak RAG → Opus handles directly
 //   Step 5: Personal file updated (async)
 // =============================================================
 
-import { MODEL_MAGEN, MODEL_OPUS } from "./models";
+import { MODEL_OPUS, MODEL_HAIKU } from "./models";
 import { fetchRAG } from "./rag";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -43,7 +38,7 @@ const MAGEN_TONE = `אתה מגן — חבר שעבר את כל הבירוקרט
 - תדבר כמו חבר בוואטסאפ, לא כמו מערכת.
 קו חם: *8944 (נפש אחת) | *6500 (מוקד פצועים)`;
 
-// ---- Step 1: v14b analyzes the message (with JSON mode forced) ----
+// ---- Step 1: Haiku analyzes the message (fast JSON extraction) ----
 async function analyze(userMessage, context) {
   const personalContext = buildPersonalContext(context);
 
@@ -98,7 +93,7 @@ complexity: simple|standard|complex|crisis
   };
 }
 
-// ---- Step 3: v14b responds with RAG data ----
+// ---- Step 3: Opus responds with RAG data ----
 async function respond(userMessage, context, ragResults, brief) {
   const parts = [
     MAGEN_TONE + `\nאתה מכיר את המשתמש — כל מה שמופיע למטה זה מידע שכבר יש לך עליו מסשנים קודמים. אל תגיד "אני לא רואה" או "אין לי גישה" — מה שיש למטה, זה שלך.
@@ -358,7 +353,7 @@ async function updatePersonalFile(supabase, userId, updates) {
 
 // ---- Main entry point ----
 export async function magenChat(userMessage, context, supabase) {
-  // === Step 1: v14b ANALYZES ===
+  // === Step 1: Haiku ANALYZES (fast) ===
   let analysis;
   try {
     analysis = await analyze(userMessage, context);
@@ -434,7 +429,7 @@ export async function magenChat(userMessage, context, supabase) {
     }
   }
 
-  // === Step 3: v14b RESPONDS with RAG data ===
+  // === Step 3: Opus RESPONDS with RAG data ===
   let response;
   try {
     response = await respond(userMessage, context, ragResults, brief);

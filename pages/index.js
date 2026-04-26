@@ -9,6 +9,8 @@ import AccessibilityWidget from "../components/AccessibilityWidget";
 import TaskQueue from "../components/TaskQueue";
 import dynamic from "next/dynamic";
 const BrowserAgentView = dynamic(() => import("../components/BrowserAgentView"), { ssr: false });
+const AgentChoiceModal = dynamic(() => import("../components/AgentChoiceModal"), { ssr: false });
+const WalkthroughTour = dynamic(() => import("../components/WalkthroughTour"), { ssr: false });
 
 // ─── Utilities ────────────────────────────────────────────
 
@@ -2707,7 +2709,7 @@ function LegalCaseView({ legalStages, committeePrepData, injuryProfiles, onAskDa
 
 function MedicalSummaryView() {
   const { user } = useUser();
-  const [data, setData] = useState({ injuries: [], events: [] });
+  const [data, setData] = useState({ injuries: [], events: [], legalCase: null, profile: null, eligibleRights: [], userInjuryTypes: [] });
   const [loading, setLoading] = useState(true);
 
   async function fetchData() {
@@ -2735,7 +2737,7 @@ function MedicalSummaryView() {
     );
   }
 
-  return <MagenMedicalSummary injuries={data.injuries} events={data.events} loading={loading} onRefresh={fetchData} />;
+  return <MagenMedicalSummary injuries={data.injuries} events={data.events} legalCase={data.legalCase} profile={data.profile} eligibleRights={data.eligibleRights} loading={loading} onRefresh={fetchData} />;
 }
 
 // ─── Main ──────────────────────────────────────────────────
@@ -2751,11 +2753,14 @@ export default function Home({ rights, updates, events, legalStages, committeePr
   const [showPortalAgent, setShowPortalAgent] = useState(false);
   const [showBrowserAgent, setShowBrowserAgent] = useState(false);
   const [browserAgentTask, setBrowserAgentTask] = useState("");
+  const [showAgentChoice, setShowAgentChoice] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
 
-  // Show consent banner on first visit
+  // Show tour + consent banner on first visit
   useEffect(() => {
     try {
+      if (!localStorage.getItem("magen-tour-done") && localStorage.getItem("magen-consent")) setShowTour(true);
       if (!localStorage.getItem("magen-consent")) setShowConsent(true);
     } catch {}
   }, []);
@@ -2765,8 +2770,12 @@ export default function Home({ rights, updates, events, legalStages, committeePr
     const handler = () => setShowPortalAgent(true);
     const baHandler = (e) => {
       const taskDetail = e.detail?.task || "";
-      setBrowserAgentTask(taskDetail);
-      setShowBrowserAgent(true);
+      if (taskDetail) {
+        setBrowserAgentTask(taskDetail);
+        setShowBrowserAgent(true);
+      } else {
+        setShowAgentChoice(true);
+      }
     };
     window.addEventListener("open-portal-agent", handler);
     window.addEventListener("open-browser-agent", baHandler);
@@ -4845,6 +4854,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           <PortalAgent onClose={() => setShowPortalAgent(false)} onSaveReference={(ref) => console.log("Reference saved:", ref)} />
         </div>
       </div>}
+      {showTour && <WalkthroughTour onComplete={() => setShowTour(false)} />}
+      {showAgentChoice && <AgentChoiceModal onClose={() => setShowAgentChoice(false)} onChooseAgent={(task) => { setBrowserAgentTask(task); setShowBrowserAgent(true); }} />}
       {showBrowserAgent && <BrowserAgentView initialTask={browserAgentTask} onClose={() => { setShowBrowserAgent(false); setBrowserAgentTask(""); }} />}
     </>
   );

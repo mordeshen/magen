@@ -58,8 +58,8 @@ export default async function handler(req, res) {
         'button:has-text("קוד חד פעמי")',
       ]);
 
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(1500);
       const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
 
       session.status = "waiting_phone";
@@ -183,8 +183,8 @@ export default async function handler(req, res) {
         'button:has-text("אימות")',
       ]);
 
-      await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(1500);
 
       const screenshot = (await page.screenshot({ type: "png" })).toString("base64");
       const currentUrl = page.url();

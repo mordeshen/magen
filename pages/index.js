@@ -2075,7 +2075,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
       )}
 
       {/* Hat selector — in psycho mode, moves to corner */}
-      <div className={`hat-row ${isPsycho && msgs.length > 1 ? "hat-row-mini" : ""}`}>
+      <div className={`hat-row ${isPsycho && msgs.length > 1 ? "hat-row-mini" : ""}`} data-tour="hats">
         {onBack && !(isPsycho && msgs.length > 1) && <button className="back-welcome-btn" onClick={onBack} title="חזרה לבחירת יועץ">←</button>}
         {!(isPsycho && msgs.length > 1) && <span className="hat-label">דבר עם:</span>}
         {HATS.map(h => (
@@ -2215,7 +2215,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           </div>
         )}
 
-        <div className="chat-inp-row">
+        <div className="chat-inp-row chat-input-area">
           {/* Attach button */}
           <button className="attach-btn" onClick={() => fileRef.current?.click()} title="צרף קובץ">{"\u2795"}</button>
           <input ref={fileRef} type="file" accept="image/*,.pdf" style={{display:"none"}} onChange={handleFile}/>
@@ -2907,7 +2907,7 @@ export default function Home({ rights, updates, events, legalStages, committeePr
 
           <nav>
             {NAV.map(n => (
-              <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={()=>setView(n.id)} data-tooltip={n.label}>
+              <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={()=>setView(n.id)} data-tooltip={n.label} data-tour={n.id}>
                 <span className="nav-icon" dangerouslySetInnerHTML={{ __html: n.icon }}/>
                 {n.badge ? <span className="nav-badge-dot"/> : null}
               </button>

@@ -151,11 +151,25 @@ async function callFinetuned(userMessage, context, ragResults, recentMessages) {
   const lowConfidenceSignals = ["לא בטוח", "לא יודע", "אין לי מידע", "צריך לבדוק", "לא ברור לי"];
   const needsEscalation = lowConfidenceSignals.some((s) => answer.includes(s));
   const ragHits = (ragResults?.rights?.length || 0) + (ragResults?.veteran?.length || 0);
-  const confidence = needsEscalation ? 0.3 : (ragHits > 0 ? 0.85 : 0.65);
 
-  console.log(`[knowledge] V5 answered (${data.usage?.total_tokens || 0} tokens, rag_hits=${ragHits}, confidence=${confidence})`);
+  // Quality gate: detect garbage/gibberish responses that keyword check misses
+  const hebrewChars = (answer.match(/[\u0590-\u05FF]/g) || []).length;
+  const totalChars = answer.replace(/\s/g, "").length;
+  const hebrewRatio = totalChars > 0 ? hebrewChars / totalChars : 0;
+  const hasRepetition = /(.{10,})\1{2,}/.test(answer);
+  const tooShort = answer.trim().length < 15;
+  const lowHebrew = totalChars > 10 && hebrewRatio < 0.3;
+  const qualityFail = tooShort || lowHebrew || hasRepetition;
 
-  return { answer, confidence, needsEscalation };
+  if (qualityFail) {
+    console.log(`[knowledge] V5 quality fail: short=${tooShort}, lowHebrew=${lowHebrew}(${hebrewRatio.toFixed(2)}), repetition=${hasRepetition}`);
+  }
+
+  const confidence = qualityFail ? 0.1 : needsEscalation ? 0.3 : (ragHits > 0 ? 0.85 : 0.65);
+
+  console.log(`[knowledge] V5 answered (${data.usage?.total_tokens || 0} tokens, rag_hits=${ragHits}, confidence=${confidence}, hebrewRatio=${hebrewRatio.toFixed(2)})`);
+
+  return { answer, confidence, needsEscalation: needsEscalation || qualityFail };
 }
 
 function buildFinetunedSystemPrompt(context, ragResults) {

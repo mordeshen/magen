@@ -18,7 +18,8 @@ import { alertDev } from "./alert";
 // Opus if the model reports low confidence, asks to escalate, or errors.
 // =============================================================
 
-const KNOWLEDGE_MODE = process.env.KNOWLEDGE_MODE || "opus";
+// V5 disabled — quality issues. Revert to process.env.KNOWLEDGE_MODE when fixed.
+const KNOWLEDGE_MODE = "opus";
 
 // Endpoint of the fine-tuned model (Gemma 4 — wired up later)
 const FINETUNED_API_URL = process.env.FINETUNED_API_URL || "";

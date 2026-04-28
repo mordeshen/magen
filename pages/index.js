@@ -2156,7 +2156,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           </div>
         )}
 
-        <div className={`chat-msgs${isDragging ? " chat-msgs-dragover" : ""}`} ref={msgsContainerRef} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
+        <div className={`chat-msgs${isDragging ? " chat-msgs-dragover" : ""}`} ref={msgsContainerRef} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onClick={e => { if (!e.target.closest("button, a, input, textarea, [role='button']")) textareaRef.current?.focus(); }}>
           {msgs.map((m, i) => (
             <Fragment key={i}>
               <div className={`msg ${m.role}`}>
@@ -2238,6 +2238,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
             className={`chat-inp ${isPsycho ? "chat-inp-multi" : ""}`}
             disabled={loading || typingText !== null}
             rows={1}
+            autoFocus
           />
           <button onClick={send} disabled={loading || typingText !== null || (!input.trim() && !attachment)} className="chat-send">←</button>
         </div>

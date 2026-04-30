@@ -1483,6 +1483,9 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const textareaRef = useRef(null);
   const hatCacheRef = useRef({}); // { [hatId]: { msgs, sessionId } }
   const activeHatRef = useRef(hat); // track current hat for async safety
+  const msgQueueRef = useRef([]);
+  const msgsRef = useRef(msgs);
+  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
 
   const isPsycho = hat === "psycho";
   const warmedUpRef = useRef(false);
@@ -1739,9 +1742,9 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   }, [isPsycho]);
 
   async function send() {
-    if ((!input.trim() && !attachment) || loading) return;
+    if (!input.trim() && !attachment) return;
     const text = input.trim();
-    const sendHat = hat; // capture hat at send time
+    const sendHat = hat;
     setInput("");
 
     if (isRecording) {
@@ -1750,22 +1753,31 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
     }
 
     const userMsg = { role: "user", content: text, attachment: attachment ? { preview: attachment.preview, file_name: attachment.file_name, media_type: attachment.media_type } : null };
-    const newMsgs = [...msgs, userMsg];
-    setMsgs(newMsgs);
-    setLoading(true);
-
     const currentAttachment = attachment;
     setAttachment(null);
 
+    if (loading || typingText !== null) {
+      msgQueueRef.current.push({ text, attachment: currentAttachment, hat: sendHat });
+      setMsgs(m => [...m, userMsg]);
+      return;
+    }
+
+    const newMsgs = [...msgs, userMsg];
+    setMsgs(newMsgs);
+    setLoading(true);
+    doSendToAPI(text, currentAttachment, sendHat, newMsgs);
+  }
+
+  async function doSendToAPI(text, currentAttachment, sendHat, newMsgs) {
     try {
       const payload = {
         messages: newMsgs.map(m => ({ role: m.role, content: m.content })),
-        hat,
+        hat: sendHat,
         rights,
         enabledFeatures: featureConfig.filter(f => enabledFeatures[f.id]).map(f => f.id),
       };
 
-      if (hat === "events") {
+      if (sendHat === "events") {
         payload.events = events;
         if (userCity) payload.userCity = userCity;
       }
@@ -1836,6 +1848,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           setMsgs(m => m.slice(0, -1));
           setLoading(false);
           setMsgs(m => [...m, { role: "assistant", content: "ההודעה ארוכה מדי — נסה לקצר קצת ושלח שוב. הטקסט נשמר כדי שתוכל לערוך." }]);
+          processQueue();
           return;
         }
       }
@@ -1846,6 +1859,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         setMsgs(m => [...m, { role: "assistant", content: d.reply || "נגמרו הטוקנים. שדרג את המסלול כדי להמשיך." }]);
         setLoading(false);
         setShowPricing(true);
+        processQueue();
         return;
       }
 
@@ -1938,6 +1952,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           sessionId: hatCacheRef.current[sendHat]?.sessionId || null,
         };
         setLoading(false);
+        processQueue();
         return;
       }
 
@@ -1973,6 +1988,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
           hatCacheRef.current[sendHat] = { msgs: updated, sessionId };
           return updated;
         });
+        processQueue();
       });
     } catch (err) {
       console.error("Chat send error:", err);
@@ -1980,7 +1996,18 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         setMsgs(m => [...m, { role: "assistant", content: "נראה שיש בעיה זמנית בחיבור. נסו שוב עוד רגע. נסה שוב." }]);
       }
       setLoading(false);
+      processQueue();
     }
+  }
+
+  function processQueue() {
+    if (msgQueueRef.current.length === 0) return;
+    const next = msgQueueRef.current.shift();
+    setTimeout(() => {
+      const currentMsgs = msgsRef.current;
+      setLoading(true);
+      doSendToAPI(next.text, next.attachment, next.hat, currentMsgs);
+    }, 150);
   }
 
   async function handleDeepAnswer(msgIndex) {
@@ -2236,11 +2263,10 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
             onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={placeholder}
             className={`chat-inp ${isPsycho ? "chat-inp-multi" : ""}`}
-            disabled={loading || typingText !== null}
             rows={1}
             autoFocus
           />
-          <button onClick={send} disabled={loading || typingText !== null || (!input.trim() && !attachment)} className="chat-send">←</button>
+          <button onClick={send} disabled={!input.trim() && !attachment} className="chat-send">←</button>
         </div>
       </div>
       {taskQueue.length > 0 && (

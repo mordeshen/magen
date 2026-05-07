@@ -15,6 +15,7 @@ import { getKnowledgeResponse } from "./lib/knowledge-provider";
 import { fetchRAG } from "./lib/rag";
 import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
+import { routeMessage } from "../../lib/router/index.js";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
 const USE_INVERTED = process.env.INVERTED_ARCH === "1";
@@ -1535,7 +1536,32 @@ export default async function handler(req, res) {
         }
       }
 
-      const result = await magenChat(lastUserText, magenContext, supabase);
+      // === SMART ROUTER — pick model before calling engine ===
+      let routedModel = null;
+      try {
+        const isNewUser = !profile && messages.length <= 1;
+        let daysSinceLastActive = null;
+        if (profile?.updated_at) {
+          daysSinceLastActive = Math.floor((Date.now() - new Date(profile.updated_at).getTime()) / 86400000);
+        }
+
+        const routerDecision = await routeMessage(
+          {
+            message: lastUserText,
+            userMetadata: { isNewUser, daysSinceLastActive },
+            conversationHistory: messages.slice(0, -1),
+            recentMessages: messages.slice(-4),
+          },
+          { supabase, userId: allowance.userId },
+        );
+
+        routedModel = routerDecision.model;
+        console.log(`[chat] Router → ${routerDecision.route} (${routerDecision.reason}, ${routerDecision.durationMs}ms)`);
+      } catch (e) {
+        console.error("[chat] Router error, defaulting to Opus:", e.message);
+      }
+
+      const result = await magenChat(lastUserText, magenContext, supabase, routedModel);
 
       if (result) {
         // Track token usage
@@ -1566,7 +1592,7 @@ export default async function handler(req, res) {
           persona: clientHat,
           userMessage: lastUserText,
           assistantReply: result.reply,
-          model: modelShortName(MODEL_OPUS),  // magen-engine runs on Opus today
+          model: modelShortName(routedModel || MODEL_OPUS),
           source: result.layer,                // 'magen' | 'opus'
           usedRag: true,
           responseTimeMs: Date.now() - analyticsStart,
@@ -1575,7 +1601,7 @@ export default async function handler(req, res) {
           sessionId: magenSessionId,
           inputTokens: 0,
           outputTokens: tokensUsed,
-          model: modelShortName(MODEL_OPUS),
+          model: modelShortName(routedModel || MODEL_OPUS),
           category: detectCategory(lastUserText),
           usedRag: true,
           usedWebSearch: false,

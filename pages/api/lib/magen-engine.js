@@ -93,8 +93,9 @@ complexity: simple|standard|complex|crisis
   };
 }
 
-// ---- Step 3: Opus responds with RAG data ----
-async function respond(userMessage, context, ragResults, brief) {
+// ---- Step 3: Respond with RAG data (model chosen by router) ----
+async function respond(userMessage, context, ragResults, brief, model) {
+  model = model || MODEL_OPUS;
   const parts = [
     MAGEN_TONE + `\nאתה מכיר את המשתמש — כל מה שמופיע למטה זה מידע שכבר יש לך עליו מסשנים קודמים. אל תגיד "אני לא רואה" או "אין לי גישה" — מה שיש למטה, זה שלך.
 קודם כיוון כללי, אחר כך פרטים כשמבקשים.`,
@@ -172,7 +173,7 @@ async function respond(userMessage, context, ragResults, brief) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL_OPUS,
+      model,
       max_tokens: 300,
       system,
       messages: [
@@ -352,7 +353,8 @@ async function updatePersonalFile(supabase, userId, updates) {
 }
 
 // ---- Main entry point ----
-export async function magenChat(userMessage, context, supabase) {
+// @param {string} routedModel — model chosen by smart router (optional, defaults to Opus)
+export async function magenChat(userMessage, context, supabase, routedModel) {
   // === Step 1: Haiku ANALYZES (fast) ===
   let analysis;
   try {
@@ -429,10 +431,10 @@ export async function magenChat(userMessage, context, supabase) {
     }
   }
 
-  // === Step 3: Opus RESPONDS with RAG data ===
+  // === Step 3: Respond with RAG data (model from router) ===
   let response;
   try {
-    response = await respond(userMessage, context, ragResults, brief);
+    response = await respond(userMessage, context, ragResults, brief, routedModel);
   } catch (err) {
     console.error("[magen] Response failed:", err.message);
     return null;

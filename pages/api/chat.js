@@ -16,6 +16,7 @@ import { fetchRAG } from "./lib/rag";
 import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
 import { routeMessage } from "../../lib/router/index.js";
+import { fixKeyboardLayout } from "../../lib/keyboard-unswap.js";
 
 // Feature flag: set INVERTED_ARCH=1 in Railway to enable
 const USE_INVERTED = process.env.INVERTED_ARCH === "1";
@@ -1439,9 +1440,19 @@ export default async function handler(req, res) {
 
   // --- Extract last user message for router ---
   const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
-  const lastUserText = lastUserMsg
+  let lastUserText = lastUserMsg
     ? (typeof lastUserMsg.content === "string" ? lastUserMsg.content : lastMessageText || "")
     : "";
+
+  // --- Fix Hebrew typed on English keyboard ---
+  const fixedText = fixKeyboardLayout(lastUserText);
+  if (fixedText !== lastUserText) {
+    console.log(`[chat] keyboard fix: "${lastUserText.slice(0, 40)}" → "${fixedText.slice(0, 40)}"`);
+    lastUserText = fixedText;
+    if (lastUserMsg && typeof lastUserMsg.content === "string") {
+      lastUserMsg.content = fixedText;
+    }
+  }
 
   // === MAGEN ENGINE PATH ===
   // Opus analyze → RAG → Opus respond — with personal context from Supabase

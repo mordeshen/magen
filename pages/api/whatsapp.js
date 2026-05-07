@@ -13,6 +13,7 @@ import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
 import crypto from "crypto";
 import { fetchUserContext } from "./lib/user-context";
+import { fixKeyboardLayout } from "../../lib/keyboard-unswap.js";
 
 export const config = {
   api: { bodyParser: true },
@@ -405,7 +406,13 @@ export default async function handler(req, res) {
 
   try {
     const from = req.body?.From;     // "whatsapp:+972501234567"
-    const message = req.body?.Body?.trim() || "";
+    let message = req.body?.Body?.trim() || "";
+
+    const fixedMsg = fixKeyboardLayout(message);
+    if (fixedMsg !== message) {
+      console.log(`[whatsapp] keyboard fix: "${message.slice(0, 40)}" → "${fixedMsg.slice(0, 40)}"`);
+      message = fixedMsg;
+    }
     const numMedia = parseInt(req.body?.NumMedia || "0", 10);
 
     // Collect media URLs from Twilio (images, PDFs)

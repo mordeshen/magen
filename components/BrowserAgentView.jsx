@@ -11,9 +11,9 @@ const EXAMPLE_TASKS = [
 const STATUS_LABELS = {
   idle: "מוכן",
   starting: "פותח את אתר אגף השיקום...",
-  waiting_login: "ממתין להתחברות",
-  waiting_phone: "הכנס מספר טלפון",
-  waiting_otp: "הכנס קוד חד-פעמי",
+  waiting_login: "התחבר כרגיל",
+  waiting_phone: "התחבר כרגיל",
+  waiting_otp: "התחבר כרגיל",
   working: "עובד...",
   awaiting_confirmation: "ממתין לאישור שלך",
   done: "הושלם!",
@@ -27,13 +27,9 @@ export default function BrowserAgentView({ onClose, initialTask }) {
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState(null);
   const [taskInput, setTaskInput] = useState(initialTask || "");
-  const [loginId, setLoginId] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [otpCode, setOtpCode] = useState("");
   const [correction, setCorrection] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mobileTab, setMobileTab] = useState("chat"); // "chat" | "browser"
-  const [otpMethod, setOtpMethod] = useState("sms"); // "sms" | "email"
+  const [mobileTab, setMobileTab] = useState("browser"); // "chat" | "browser"
   const msgsEndRef = useRef(null);
 
   useEffect(() => {
@@ -47,7 +43,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
 
   async function autoStart() {
     setStatus("starting");
-    addMessage(initialTask ? `משימה: ${initialTask}` : "פותח את אתר אגף השיקום...", initialTask ? "user" : "agent");
+    addMessage(initialTask ? `משימה: ${initialTask}` : "פותח את האתר — תתחבר כרגיל ואני אמשיך משם.", initialTask ? "user" : "agent");
     try {
       const r = await fetch("/api/browser-agent/start", {
         method: "POST",
@@ -107,86 +103,6 @@ export default function BrowserAgentView({ onClose, initialTask }) {
     }
   }
 
-  async function handleSendId() {
-    if (!loginId || loading) return;
-    setLoading(true);
-    addMessage("שולח תעודת זהות...", "agent");
-
-    try {
-      const r = await fetch("/api/browser-agent/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, idNumber: loginId }),
-      });
-      const d = await r.json();
-      if (d.screenshot) setScreenshot(d.screenshot);
-      addMessage(d.message, d.step === "error" ? "error" : "agent");
-      if (d.step === "need_phone") {
-        setStatus("waiting_phone");
-      } else if (d.step === "otp_sent") {
-        setStatus("waiting_otp");
-      }
-    } catch {
-      addMessage("שגיאה בשליחת ת.ז.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSendPhone() {
-    if (!phoneNumber || loading) return;
-    setLoading(true);
-    addMessage("שולח מספר טלפון...", "agent");
-
-    try {
-      const r = await fetch("/api/browser-agent/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, phoneNumber }),
-      });
-      const d = await r.json();
-      if (d.screenshot) setScreenshot(d.screenshot);
-      addMessage(d.message, d.step === "error" ? "error" : "agent");
-      if (d.step === "otp_sent") {
-        setStatus("waiting_otp");
-      }
-    } catch {
-      addMessage("שגיאה בשליחת מספר טלפון", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSendOtp() {
-    if (!otpCode || loading) return;
-    setLoading(true);
-    addMessage("מאמת קוד...", "agent");
-
-    try {
-      const r = await fetch("/api/browser-agent/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, otpCode }),
-      });
-      const d = await r.json();
-      if (d.screenshot) setScreenshot(d.screenshot);
-      addMessage(d.message, d.success === false ? "error" : "agent");
-      if (d.success) {
-        setStatus("working");
-        setLoginId("");
-        setOtpCode("");
-        handleStep();
-      } else {
-        setOtpCode("");
-        setStatus("waiting_otp");
-      }
-    } catch {
-      addMessage("שגיאה באימות הקוד", "error");
-      setStatus("waiting_otp");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const steppingRef = useRef(false);
 
@@ -350,13 +266,6 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       });
       const d = await r.json();
       if (d.screenshot) setScreenshot(d.screenshot);
-      if (d.pageContext?.otpMethod && d.pageContext.otpMethod !== otpMethod) {
-        setOtpMethod(d.pageContext.otpMethod);
-        addMessage(d.pageContext.otpMethod === "email" ? "בחרת לקבל קוד במייל." : "בחרת לקבל קוד ב-SMS.", "agent");
-      }
-      if (d.pageContext?.hasOtpField && status !== "waiting_otp") {
-        setStatus("waiting_otp");
-      }
       if (d.loggedIn && status !== "active") {
         setStatus("active");
         addMessage("מחובר! עכשיו אני מתחיל לעבוד.", "agent");
@@ -405,7 +314,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
           {screenshot && (
             <div className="ba-browser-bar">
               {(status === "waiting_login" || status === "waiting_phone" || status === "waiting_otp") && (
-                <span className="ba-interact-hint">לחץ על המסך כדי להתחבר ידנית</span>
+                <span className="ba-interact-hint">לחץ והקלד ישירות — כמו שאתה רגיל</span>
               )}
               <button className="ba-refresh-btn" onClick={refreshScreenshot} title="רענן מסך">↻</button>
             </div>
@@ -451,70 +360,10 @@ export default function BrowserAgentView({ onClose, initialTask }) {
               </div>
             )}
 
-            {status === "waiting_login" && (
+            {(status === "waiting_login" || status === "waiting_phone" || status === "waiting_otp") && (
               <div className="ba-login-form">
-                <p className="ba-login-note">הזן ת.ז. — נשלח קוד חד-פעמי ב-SMS. הפרטים לא נשמרים.</p>
-                <input
-                  type="text"
-                  value={loginId}
-                  onChange={(e) => setLoginId(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendId()}
-                  placeholder="תעודת זהות"
-                  className="ba-input"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  maxLength={9}
-                />
-                <button onClick={handleSendId} disabled={loading || !loginId} className="ba-btn ba-btn-primary">
-                  {loading ? "שולח..." : "שלח קוד חד-פעמי"}
-                </button>
-              </div>
-            )}
-
-            {status === "waiting_phone" && (
-              <div className="ba-login-form">
-                <p className="ba-login-note">
-                  {otpMethod === "email"
-                    ? "הכנס את כתובת המייל שרשומה אצל אגף השיקום."
-                    : "הכנס את מספר הטלפון הנייד שרשום אצל אגף השיקום."}
-                </p>
-                <p className="ba-login-switch" onClick={() => { setOtpMethod(m => m === "sms" ? "email" : "sms"); }}>
-                  {otpMethod === "email" ? "מעדיף SMS? לחץ כאן" : "מעדיף מייל? לחץ כאן"}
-                </p>
-                <input
-                  type="text"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(otpMethod === "email" ? e.target.value : e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendPhone()}
-                  placeholder={otpMethod === "email" ? "כתובת מייל" : "מספר טלפון נייד"}
-                  className="ba-input"
-                  autoComplete="off"
-                  inputMode={otpMethod === "email" ? "email" : "numeric"}
-                  maxLength={otpMethod === "email" ? 100 : 10}
-                />
-                <button onClick={handleSendPhone} disabled={loading || !phoneNumber} className="ba-btn ba-btn-primary">
-                  {loading ? "שולח..." : "שלח קוד"}
-                </button>
-              </div>
-            )}
-
-            {status === "waiting_otp" && (
-              <div className="ba-login-form">
-                <p className="ba-login-note">הכנס את הקוד שקיבלת {otpMethod === "email" ? "במייל" : "ב-SMS"}.</p>
-                <input
-                  type="text"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-                  placeholder="קוד חד-פעמי"
-                  className="ba-input"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  maxLength={6}
-                />
-                <button onClick={handleSendOtp} disabled={loading || !otpCode} className="ba-btn ba-btn-primary">
-                  {loading ? "מאמת..." : "אימות והתחברות"}
-                </button>
+                <p className="ba-login-note">התחבר כרגיל — ת.ז. + קוד SMS. לחץ ישירות על המסך.</p>
+                <p className="ba-login-hint">אחרי שתיכנס, אני אתחיל לעבוד בשבילך.</p>
               </div>
             )}
 
@@ -742,10 +591,9 @@ export default function BrowserAgentView({ onClose, initialTask }) {
         .ba-btn-secondary:hover:not(:disabled) { background: var(--stone-600); }
 
         .ba-task-input { display: flex; flex-direction: column; gap: 8px; }
-        .ba-login-form { display: flex; flex-direction: column; gap: 4px; }
-        .ba-login-note { font-size: 12px; color: var(--stone-400); margin: 0 0 4px; }
-        .ba-login-switch { font-size: 11px; color: var(--copper-400); cursor: pointer; margin: 0 0 6px; text-decoration: underline; }
-        .ba-login-switch:hover { color: var(--copper-500); }
+        .ba-login-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
+        .ba-login-note { font-size: 13px; color: var(--stone-200); margin: 0; font-weight: 600; }
+        .ba-login-hint { font-size: 12px; color: var(--stone-400); margin: 0; }
 
         .ba-confirm p { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
         .ba-confirm-btns { display: flex; flex-direction: column; gap: 8px; }

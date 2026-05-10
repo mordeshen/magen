@@ -239,6 +239,7 @@ export default function PortalAgent({ onClose, legalCase, onSaveReference }) {
   const [formData, setFormData] = useState({});
   const [checkedDocs, setCheckedDocs] = useState({});
   const [copied, setCopied] = useState(false);
+  const [portalStep, setPortalStep] = useState(0);
   const [refNumber, setRefNumber] = useState("");
   const [refSaved, setRefSaved] = useState(false);
   const [animating, setAnimating] = useState(false);
@@ -502,88 +503,136 @@ export default function PortalAgent({ onClose, legalCase, onSaveReference }) {
             </div>
           )}
 
-          {/* === STEP 3: Template Preview === */}
+          {/* === STEP 3: Template Preview + Guided Portal === */}
           {step === 3 && categoryConfig && (
             <div className="step-content">
-              <p className="step-subtitle">נוסח הפנייה</p>
+              {portalStep === 0 && (<>
+                <p className="step-subtitle">הנוסח מוכן</p>
 
-              {/* Portal path */}
-              <div className="portal-path">
-                {categoryConfig.portalPath}
-              </div>
-
-              {/* Template text */}
-              <div className="template-box">
-                <p className="template-text">{templateText}</p>
-                <div className="template-footer">
-                  <span className="char-counter" style={{ color: charColor }}>
-                    {charCount}/{MAX_CHARS}
-                  </span>
-                  <button className="copy-btn" onClick={handleCopy}>
-                    {copied ? "הועתק!" : "העתק נוסח"}
-                  </button>
+                <div className="portal-path">
+                  {categoryConfig.portalPath}
                 </div>
-              </div>
 
-              {/* Document checklist */}
-              {(categoryConfig.requiredDocs.length > 0 ||
-                categoryConfig.optionalDocs.length > 0) && (
-                <div className="docs-section">
-                  <p className="docs-title">מסמכים שצריך לצרף:</p>
-                  {categoryConfig.requiredDocs.map((doc) => (
-                    <label key={doc} className="doc-item doc-required">
-                      <input
-                        type="checkbox"
-                        checked={!!checkedDocs[doc]}
-                        onChange={() => toggleDoc(doc)}
-                      />
-                      <span>{doc}</span>
-                      <span className="doc-badge">חובה</span>
-                    </label>
-                  ))}
-                  {categoryConfig.optionalDocs.map((doc) => (
-                    <label key={doc} className="doc-item">
-                      <input
-                        type="checkbox"
-                        checked={!!checkedDocs[doc]}
-                        onChange={() => toggleDoc(doc)}
-                      />
-                      <span>{doc}</span>
-                      <span className="doc-badge doc-badge-optional">
-                        רשות
-                      </span>
-                    </label>
-                  ))}
+                <div className="template-box">
+                  <p className="template-text">{templateText}</p>
+                  <div className="template-footer">
+                    <span className="char-counter" style={{ color: charColor }}>
+                      {charCount}/{MAX_CHARS}
+                    </span>
+                    <button className="copy-btn" onClick={handleCopy}>
+                      {copied ? "הועתק!" : "העתק נוסח"}
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              {/* Tips */}
-              {categoryConfig.tips.length > 0 && (
-                <div className="tips-section">
-                  {categoryConfig.tips.map((tip, i) => (
-                    <p key={i} className="tip-item">
-                      {tip}
-                    </p>
-                  ))}
+                {(categoryConfig.requiredDocs.length > 0 ||
+                  categoryConfig.optionalDocs.length > 0) && (
+                  <div className="docs-section">
+                    <p className="docs-title">מסמכים שצריך לצרף:</p>
+                    {categoryConfig.requiredDocs.map((doc) => (
+                      <label key={doc} className="doc-item doc-required">
+                        <input
+                          type="checkbox"
+                          checked={!!checkedDocs[doc]}
+                          onChange={() => toggleDoc(doc)}
+                        />
+                        <span>{doc}</span>
+                        <span className="doc-badge">חובה</span>
+                      </label>
+                    ))}
+                    {categoryConfig.optionalDocs.map((doc) => (
+                      <label key={doc} className="doc-item">
+                        <input
+                          type="checkbox"
+                          checked={!!checkedDocs[doc]}
+                          onChange={() => toggleDoc(doc)}
+                        />
+                        <span>{doc}</span>
+                        <span className="doc-badge doc-badge-optional">רשות</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {categoryConfig.tips.length > 0 && (
+                  <div className="tips-section">
+                    {categoryConfig.tips.map((tip, i) => (
+                      <p key={i} className="tip-item">{tip}</p>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  className="portal-btn-primary"
+                  onClick={() => { handleCopy(); setPortalStep(1); }}
+                >
+                  הועתק, בוא נגיש ביחד
+                </button>
+              </>)}
+
+              {portalStep === 1 && (<>
+                <p className="step-subtitle">נכנסים לפורטל</p>
+                <div className="guided-steps">
+                  <div className="guided-step">
+                    <span className="guided-num">1</span>
+                    <div className="guided-text">
+                      <strong>התחבר עם תעודת זהות + קוד SMS</strong>
+                      <span className="guided-hint">אם יש לך ת.ז. ביומטרית — אפשר גם בלי SMS</span>
+                    </div>
+                  </div>
+                  <div className="guided-step">
+                    <span className="guided-num">2</span>
+                    <div className="guided-text">
+                      <strong>לחץ &quot;התחבר&quot; ותמתין לקוד בנייד</strong>
+                    </div>
+                  </div>
                 </div>
-              )}
+                <a
+                  href={PORTAL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="portal-btn-primary portal-link"
+                  onClick={() => setTimeout(() => setPortalStep(2), 500)}
+                >
+                  פתח את הפורטל
+                </a>
+                <p className="guided-reassure">לוקח 30 שניות. אנחנו פה כשתחזור.</p>
+              </>)}
 
-              {/* Portal link */}
-              <a
-                href={PORTAL_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="portal-btn-primary portal-link"
-              >
-                פתח את הפורטל
-              </a>
-
-              <button
-                className="portal-btn-secondary"
-                onClick={() => goToStep(4)}
-              >
-                הגשתי, המשך
-              </button>
+              {portalStep === 2 && (<>
+                <p className="step-subtitle">נכנסת? יופי</p>
+                <div className="guided-steps">
+                  <div className="guided-step guided-step-done">
+                    <span className="guided-num">✓</span>
+                    <div className="guided-text"><strong>התחברת לפורטל</strong></div>
+                  </div>
+                  <div className="guided-step">
+                    <span className="guided-num">3</span>
+                    <div className="guided-text">
+                      <strong>לך ל: {categoryConfig.portalPath}</strong>
+                    </div>
+                  </div>
+                  <div className="guided-step">
+                    <span className="guided-num">4</span>
+                    <div className="guided-text">
+                      <strong>הדבק את הנוסח</strong> שהעתקנו (Ctrl+V)
+                      <button className="copy-again-btn" onClick={handleCopy}>{copied ? "הועתק!" : "העתק שוב"}</button>
+                    </div>
+                  </div>
+                  <div className="guided-step">
+                    <span className="guided-num">5</span>
+                    <div className="guided-text">
+                      <strong>צרף מסמכים</strong> (אם יש) ולחץ &quot;שלח&quot;
+                    </div>
+                  </div>
+                </div>
+                <button className="portal-btn-primary" onClick={() => goToStep(4)}>
+                  הגשתי, המשך
+                </button>
+                <button className="portal-btn-secondary" onClick={() => setPortalStep(1)}>
+                  עוד לא נכנסתי, חזרה
+                </button>
+              </>)}
             </div>
           )}
 
@@ -986,6 +1035,77 @@ export default function PortalAgent({ onClose, legalCase, onSaveReference }) {
           }
           .copy-btn:hover {
             background: rgba(217, 119, 6, 0.12);
+          }
+
+          /* === Guided Portal Steps === */
+          .guided-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+          }
+          .guided-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--stone-800, #292524);
+            border: 1px solid var(--stone-700, #44403c);
+            border-radius: 8px;
+          }
+          .guided-step-done {
+            border-color: rgba(22, 163, 74, 0.3);
+            background: rgba(22, 163, 74, 0.06);
+          }
+          .guided-num {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--copper-500, #d97706);
+            color: var(--stone-900, #1c1917);
+            font-weight: 700;
+            font-size: 0.8rem;
+            border-radius: 50%;
+          }
+          .guided-step-done .guided-num {
+            background: var(--status-success, #16a34a);
+            color: white;
+          }
+          .guided-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            padding-top: 0.2rem;
+          }
+          .guided-text strong {
+            font-size: 0.9rem;
+            color: var(--stone-200, #e7e5e4);
+            line-height: 1.4;
+          }
+          .guided-hint {
+            font-size: 0.78rem;
+            color: var(--stone-400, #a8a29e);
+            line-height: 1.4;
+          }
+          .guided-reassure {
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--stone-400, #a8a29e);
+            margin: 0;
+          }
+          .copy-again-btn {
+            background: transparent;
+            border: 1px solid var(--copper-500, #d97706);
+            color: var(--copper-500, #d97706);
+            font-family: 'Heebo', sans-serif;
+            font-weight: 600;
+            font-size: 0.75rem;
+            padding: 0.25em 0.6em;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-inline-start: 0.5rem;
           }
 
           /* === Document Checklist === */

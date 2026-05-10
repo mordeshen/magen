@@ -1135,30 +1135,30 @@ function TermsView() {
 // ─── Chat ──────────────────────────────────────────────────
 
 const HATS = [
-  { id:"magen",   icon:"מ", emoji:"\uD83D\uDEE1", label:"מגן",  name:"מגן", desc:"היועץ האישי שלך — הכל במקום אחד" },
-  { id:"lawyer",  icon:"ד", emoji:"\u2696", label:"דן",  name:"דן", desc:"ייעוץ בזכויות ומשפט" },
-  { id:"social",  icon:"מ", emoji:"\uD83E\uDD1D", label:"מיכל", name:"מיכל", desc:"ניווט בירוקרטיה ושירותים" },
-  { id:"psycho",  icon:"א", emoji:"\uD83D\uDC99", label:"אורי", name:"אורי", desc:"שיחה אישית ותמיכה" },
-  { id:"veteran", icon:"ר", emoji:"\uD83C\uDF96", label:"רועי", name:"רועי", desc:"חכמת ותיקים" },
-  { id:"events",  icon:"ש", emoji:"\uD83C\uDFAF", label:"שירה", name:"שירה", desc:"אירועים ופעילויות" },
+  { id:"magen",   icon:"מ", emoji:"\\uD83D\\uDEE1", label:"שאל הכל",  name:"מגן", desc:"הכי מקיף — לשאלות מורכבות" },
+  { id:"lawyer",  icon:"ז", emoji:"\\u2696", label:"זכויות",  name:"זכויות", desc:"מה מגיע לי, ועדות, ערעורים" },
+  { id:"social",  icon:"ר", emoji:"\\uD83E\\uDD1D", label:"רווחה", name:"רווחה", desc:"בירוקרטיה, טפסים, ניווט" },
+  { id:"psycho",  icon:"נ", emoji:"\\uD83D\\uDC99", label:"נפש", name:"נפש", desc:"מה עובר עליי, תמיכה" },
+  { id:"veteran", icon:"ט", emoji:"\\uD83C\\uDF96", label:"טיפים", name:"טיפים", desc:"חכמת שטח מוותיקים" },
+  { id:"events",  icon:"א", emoji:"\\uD83C\\uDFAF", label:"אירועים", name:"אירועים", desc:"מה קורה, סדנאות, מפגשים" },
 ];
 
 const HAT_GREETINGS = {
-  magen:   "היי, אני מגן\n\nספר לי מה עובר עליך ואני אטפל בהכל — זכויות, בירוקרטיה, תמיכה, הכל במקום אחד.",
-  lawyer:  "היי, אני דן\n\nאני לא עו\"ד, אבל כנראה שאוכל לעזור לך בכל עניין מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
-  social:  "היי, אני מיכל\n\nאני מכירה את כל הבלגן הבירוקרטי מבפנים, ואלווה אותך.\n\nמה הכי לוחץ עליך עכשיו?",
-  psycho:  "היי, אני אורי\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
-  veteran: "היי, אני רועי\n\nעברתי את כל הדרך — ועדות, ערעורים, בירוקרטיה. אשמח לשתף ממה שלמדתי.\n\nאיפה אתה עומד?",
-  events:  "היי, אני שירה\n\nיש אירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
+  magen:   "היי\n\nספר לי מה עובר עליך — זכויות, בירוקרטיה, תמיכה, הכל במקום אחד.",
+  lawyer:  "היי\n\nאני יכול לעזור בכל עניין של זכויות מול משרד הביטחון.\n\nאיפה הדברים עומדים אצלך?",
+  social:  "היי\n\nניווט בבירוקרטיה, טפסים, גורמי טיפול — הכל.\n\nמה הכי לוחץ עליך עכשיו?",
+  psycho:  "היי\n\nהכל כאן סודי — אף אחד לא רואה את השיחה.\n\nמה עובר עליך?",
+  veteran: "היי\n\nטיפים מניסיון אמיתי — ועדות, ערעורים, בירוקרטיה.\n\nאיפה אתה עומד?",
+  events:  "היי\n\nאירועים, סדנאות, טיולים — הרבה בחינם.\n\nבאיזה אזור אתה? מה מעניין אותך?",
 };
 
 const HAT_DETAILS = {
-  magen:   "יועץ אישי שמכיר את המערכת מבפנים. זכויות, ליווי, תמיכה — בלי להעביר אותך בין אנשים.",
-  lawyer:  "מכיר את כל הזכויות מול משרד הביטחון. יעזור לך להבין מה מגיע לך, איך מגישים ומה עושים אם דחו.",
-  social:  "מכירה את כל הבירוקרטיה מבפנים. תלווה אותך בין הגורמים ותעזור שלא תפספס כלום.",
-  psycho:  "פה בשבילך, בלי שיפוט. אפשר לדבר על מה שעובר עליך, על קשיים ביומיום, או סתם לשחרר.",
-  veteran: "עבר את כל הדרך — ועדות, ערעורים, ניירת. ישתף ממה שלמד כדי שתדע מה לצפות.",
-  events:  "תמצא לך אירועים, סדנאות וטיולים — הרבה בחינם. רק תגיד איפה אתה ומה מעניין אותך.",
+  magen:   "הכי מקיף — מטפל בהכל: זכויות, בירוקרטיה, תמיכה, ניווט. לשאלות מורכבות שחוצות תחומים.",
+  lawyer:  "זכויות מול משרד הביטחון. מה מגיע לך, איך מגישים, מה עושים אם דחו.",
+  social:  "ניווט בבירוקרטיה — טפסים, גורמי טיפול, לא לפספס כלום.",
+  psycho:  "פה בשבילך, בלי שיפוט. קשיים ביומיום, לחצים, או סתם לשחרר.",
+  veteran: "טיפים מניסיון אמיתי — ועדות, ערעורים, ניירת. מה לצפות ומה עובד.",
+  events:  "אירועים, סדנאות וטיולים — הרבה בחינם. לפי אזור ותחום עניין.",
 };
 
 const WELCOME_TIPS = [
@@ -1476,6 +1476,7 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const [showFeaturePanel, setShowFeaturePanel] = useState(false);
   const [taskQueue, setTaskQueue] = useState([]);
   const [taskPanelCollapsed, setTaskPanelCollapsed] = useState(true);
+  const [showMagenTip, setShowMagenTip] = useState(true);
   const bottom = useRef(null);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
@@ -1486,6 +1487,12 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
   const msgQueueRef = useRef([]);
   const msgsRef = useRef(msgs);
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+
+  useEffect(() => {
+    if (!showMagenTip) return;
+    const t = setTimeout(() => setShowMagenTip(false), 8000);
+    return () => clearTimeout(t);
+  }, [showMagenTip]);
 
   const isPsycho = hat === "psycho";
   const warmedUpRef = useRef(false);
@@ -2106,9 +2113,14 @@ function Chat({ rights, events, pendingChatPromptRef, onStageUpdate, initialHat,
         {onBack && !(isPsycho && msgs.length > 1) && <button className="back-welcome-btn" onClick={onBack} title="חזרה לבחירת יועץ">←</button>}
         {!(isPsycho && msgs.length > 1) && <span className="hat-label">דבר עם:</span>}
         {HATS.map(h => (
-          <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""} ${h.id==="magen"?"hat-magen":""}`} onClick={() => switchHat(h.id)} title={h.desc}>
+          <button key={h.id} className={`hat-btn ${hat===h.id?"active":""} ${h.id==="events"?"hat-events":""} ${h.id==="magen"?"hat-magen":""}`} onClick={() => { switchHat(h.id); if (h.id === "magen") setShowMagenTip(false); }} title={h.desc}>
             <span className="hat-icon">{h.emoji}</span>
             <span className="hat-name">{h.label}</span>
+            {h.id === "magen" && showMagenTip && (
+              <span className="magen-tip-balloon" onClick={(e) => { e.stopPropagation(); setShowMagenTip(false); }}>
+                הכי מקיף אבל הכי יקר. לשאלה ממוקדת — נסה תחום ספציפי
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -3975,9 +3987,26 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         .city-btn.active { background:rgba(52,211,153,.12); border-color:var(--status-success-light); color:var(--status-success-light); font-weight:700; }
 
         /* Magen hat accent — primary copper */
-        .hat-btn.hat-magen { border-color:rgba(244,162,78,.3); }
+        .hat-btn.hat-magen { border-color:rgba(244,162,78,.3); position:relative; }
         .hat-btn.hat-magen .hat-name { font-weight:700; }
         .hat-btn.active.hat-magen { border-color:var(--accent-primary); background:rgba(244,162,78,.12); color:var(--accent-primary); border-width:2px; }
+
+        .magen-tip-balloon {
+          position:absolute; top:calc(100% + 8px); right:50%; transform:translateX(50%);
+          background:var(--stone-800); color:var(--stone-100); font-size:0.72rem; font-weight:400;
+          padding:6px 10px; border-radius:6px; white-space:nowrap; z-index:100;
+          animation:tipFadeIn 0.3s ease-out, tipFadeOut 0.5s ease-in 7.5s forwards;
+          pointer-events:auto; cursor:pointer; line-height:1.4;
+        }
+        .magen-tip-balloon::before {
+          content:""; position:absolute; bottom:100%; right:50%; transform:translateX(50%);
+          border:5px solid transparent; border-bottom-color:var(--stone-800);
+        }
+        @keyframes tipFadeIn { from { opacity:0; transform:translateX(50%) translateY(4px); } to { opacity:1; transform:translateX(50%) translateY(0); } }
+        @keyframes tipFadeOut { from { opacity:1; } to { opacity:0; } }
+        @media (prefers-reduced-motion: reduce) {
+          .magen-tip-balloon { animation:none; }
+        }
 
         /* Events hat accent */
         .hat-btn.active.hat-events { border-color:var(--status-success-light); background:rgba(52,211,153,.08); color:var(--status-success-light); }

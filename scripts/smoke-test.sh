@@ -169,6 +169,40 @@ for f in "components/AgentChoiceModal.jsx" "components/WalkthroughTour.jsx" "lib
   fi
 done
 
+# ── 13. Directives Knowledge Pipeline (/api/ask) ──
+echo ""
+echo "[13] Directives Pipeline (/api/ask)"
+# Non-streaming — should return JSON
+ASK_BODY=$(curl -s --max-time 45 -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"question":"מה מגיע לנכה 50 אחוז?"}' "$BASE/api/ask")
+ASK_HAS_ANSWER=$(echo "$ASK_BODY" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); process.exit(d.answer && d.answer.length>10 ? 0 : 1)" 2>/dev/null && echo "yes" || echo "no")
+if [ "$ASK_HAS_ANSWER" = "yes" ]; then
+  pass "/api/ask מחזיר תשובה"
+else
+  STATUS=$(echo "$ASK_BODY" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.error||'no error')" 2>/dev/null)
+  fail "/api/ask — $STATUS"
+fi
+
+# Streaming — should return SSE with thinking steps
+ASK_STREAM=$(curl -s -N --max-time 45 -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"question":"רכב רפואי לנכה","stream":true}' "$BASE/api/ask" | head -5)
+if echo "$ASK_STREAM" | grep -q '"type":"thinking"'; then
+  pass "/api/ask streaming — שלבי חשיבה מוצגים"
+else
+  fail "/api/ask streaming — לא קיבלתי thinking events"
+fi
+
+# Pipeline files exist
+for f in "pages/api/ask.js" "pages/api/lib/directives-understanding.js" "pages/api/lib/directives-retrieval.js" "pages/api/lib/directives-synthesis.js" "pages/api/lib/directives-cache.js"; do
+  if [ -f "$f" ]; then
+    pass "$f קיים"
+  else
+    fail "חסר $f"
+  fi
+done
+
 # ── סיכום ──
 echo ""
 echo "─────────────────────────────────────────"

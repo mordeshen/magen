@@ -114,26 +114,37 @@ export default function AccessibilityWidget() {
       <style jsx>{`
         .a11y-toggle {
           position: fixed;
-          bottom: 80px;
-          inset-inline-start: 16px;
-          z-index: 9999;
-          width: 44px; height: 44px;
+          bottom: calc(clamp(1rem, 4vw, 1.5rem) + 56px + 14px);
+          inset-inline-start: calc(clamp(1rem, 4vw, 1.5rem) + 8px);
+          z-index: 901;
+          width: 40px; height: 40px;
           border-radius: 50%;
           background: var(--stone-800, #292524);
-          border: 2px solid var(--copper-500, #d97706);
+          border: 1px solid var(--stone-600, #57534e);
           color: var(--copper-400, #e09f3e);
           cursor: pointer;
           display: flex; align-items: center; justify-content: center;
-          transition: background 0.15s ease;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+          transition: background 0.15s ease, border-color 0.15s ease;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.35);
         }
-        .a11y-toggle:hover { background: var(--stone-700, #44403c); }
+        .a11y-toggle:hover {
+          background: var(--stone-700, #44403c);
+          border-color: var(--copper-500, #d97706);
+        }
         .a11y-toggle:focus-visible { outline: 3px solid var(--copper-500); outline-offset: 2px; }
+        @media (max-width: 480px) {
+          .a11y-toggle {
+            bottom: calc(clamp(1rem, 4vw, 1.5rem) + 50px + 12px);
+            inset-inline-start: calc(clamp(1rem, 4vw, 1.5rem) + 7px);
+            width: 36px; height: 36px;
+          }
+          .a11y-toggle svg { width: 18px; height: 18px; }
+        }
 
         .a11y-panel {
           position: fixed;
-          bottom: 132px;
-          inset-inline-start: 16px;
+          bottom: calc(clamp(1rem, 4vw, 1.5rem) + 56px + 14px + 48px);
+          inset-inline-start: clamp(1rem, 4vw, 1.5rem);
           z-index: 9999;
           width: 280px;
           background: var(--stone-900, #1c1917);

@@ -152,11 +152,13 @@ export default function WhatsAppButton() {
           display: flex;
           align-items: center;
           justify-content: center;
+          box-shadow: 0 4px 16px rgba(37, 211, 102, 0.25), 0 2px 4px rgba(0,0,0,0.3);
           transition: transform var(--duration-fast) var(--ease-out-quad),
                       box-shadow var(--duration-fast) var(--ease-out-quad);
         }
         .wa-fab:hover {
           transform: translateY(-2px);
+          box-shadow: 0 6px 24px rgba(37, 211, 102, 0.35), 0 2px 6px rgba(0,0,0,0.3);
         }
         .wa-fab:focus-visible {
           outline: 2px solid var(--copper-500);
@@ -164,6 +166,16 @@ export default function WhatsAppButton() {
         }
         .wa-fab:active {
           transform: translateY(0);
+        }
+        @media (max-width: 480px) {
+          .wa-fab {
+            width: 50px;
+            height: 50px;
+          }
+          .wa-fab .wa-fab__icon {
+            width: 24px;
+            height: 24px;
+          }
         }
 
         /* Pulse animation — only on first load */

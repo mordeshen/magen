@@ -303,17 +303,28 @@ function SidebarProfile({ rights, onShowUnstarted, mini, onFeedback, onTerms, on
               <div className="progress-label">זכויות שבדקת: {completedRights}/{totalRights}</div>
               <div className="progress-bar"><div className="progress-fill" style={{ width: `${progressPct}%` }}/></div>
             </div>
-            {notStarted > 0 && <button className="nudge nudge-btn" onClick={() => { setPopupOpen(false); onShowUnstarted(); }}>יש זכויות שאולי מתאימות לך →</button>}
+            {notStarted > 0 && <button className="nudge nudge-btn" onClick={() => { setPopupOpen(false); onShowUnstarted(); }}>יש זכויות שאולי מתאימות לך ←</button>}
+
             <div className="sb-popup-links">
-              <button className="sb-popup-link" onClick={toggleProfilePanel}>הגדרות פרופיל</button>
-              <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">האזור האישי שלי</a>
-              <button className="sb-popup-link sb-agent-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-browser-agent")); }}>סוכן — הגשת פנייה לאגף השיקום</button>
-              <button className="sb-popup-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
+              <button className="sb-popup-link" onClick={toggleProfilePanel}>
+                <span className="sb-popup-link-icon">⚙</span>הגדרות פרופיל
+              </button>
+              <a href="https://shikum.mod.gov.il" target="_blank" rel="noopener noreferrer" className="sb-popup-link">
+                <span className="sb-popup-link-icon">🏛</span>האזור האישי שלי
+              </a>
+              <button className="sb-popup-link sb-agent-btn" onClick={() => { setPopupOpen(false); if (typeof window !== "undefined") window.dispatchEvent(new Event("open-browser-agent")); }}>
+                <span className="sb-popup-link-icon">📋</span>סוכן — הגשת פנייה
+              </button>
             </div>
-            <div className="sb-popup-actions">
+
+            <div className="sb-popup-footer">
               <a href="/pricing" className="sb-popup-link sb-upgrade-btn">מסלולים ומחירים</a>
+              <div className="sb-popup-footer-row">
+                <button className="sb-popup-link sb-terms-link" onClick={() => { setPopupOpen(false); onTerms(); }}>תנאי שימוש</button>
+                <span className="sb-popup-sep">·</span>
+                <button className="signout-link" onClick={signOut}>התנתק</button>
+              </div>
             </div>
-            <button className="signout-link" onClick={signOut}>התנתק</button>
           </div>
         )}
       </div>
@@ -1135,12 +1146,12 @@ function TermsView() {
 // ─── Chat ──────────────────────────────────────────────────
 
 const HATS = [
-  { id:"magen",   icon:"מ", emoji:"\\uD83D\\uDEE1", label:"שאל הכל",  name:"מגן", desc:"הכי מקיף — לשאלות מורכבות" },
-  { id:"lawyer",  icon:"ז", emoji:"\\u2696", label:"זכויות",  name:"זכויות", desc:"מה מגיע לי, ועדות, ערעורים" },
-  { id:"social",  icon:"ר", emoji:"\\uD83E\\uDD1D", label:"רווחה", name:"רווחה", desc:"בירוקרטיה, טפסים, ניווט" },
-  { id:"psycho",  icon:"נ", emoji:"\\uD83D\\uDC99", label:"נפש", name:"נפש", desc:"מה עובר עליי, תמיכה" },
-  { id:"veteran", icon:"ט", emoji:"\\uD83C\\uDF96", label:"טיפים", name:"טיפים", desc:"חכמת שטח מוותיקים" },
-  { id:"events",  icon:"א", emoji:"\\uD83C\\uDFAF", label:"אירועים", name:"אירועים", desc:"מה קורה, סדנאות, מפגשים" },
+  { id:"magen",   icon:"מ", emoji:"🛡️", label:"שאל הכל",  name:"מגן", desc:"הכי מקיף — לשאלות מורכבות" },
+  { id:"lawyer",  icon:"ז", emoji:"⚖️", label:"זכויות",  name:"זכויות", desc:"מה מגיע לי, ועדות, ערעורים" },
+  { id:"social",  icon:"ר", emoji:"🤝", label:"רווחה", name:"רווחה", desc:"בירוקרטיה, טפסים, ניווט" },
+  { id:"psycho",  icon:"נ", emoji:"💙", label:"נפש", name:"נפש", desc:"מה עובר עליי, תמיכה" },
+  { id:"veteran", icon:"ט", emoji:"🎖️", label:"טיפים", name:"טיפים", desc:"חכמת שטח מוותיקים" },
+  { id:"events",  icon:"א", emoji:"🎯", label:"אירועים", name:"אירועים", desc:"מה קורה, סדנאות, מפגשים" },
 ];
 
 const HAT_GREETINGS = {
@@ -3272,20 +3283,24 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         /* ── Sidebar Popup ── */
         .sb-popup {
           position:absolute; left:0; top:calc(100% + 10px);
-          background:var(--surface-card); border:1px solid var(--border-default); border-radius:8px;
-          padding:18px 20px; min-width:260px; z-index:9999;
+          background:var(--surface-card); border:1px solid var(--border-default); border-radius:10px;
+          padding:20px; min-width:280px; z-index:9999;
           box-shadow:0 8px 32px rgba(0,0,0,.4); animation:fadeIn .15s ease;
         }
-        .sb-popup-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-        .sb-popup-links { display:flex; flex-direction:column; gap:2px; margin-top:12px; border-top:1px solid var(--border-default); padding-top:10px; }
+        .sb-popup-header { display:flex; align-items:center; gap:12px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border-default); }
+        .sb-popup-links { display:flex; flex-direction:column; gap:2px; margin-top:14px; border-top:1px solid var(--border-default); padding-top:12px; }
         .sb-popup-link {
-          display:block; padding:8px 10px; border-radius:8px; font-size:13px; color:var(--text-secondary);
+          display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px; font-size:13px; color:var(--text-secondary);
           text-decoration:none; background:none; border:none; font-family:'Heebo',sans-serif;
-          cursor:pointer; text-align:right; transition:all .15s ease;
+          cursor:pointer; text-align:right; transition:all .15s ease; width:100%;
         }
         .sb-popup-link:hover { background:rgba(244,162,78,.06); color:var(--stone-300); }
-        .sb-popup-actions { margin-top:8px; border-top:1px solid var(--border-default); padding-top:10px; display:flex; flex-direction:column; gap:2px; }
-        .sb-upgrade-btn { color:var(--copper-500); font-weight:600; }
+        .sb-popup-link-icon { font-size:15px; opacity:.7; flex-shrink:0; width:20px; text-align:center; }
+        .sb-popup-footer { margin-top:10px; border-top:1px solid var(--border-default); padding-top:12px; display:flex; flex-direction:column; gap:4px; }
+        .sb-popup-footer-row { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px; }
+        .sb-popup-sep { color:var(--stone-600); font-size:12px; }
+        .sb-terms-link { font-size:12px !important; padding:4px 6px !important; }
+        .sb-upgrade-btn { color:var(--copper-500); font-weight:600; justify-content:center; }
         .sb-upgrade-btn:hover { background:rgba(217,119,6,.1); color:var(--copper-400); }
         .sb-agent-btn { color:var(--olive-700, #4a5c3e); font-weight:600; }
         .sb-agent-btn:hover { background:rgba(74,92,62,.1); color:var(--olive-400, #8fa677); }
@@ -3338,13 +3353,13 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           border:1px solid var(--border-default,#44403c);
         }
         .sb-popup-detail { font-size:12px; color:var(--text-secondary); margin-top:2px; }
-        .sb-popup-status { font-size:12.5px; color:var(--text-secondary); padding:6px 0; border-bottom:1px solid var(--border-default); margin-bottom:4px; }
-        .sb-popup-stats { display:flex; gap:8px; margin:10px 0 6px; }
-        .sb-popup-stat { flex:1; text-align:center; background:var(--stone-950); border-radius:8px; padding:8px 4px; }
-        .sb-popup-stat-num { display:block; font-size:18px; font-weight:900; color:var(--text-secondary); }
+        .sb-popup-status { font-size:12.5px; color:var(--text-secondary); padding:6px 0; margin-bottom:4px; }
+        .sb-popup-stats { display:flex; gap:8px; margin:8px 0 10px; }
+        .sb-popup-stat { flex:1; text-align:center; background:var(--stone-950); border:1px solid var(--border-default); border-radius:8px; padding:10px 6px 8px; }
+        .sb-popup-stat-num { display:block; font-size:20px; font-weight:900; color:var(--text-secondary); font-family:'IBM Plex Mono',monospace; }
         .sb-popup-stat-num.done { color:var(--status-success-light); }
         .sb-popup-stat-num.prog { color:var(--accent-primary); }
-        .sb-popup-stat-label { font-size:10px; color:var(--text-muted); }
+        .sb-popup-stat-label { font-size:11px; color:var(--text-muted); margin-top:2px; display:block; }
 
         /* ── Sidebar Profile ── */
         .sb-profile-zone { padding:14px 0; border-top:1px solid var(--border-default); border-bottom:1px solid var(--border-default); margin-bottom:10px; width:100%; }
@@ -3390,9 +3405,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
         }
         .nudge-btn:hover { color:var(--copper-600); }
         .signout-link {
-          background:none; border:none; color:var(--text-secondary); font-family:'Heebo',sans-serif;
-          font-size:12px; cursor:pointer; margin-top:8px; padding:0;
-          text-decoration:underline; text-underline-offset:2px;
+          background:none; border:none; color:var(--stone-500); font-family:'Heebo',sans-serif;
+          font-size:12px; cursor:pointer; padding:4px 6px;
         }
         .signout-link:hover { color:var(--status-urgent); }
 
@@ -4859,8 +4873,8 @@ export default function Home({ rights, updates, events, legalStages, committeePr
           }
           .mobile-menu-close:hover { color:var(--text-primary); background:rgba(255,255,255,.05); }
 
-          .mobile-nav { display:flex; flex-direction:column; gap:4px; margin-bottom:16px; }
-          .mobile-nav .nav-btn { font-size:14px; padding:12px 14px; width:auto; height:auto; justify-content:flex-start; gap:10px; }
+          .mobile-nav { display:flex; flex-direction:column; gap:4px; margin-bottom:16px; direction:rtl; }
+          .mobile-nav .nav-btn { font-size:14px; padding:12px 14px; width:100%; height:auto; justify-content:flex-start; gap:10px; }
           .mobile-nav .nav-lbl { display:inline; }
           .mobile-nav .nav-btn::after { display:none; }
           .mobile-nav .nav-badge-dot { display:none; }

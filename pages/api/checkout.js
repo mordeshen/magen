@@ -1,5 +1,6 @@
 // POST /api/checkout — יוצר pending_purchase, קורא ל-Make.com webhook שיוצר Grow payment link
 import { getAdminSupabase, getUserSupabase } from "./lib/supabase-admin";
+import { alertDev } from "./lib/alert";
 
 // Plan prices fetched from Supabase subscription_plans table
 
@@ -77,6 +78,9 @@ export default async function handler(req, res) {
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://magen.app").replace(/\/+$/, "");
 
+  const makeController = new AbortController();
+  const makeTimeout = setTimeout(() => makeController.abort(), 10000);
+
   try {
     const makeRes = await fetch(makeUrl, {
       method: "POST",
@@ -84,6 +88,7 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
         "x-make-apikey": makeKey,
       },
+      signal: makeController.signal,
       body: JSON.stringify({
         fullName: user.user_metadata?.full_name || user.email,
         phone: user.user_metadata?.phone || user.phone || "0500000000",
@@ -95,6 +100,8 @@ export default async function handler(req, res) {
         failureUrl: `${siteUrl}/?payment=failed`,
       }),
     });
+
+    clearTimeout(makeTimeout);
 
     if (!makeRes.ok) {
       const errText = await makeRes.text();
@@ -123,6 +130,10 @@ export default async function handler(req, res) {
     res.json({ paymentUrl });
   } catch (err) {
     console.error("[checkout] error:", err.message || err);
+    alertDev("checkout", `כשל ביצירת תשלום`, {
+      error: err.message,
+      extra: `user: ${user.email}, plan: ${planId}, pending: ${pending.id}`,
+    }).catch(() => {});
     res.status(500).json({ error: "payment_error", message: "שגיאה ביצירת התשלום" });
   }
 }

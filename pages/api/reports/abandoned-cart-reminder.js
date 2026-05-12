@@ -90,8 +90,7 @@ export default async function handler(req, res) {
   }
 
   if (!RESEND_API_KEY) {
-    await alertDev("abandoned-cart", "RESEND_API_KEY לא מוגדר");
-    return res.status(500).json({ error: "resend not configured" });
+    return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY not configured" });
   }
 
   const sb = getAdminSupabase();

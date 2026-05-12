@@ -2,6 +2,7 @@
 // Flow: User pays on Grow → Grow notifies Make (Scenario 2) → Make approves → Make calls this endpoint
 // After fulfillment, creates invoice via Morning (Green Invoice) API and sends to user's email
 import { getAdminSupabase } from "../lib/supabase-admin";
+import { alertDev } from "../lib/alert";
 
 const PLAN_NAMES = { one_time: "חד-פעמי", monthly: "חודשי", premium: "פרימיום" };
 
@@ -160,6 +161,9 @@ export default async function handler(req, res) {
 
   if (!pending) {
     console.warn("[webhook] no unfulfilled pending purchase for:", paymentId);
+    alertDev("webhook", `pending_purchase לא נמצא (race condition?)`, {
+      extra: `paymentId: ${paymentId}`,
+    }).catch(() => {});
     return res.status(200).json({ ok: true, not_found: true });
   }
 
@@ -167,13 +171,18 @@ export default async function handler(req, res) {
   const transactionId = payload.transactionId || payload.asmachta || "";
 
   // Mark fulfilled
-  await admin
+  const { error: fulfillErr } = await admin
     .from("pending_purchases")
     .update({
       fulfilled: true,
       gi_doc_id: transactionId || paymentId,
     })
     .eq("id", pending.id);
+
+  if (fulfillErr) {
+    await alertDev("webhook", `כשל בסימון fulfilled`, { error: fulfillErr.message, extra: `pending: ${pending.id}` });
+    return res.status(500).json({ error: "fulfill failed" });
+  }
 
   console.log("[webhook] fulfilled:", pending.id, "plan:", pending.plan_id);
 
@@ -196,7 +205,6 @@ export default async function handler(req, res) {
   }
 
   if (plan_id === "one_time") {
-    // Get current balance to add tokens (not replace)
     const { data: currentSub } = await admin
       .from("user_subscriptions")
       .select("token_balance")
@@ -204,7 +212,7 @@ export default async function handler(req, res) {
       .single();
     const currentBalance = currentSub?.token_balance || 0;
 
-    await admin
+    const { error: creditErr } = await admin
       .from("user_subscriptions")
       .update({
         plan_id: "one_time",
@@ -213,6 +221,10 @@ export default async function handler(req, res) {
       })
       .eq("user_id", user_id);
 
+    if (creditErr) {
+      await alertDev("webhook", `כשל בזיכוי טוקנים`, { error: creditErr.message, extra: `user: ${user_id}, plan: ${plan_id}` });
+    }
+
     await admin.from("token_transactions").insert({
       user_id, amount: 200000, type: "purchase", description: "חד-פעמי — 200K טוקנים",
     });
@@ -220,7 +232,7 @@ export default async function handler(req, res) {
     const end = new Date();
     end.setDate(end.getDate() + 30);
 
-    await admin
+    const { error: subErr } = await admin
       .from("user_subscriptions")
       .update({
         plan_id,
@@ -229,6 +241,10 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", user_id);
+
+    if (subErr) {
+      await alertDev("webhook", `כשל בעדכון מנוי`, { error: subErr.message, extra: `user: ${user_id}, plan: ${plan_id}` });
+    }
 
     await admin.from("token_transactions").insert({
       user_id, amount: 0, type: "purchase",

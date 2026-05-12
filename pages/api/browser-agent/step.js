@@ -57,6 +57,8 @@ export default async function handler(req, res) {
       awaitConfirmation: result.awaitConfirmation,
       done: result.done,
       error: result.error || null,
+      phase: result.phase || null,
+      verification: result.verification || null,
     });
   } catch (e) {
     console.error("[browser-agent] step error:", e);

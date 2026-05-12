@@ -15,6 +15,9 @@ const STATUS_LABELS = {
   waiting_phone: "התחבר כרגיל",
   waiting_otp: "התחבר כרגיל",
   working: "עובד...",
+  "working:navigation": "מנווט באתר...",
+  "working:form_fill": "ממלא טופס...",
+  "working:verification": "בודק תוצאה...",
   awaiting_confirmation: "ממתין לאישור שלך",
   done: "הושלם!",
   error: "שגיאה",
@@ -131,6 +134,9 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       if (d.screenshot) setScreenshot(d.screenshot);
       if (d.message && d.message !== "session not active") addMessage(d.message, "agent");
       if (d.error && d.error !== "session not active") addMessage(d.error, "error");
+      if (d.verification?.referenceNumber) {
+        addMessage(`מספר אסמכתא: ${d.verification.referenceNumber}`, "agent");
+      }
 
       if (!r.ok) {
         setStatus("error");
@@ -140,6 +146,7 @@ export default function BrowserAgentView({ onClose, initialTask }) {
       } else if (d.awaitConfirmation) {
         setStatus("awaiting_confirmation");
       } else {
+        if (d.phase) setStatus(`working:${d.phase}`);
         setTimeout(() => handleStep(), 500);
       }
     } catch {

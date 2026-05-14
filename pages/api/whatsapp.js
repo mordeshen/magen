@@ -11,6 +11,7 @@ import { MODEL_OPUS, MODEL_SONNET, MODEL_HAIKU } from "./lib/models";
 import { fetchRAG } from "./lib/rag";
 import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
+import { classifyAndLogEvent } from "../../lib/conversation-analytics";
 import crypto from "crypto";
 import { fetchUserContext } from "./lib/user-context";
 import { fixKeyboardLayout } from "../../lib/keyboard-unswap.js";
@@ -649,6 +650,7 @@ export default async function handler(req, res) {
       responseTimeMs: 0,
       channel: "whatsapp",
     }).catch(() => {});
+    classifyAndLogEvent(message || "", reply || "", { channel: "whatsapp" }).catch(() => {});
 
     // 6. If not paired, occasionally suggest pairing
     if (!pairing) {

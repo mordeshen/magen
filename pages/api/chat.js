@@ -15,6 +15,7 @@ import { getKnowledgeResponse } from "./lib/knowledge-provider";
 import { fetchRAG } from "./lib/rag";
 import { alertDev } from "./lib/alert";
 import { logChatMetrics, logChatContent, detectCategory, modelShortName } from "../../lib/analytics";
+import { classifyAndLogEvent } from "../../lib/conversation-analytics";
 import { routeMessage } from "../../lib/router/index.js";
 import { fixKeyboardLayout } from "../../lib/keyboard-unswap.js";
 
@@ -1532,6 +1533,7 @@ export default async function handler(req, res) {
             model: modelShortName(MODEL_OPUS), source: "deep_opus",
             usedRag: false, responseTimeMs: Date.now() - analyticsStart,
           });
+          classifyAndLogEvent(lastUserText, deepResult.reply, { channel: "web", responseTimeMs: Date.now() - analyticsStart }).catch(() => {});
 
           const { cleanReply: deepReply, suggestedTasks: deepTasks } = extractTasks(deepResult.reply);
           return res.json({
@@ -1620,6 +1622,7 @@ export default async function handler(req, res) {
           responseTimeMs: Date.now() - analyticsStart,
           channel: "web",
         }).catch(() => {});
+        classifyAndLogEvent(lastUserText, result.reply, { channel: "web", responseTimeMs: Date.now() - analyticsStart }).catch(() => {});
 
         const { cleanReply: magenReply, suggestedTasks: magenTasks } = extractTasks(result.reply);
         return res.json({
@@ -1988,6 +1991,7 @@ export default async function handler(req, res) {
       responseTimeMs: Date.now() - analyticsStart,
       channel: "web",
     }).catch(() => {});
+    classifyAndLogEvent(typeof lastUserMsg === "string" ? lastUserMsg : "", reply, { channel: "web", responseTimeMs: Date.now() - analyticsStart }).catch(() => {});
 
     const { cleanReply: finalReply, suggestedTasks } = extractTasks(reply);
     res.json({ reply: finalReply, extractedMemory, sessionTitle, tokenInfo, activeFeatures: [...activeFeatures], estimatedCost, suggestedTasks, _logId: legacyLogId });
